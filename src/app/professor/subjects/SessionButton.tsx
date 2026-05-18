@@ -14,7 +14,7 @@ export default function SessionButton({ subjectId }: { subjectId: string }) {
     if (res.success) {
       router.push(`/professor/session/${res.sessionId}`)
     } else {
-      alert(res.error)
+      alert(res.error || 'Error desconocido')
       setLoading(false)
     }
   }

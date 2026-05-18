@@ -38,10 +38,10 @@ export default function QRScanner() {
           const result = await registerAttendance(decodedText)
           if (result.success) {
             setStatus('success')
-            setMessage(result.message)
+            setMessage(result.message || 'Asistencia registrada')
           } else {
             setStatus('error')
-            setMessage(result.error)
+            setMessage(result.error || 'Error al registrar')
           }
         } catch (err) {
           setStatus('error')
