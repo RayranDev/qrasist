@@ -3,7 +3,12 @@ import { redirect } from 'next/navigation'
 import QRDisplay from '@/components/qr/QRDisplay'
 import Link from 'next/link'
 
-export default async function ProfessorSessionPage({ params }: { params: { id: string } }) {
+export const dynamic = 'force-dynamic'
+
+export default async function ProfessorSessionPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
+  const resolvedParams = await params
+  const sessionId = resolvedParams.id
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -15,7 +20,7 @@ export default async function ProfessorSessionPage({ params }: { params: { id: s
   const { data: session } = await supabase
     .from('sessions')
     .select('*, subject:subjects(name)')
-    .eq('id', params.id)
+    .eq('id', sessionId)
     .single()
 
   if (!session) {
