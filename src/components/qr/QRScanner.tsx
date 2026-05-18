@@ -91,7 +91,7 @@ export default function QRScanner() {
           </svg>
           <h3 className="text-xl font-bold text-red-600 mb-1">Error de Registro</h3>
           <p className="font-medium text-center text-red-700 mb-6">{message}</p>
-          <button 
+          <button
             onClick={() => setStatus('idle')}
             className="px-6 py-3 bg-red-600 text-white font-medium rounded-xl hover:bg-red-700 transition shadow-sm active:scale-95"
           >
