@@ -72,3 +72,25 @@ export async function deleteUserAccount(userId: string) {
   revalidatePath('/admin/users')
   return { success: true }
 }
+
+export async function updateUserAccount(userId: string, data: { name?: string, password?: string }) {
+  const adminUser = await verifyAdminAccess()
+  if (!adminUser) return { success: false, error: 'Acceso denegado.' }
+
+  if (data.password) {
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      password: data.password
+    })
+    if (authError) return { success: false, error: authError.message }
+  }
+
+  if (data.name) {
+    const { error: profileError } = await supabaseAdmin.from('profiles').update({ name: data.name }).eq('id', userId)
+    // Update metadata as well
+    await supabaseAdmin.auth.admin.updateUserById(userId, { user_metadata: { full_name: data.name } })
+    if (profileError) return { success: false, error: profileError.message }
+  }
+
+  revalidatePath('/admin/users')
+  return { success: true }
+}
