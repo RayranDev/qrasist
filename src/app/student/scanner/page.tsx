@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import QRScanner from '@/components/qr/QRScanner'
 
 export default async function StudentScannerPage() {
@@ -18,6 +19,11 @@ export default async function StudentScannerPage() {
             <h1 className="text-2xl font-bold text-gray-900">Escanear Asistencia</h1>
             <p className="text-gray-500 mt-1 text-sm">Apunta la cámara al código QR del profesor</p>
           </div>
+          <Link href="/student/history" className="p-2 bg-indigo-50 text-indigo-600 rounded-full hover:bg-indigo-100 transition">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </Link>
         </header>
 
         <div className="flex-1 flex flex-col justify-center">
