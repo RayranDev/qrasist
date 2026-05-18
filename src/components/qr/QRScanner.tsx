@@ -1,69 +1,79 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Html5QrcodeScanner } from 'html5-qrcode'
+import { useEffect, useState, useRef } from 'react'
+import { Html5Qrcode } from 'html5-qrcode'
 import { registerAttendance } from '@/lib/actions/attendance'
 
 export default function QRScanner() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [message, setMessage] = useState('')
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null)
 
   useEffect(() => {
-    // Prevenimos inicializar múltiples veces
-    if (status !== 'idle') return;
+    if (status !== 'idle') return
 
-    // Configuración de la cámara
-    const scanner = new Html5QrcodeScanner(
-      'qr-reader',
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      false
-    )
+    const startScanner = async () => {
+      try {
+        html5QrCodeRef.current = new Html5Qrcode('qr-reader')
+        
+        await html5QrCodeRef.current.start(
+          { facingMode: 'environment' }, // Forzar cámara trasera
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+          },
+          async (decodedText) => {
+            // Detener cámara al leer exitosamente
+            if (html5QrCodeRef.current?.isScanning) {
+              await html5QrCodeRef.current.stop()
+            }
+            setStatus('loading')
 
-    scanner.render(
-      async (decodedText) => {
-        // Al escanear exitosamente: detener cámara y procesar
-        scanner.clear()
-        setStatus('loading')
+            const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
+            if (!uuidRegex.test(decodedText)) {
+              setStatus('error')
+              setMessage('QR inválido. Formato no reconocido.')
+              return
+            }
 
-        // Validar si el texto tiene formato UUID
-        const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
-        if (!uuidRegex.test(decodedText)) {
-          setStatus('error')
-          setMessage('QR inválido. Formato no reconocido.')
-          return
-        }
-
-        try {
-          // Enviar token al backend
-          const result = await registerAttendance(decodedText)
-          if (result.success) {
-            setStatus('success')
-            setMessage(result.message || 'Asistencia registrada')
-          } else {
-            setStatus('error')
-            setMessage(result.error || 'Error al registrar')
+            try {
+              const result = await registerAttendance(decodedText)
+              if (result.success) {
+                setStatus('success')
+                setMessage(result.message || 'Asistencia registrada')
+              } else {
+                setStatus('error')
+                setMessage(result.error || 'Error al registrar')
+              }
+            } catch (err) {
+              setStatus('error')
+              setMessage('Fallo de red al registrar.')
+            }
+          },
+          (errorMessage) => {
+            // Ignorar errores de "No se encuentra QR" frame por frame
           }
-        } catch (err) {
-          setStatus('error')
-          setMessage('Fallo de red al registrar. Revisa tu conexión.')
-        }
-      },
-      (error) => {
-        // Ignorar advertencias constantes (como "no se encuentra QR")
+        )
+      } catch (err) {
+        console.error('Error al iniciar la cámara:', err)
       }
-    )
+    }
 
-    // Limpieza al desmontar el componente
+    startScanner()
+
     return () => {
-      scanner.clear().catch(console.error)
+      if (html5QrCodeRef.current?.isScanning) {
+        html5QrCodeRef.current.stop().catch(console.error)
+      }
     }
   }, [status])
 
   return (
     <div className="w-full">
       {status === 'idle' && (
-        <div className="rounded-2xl overflow-hidden border-2 border-indigo-100">
-          <div id="qr-reader" className="w-full bg-white" />
+        <div className="rounded-2xl overflow-hidden border-2 border-indigo-100 bg-black aspect-square flex items-center justify-center">
+          <div id="qr-reader" className="w-full h-full" />
         </div>
       )}
 
