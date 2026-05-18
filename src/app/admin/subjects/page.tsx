@@ -1,5 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
+
+export const dynamic = 'force-dynamic'
 
 export default async function AdminSubjectsPage() {
   const supabase = await createClient()
@@ -13,18 +16,24 @@ export default async function AdminSubjectsPage() {
   const { data: subjects } = await supabase.from('subjects').select('*, professor:profiles(name)')
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
-      <header className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Panel de Administrador</h1>
-          <p className="text-gray-500 mt-1">Gestiona las materias y profesores</p>
-        </div>
-        <form action="/auth/signout" method="post">
-          <button className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition">
-            Cerrar Sesión
-          </button>
-        </form>
-      </header>
+    <div className="min-h-screen bg-[#FAFAFA] p-8">
+      <div className="max-w-6xl mx-auto">
+        <header className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Panel de Administrador</h1>
+            <p className="text-gray-500 mt-1">Gestiona las materias y profesores</p>
+          </div>
+          <div className="flex gap-4 items-center">
+            <Link href="/admin/users" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition">
+              Ver Usuarios
+            </Link>
+            <form action="/auth/signout" method="post">
+              <button className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition">
+                Cerrar Sesión
+              </button>
+            </form>
+          </div>
+        </header>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
         <h2 className="text-xl font-semibold mb-4">Materias Activas</h2>
@@ -42,6 +51,8 @@ export default async function AdminSubjectsPage() {
           ))}
         </div>
       </div>
+      </div>
+    </div>
     </div>
   )
 }

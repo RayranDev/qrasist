@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import SessionButton from './SessionButton'
+import Link from 'next/link'
 
 export default async function ProfessorSubjectsPage() {
   const supabase = await createClient()
@@ -24,11 +25,16 @@ export default async function ProfessorSubjectsPage() {
             <h1 className="text-3xl font-bold text-gray-900">Mis Materias</h1>
             <p className="text-gray-500 mt-1">Selecciona una clase para generar el código QR</p>
           </div>
-          <form action="/auth/signout" method="post">
-            <button className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition">
-              Cerrar Sesión
-            </button>
-          </form>
+          <div className="flex gap-4 items-center">
+            <Link href="/professor/history" className="text-sm font-medium text-indigo-600 hover:text-indigo-700 transition">
+              Ver Historial
+            </Link>
+            <form action="/auth/signout" method="post">
+              <button className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition">
+                Cerrar Sesión
+              </button>
+            </form>
+          </div>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
