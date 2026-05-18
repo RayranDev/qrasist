@@ -83,10 +83,9 @@ export default function HistoryDrillDown({ subjects }: { subjects: any[] }) {
             selectedSubject.sessions.map((session: any) => (
               <div 
                 key={session.id} 
-                onClick={() => setSelectedSession(session)}
-                className="p-5 border-2 border-gray-50 bg-gray-50/50 rounded-2xl hover:border-indigo-300 hover:bg-white cursor-pointer transition flex justify-between items-center group"
+                className="p-5 border-2 border-gray-50 bg-gray-50/50 rounded-2xl hover:border-indigo-300 hover:bg-white transition flex justify-between items-center group relative"
               >
-                <div>
+                <div className="flex-1 cursor-pointer" onClick={() => setSelectedSession(session)}>
                   <h4 className="font-bold text-gray-900 group-hover:text-indigo-600 transition capitalize">
                     {format(new Date(session.date), "EEEE d 'de' MMMM", { locale: es })}
                   </h4>
@@ -95,8 +94,27 @@ export default function HistoryDrillDown({ subjects }: { subjects: any[] }) {
                     {session.attendances?.length || 0} estudiantes
                   </p>
                 </div>
-                <div className="text-gray-300 group-hover:text-indigo-600 transition">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if(confirm('¿Estás seguro de que quieres borrar esta sesión y todas sus asistencias?')) {
+                        const { deleteSession } = await import('@/lib/actions/professorHistory');
+                        const res = await deleteSession(session.id);
+                        if(res.success) {
+                          alert('Sesión borrada correctamente. Actualiza la página para ver los cambios.');
+                          window.location.reload();
+                        } else alert(res.error);
+                      }
+                    }}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" 
+                    title="Borrar Sesión"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  </button>
+                  <div className="text-gray-300 group-hover:text-indigo-600 transition cursor-pointer" onClick={() => setSelectedSession(session)}>
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  </div>
                 </div>
               </div>
             ))

@@ -44,13 +44,20 @@ export default async function AdminSubjectsPage() {
               <div key={sub.id} className="p-4 border border-gray-100 rounded-xl hover:border-indigo-100 transition flex flex-col justify-between">
                 <div>
                   <div className="flex justify-between items-start mb-2 relative">
-                    <span className="px-2 py-1 bg-indigo-50 text-indigo-700 text-xs font-medium rounded-md">
+                    <span className="px-2 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-md">
                       {sub.code}
                     </span>
                     <SubjectActionButtons subject={sub} professors={professors || []} />
                   </div>
-                  <h3 className="font-medium text-gray-900 mb-1">{sub.name}</h3>
-                  <p className="text-sm text-gray-500">Prof. {sub.professor?.name || 'Sin asignar'}</p>
+                  <h3 className="font-bold text-gray-900 mb-1 text-lg">{sub.name}</h3>
+                  <p className="text-sm text-gray-500 font-medium mb-4">Prof. {sub.professor?.name || 'Sin asignar'}</p>
+                  
+                  <Link 
+                    href={`/admin/subjects/${sub.id}/enrollments`}
+                    className="block w-full py-2 bg-gray-50 hover:bg-indigo-50 text-indigo-600 text-center rounded-xl text-sm font-bold transition border border-gray-100 hover:border-indigo-100"
+                  >
+                    Gestionar Estudiantes
+                  </Link>
                 </div>
               </div>
             ))}

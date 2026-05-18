@@ -32,7 +32,17 @@ export async function registerAttendance(qrToken: string) {
     return { success: false, error: 'Este código QR ha expirado. Solicita al profesor que genere uno nuevo.' } // Error 3
   }
 
-  // 4. Intentar registrar la asistencia
+  // 4. Verificar si el estudiante está inscrito en la materia
+  const { data: enrollment } = await supabase
+    .from('enrollments')
+    .select('id')
+    .eq('subject_id', session.subject_id)
+    .eq('student_id', user.id)
+    .maybeSingle()
+
+  const isEnrolled = !!enrollment
+
+  // 5. Intentar registrar la asistencia
   const { error: insertError } = await supabase
     .from('attendances')
     .insert({
@@ -42,11 +52,14 @@ export async function registerAttendance(qrToken: string) {
     })
 
   if (insertError) {
-    // Código de Postgres para violación de restricción única (UNIQUE)
     if (insertError.code === '23505') { 
-      return { success: false, error: 'Ya has registrado tu asistencia para esta clase.' } // Error 4
+      return { success: false, error: 'Ya has registrado tu asistencia para esta clase.' }
     }
-    return { success: false, error: 'Error del servidor. Intenta nuevamente.' } // Error 5
+    return { success: false, error: 'Error del servidor. Intenta nuevamente.' }
+  }
+
+  if (!isEnrolled) {
+    return { success: true, message: 'Se registró tu asistencia, pero no perteneces a este grupo o clase.' }
   }
 
   return { success: true, message: '¡Asistencia registrada correctamente!' }
