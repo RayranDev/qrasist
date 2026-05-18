@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import RoleSelect from './RoleSelect'
+import { CreateUserForm, DeleteUserButton } from './UserComponents'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +38,8 @@ export default async function AdminUsersPage() {
           </div>
         </header>
 
+        <CreateUserForm />
+
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <table className="w-full text-left">
             <thead className="bg-gray-50 border-b border-gray-100">
@@ -43,7 +47,7 @@ export default async function AdminUsersPage() {
                 <th className="px-6 py-4 text-sm font-medium text-gray-500">Nombre</th>
                 <th className="px-6 py-4 text-sm font-medium text-gray-500">ID del Sistema</th>
                 <th className="px-6 py-4 text-sm font-medium text-gray-500">Rol Actual</th>
-                <th className="px-6 py-4 text-sm font-medium text-gray-500 text-right">Estado</th>
+                <th className="px-6 py-4 text-sm font-medium text-gray-500 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -56,16 +60,15 @@ export default async function AdminUsersPage() {
                     {profile.id}
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`px-2.5 py-1 text-xs font-semibold rounded-md ${
-                      profile.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' :
-                      profile.role === 'PROFESSOR' ? 'bg-amber-100 text-amber-700' :
-                      'bg-blue-100 text-blue-700'
-                    }`}>
-                      {profile.role}
-                    </span>
+                    <RoleSelect userId={profile.id} currentRole={profile.role} />
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <span className="text-sm text-emerald-600 font-medium">Activo</span>
+                    <div className="flex justify-end items-center">
+                      <span className="text-sm text-emerald-600 font-medium flex items-center gap-1 mr-4">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 block"></span> Activo
+                      </span>
+                      {user.id !== profile.id && <DeleteUserButton userId={profile.id} />}
+                    </div>
                   </td>
                 </tr>
               ))}
