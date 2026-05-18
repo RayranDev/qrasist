@@ -53,6 +53,5 @@ export default async function AdminSubjectsPage() {
       </div>
       </div>
     </div>
-    </div>
   )
 }
