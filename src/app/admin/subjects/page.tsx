@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { CreateSubjectForm, DeleteSubjectButton } from './SubjectComponents'
+import { CreateSubjectForm, SubjectActionButtons } from './SubjectComponents'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,11 +43,11 @@ export default async function AdminSubjectsPage() {
             {subjects?.map((sub) => (
               <div key={sub.id} className="p-4 border border-gray-100 rounded-xl hover:border-indigo-100 transition flex flex-col justify-between">
                 <div>
-                  <div className="flex justify-between items-start mb-2">
+                  <div className="flex justify-between items-start mb-2 relative">
                     <span className="px-2 py-1 bg-indigo-50 text-indigo-700 text-xs font-medium rounded-md">
                       {sub.code}
                     </span>
-                    <DeleteSubjectButton subjectId={sub.id} />
+                    <SubjectActionButtons subject={sub} professors={professors || []} />
                   </div>
                   <h3 className="font-medium text-gray-900 mb-1">{sub.name}</h3>
                   <p className="text-sm text-gray-500">Prof. {sub.professor?.name || 'Sin asignar'}</p>
