@@ -2,4 +2,4 @@
 -- para añadir el soporte de código estudiantil y evitar homónimos.
 
 ALTER TABLE public.profiles 
-ADD COLUMN IF NOT EXISTS student_code TEXT;
+ADD COLUMN IF NOT EXISTS student_code TEXT UNIQUE;

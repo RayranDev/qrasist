@@ -34,10 +34,10 @@ export async function createUserAccount(formData: FormData) {
   const adminUser = await verifyAdminAccess()
   if (!adminUser) return { success: false, error: 'Acceso denegado.' }
 
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
+  const email = (formData.get('email') as string).trim()
+  const password = (formData.get('password') as string).trim()
   const name = formData.get('name') as string
-  const studentCode = formData.get('student_code') as string
+  const studentCode = (formData.get('student_code') as string).trim()
   const role = formData.get('role') as 'ADMIN' | 'PROFESSOR' | 'STUDENT'
 
   if (!email || !password || !name || !studentCode) return { success: false, error: 'Faltan datos obligatorios.' }
@@ -55,6 +55,9 @@ export async function createUserAccount(formData: FormData) {
   })
 
   if (error) return { success: false, error: error.message }
+
+  // Esperar un poco a que el trigger de Supabase cree el profile
+  await new Promise(resolve => setTimeout(resolve, 500))
 
   // Actualizar el rol y el código (el trigger lo creó con rol STUDENT por defecto)
   await supabaseAdmin.from('profiles').update({ role, student_code: studentCode }).eq('id', data.user.id)

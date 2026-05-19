@@ -4,8 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
 export async function login(formData: FormData) {
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
+  const email = (formData.get('email') as string).trim()
+  const password = (formData.get('password') as string).trim()
 
   const supabase = await createClient()
 
@@ -24,10 +24,10 @@ export async function login(formData: FormData) {
 }
 
 export async function signup(formData: FormData) {
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
+  const email = (formData.get('email') as string).trim()
+  const password = (formData.get('password') as string).trim()
   const name = formData.get('name') as string
-  const studentCode = formData.get('student_code') as string
+  const studentCode = (formData.get('student_code') as string).trim()
 
   const supabase = await createClient()
 
