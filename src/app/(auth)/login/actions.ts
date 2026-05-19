@@ -27,6 +27,7 @@ export async function signup(formData: FormData) {
   const email = formData.get('email') as string
   const password = formData.get('password') as string
   const name = formData.get('name') as string
+  const studentCode = formData.get('student_code') as string
 
   const supabase = await createClient()
 
@@ -36,12 +37,21 @@ export async function signup(formData: FormData) {
     options: {
       data: {
         full_name: name,
+        student_code: studentCode,
       }
     }
   })
 
   if (error) {
     redirect('/login?error=' + encodeURIComponent(error.message))
+  }
+
+  // Esperar un poco a que el trigger de Supabase cree el profile
+  await new Promise(resolve => setTimeout(resolve, 500))
+
+  // Intentar actualizar la tabla pública con el student_code
+  if (data.user) {
+    await supabase.from('profiles').update({ student_code: studentCode }).eq('id', data.user.id)
   }
 
   redirect('/dashboard')

@@ -59,7 +59,7 @@ export async function registerAttendance(qrToken: string) {
   }
 
   if (!isEnrolled) {
-    return { success: true, message: 'Se registró tu asistencia, pero no perteneces a este grupo o clase.' }
+    return { success: true, isGuest: true, message: 'Se registró tu asistencia, pero no perteneces a este grupo o clase.' }
   }
 
   return { success: true, message: '¡Asistencia registrada correctamente!' }

@@ -18,9 +18,15 @@ export default function AuthForm({ error }: { error?: string }) {
 
       <form action={isLogin ? login : signup} className="space-y-5">
         {!isLogin && (
-          <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-            <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider ml-1">Nombre Completo</label>
-            <input required name="name" type="text" className={inputClass} placeholder="Ej. Juan Pérez" />
+          <div className="animate-in fade-in slide-in-from-top-2 duration-300 space-y-5">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider ml-1">Nombre Completo</label>
+              <input required name="name" type="text" className={inputClass} placeholder="Ej. Juan Pérez" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider ml-1">Código Estudiantil</label>
+              <input required name="student_code" type="text" className={inputClass} placeholder="Ej. 202310123" />
+            </div>
           </div>
         )}
 

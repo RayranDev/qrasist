@@ -14,14 +14,36 @@ export default function HistoryDrillDown({ subjects }: { subjects: any[] }) {
     const enrolledAttendances = selectedSession.attendances?.filter((a: any) => enrolledIds.has(a.student_id)) || []
     const guestAttendances = selectedSession.attendances?.filter((a: any) => !enrolledIds.has(a.student_id)) || []
 
+    const exportToCSV = () => {
+      const rows = [
+        ['Nombre Completo', 'Codigo Estudiantil', 'Fecha de Registro', 'Hora Exacta', 'Tipo de Asistente']
+      ]
+      enrolledAttendances.forEach((a: any) => {
+        const d = new Date(a.scanned_at)
+        rows.push([a.student?.name || 'Desconocido', a.student?.student_code || 'N/A', format(d, 'dd/MM/yyyy'), format(d, 'hh:mm a'), 'Regular'])
+      })
+      guestAttendances.forEach((a: any) => {
+        const d = new Date(a.scanned_at)
+        rows.push([a.student?.name || 'Desconocido', a.student?.student_code || 'N/A', format(d, 'dd/MM/yyyy'), format(d, 'hh:mm a'), 'Invitado'])
+      })
+      const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n")
+      const encodedUri = encodeURI(csvContent)
+      const link = document.createElement("a")
+      link.setAttribute("href", encodedUri)
+      link.setAttribute("download", `asistencia_${selectedSubject.code}_${format(new Date(selectedSession.date), 'dd-MM-yyyy')}.csv`)
+      document.body.appendChild(link)
+      link.click()
+    }
+
     const renderTable = (attendances: any[], emptyMessage: string) => (
-      <div className="overflow-hidden rounded-2xl border border-gray-100 mb-8">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto rounded-2xl border border-gray-100 mb-8">
+        <table className="w-full text-left text-sm min-w-[600px]">
           <thead className="bg-gray-50/80">
             <tr>
-              <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Nombre del Estudiante</th>
-              <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Fecha de Registro</th>
-              <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs text-right">Hora Exacta</th>
+              <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Estudiante</th>
+              <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Código</th>
+              <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Fecha</th>
+              <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs text-right">Hora</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -34,6 +56,9 @@ export default function HistoryDrillDown({ subjects }: { subjects: any[] }) {
                       <div className="w-2 h-2 bg-emerald-400 rounded-full shadow-sm shadow-emerald-200"></div>
                       {att.student?.name}
                     </td>
+                    <td className="px-6 py-4 text-gray-600 font-mono text-xs font-bold">
+                      {att.student?.student_code || '---'}
+                    </td>
                     <td className="px-6 py-4 text-gray-500 font-medium">
                       {format(dateObj, "dd/MM/yyyy")}
                     </td>
@@ -45,7 +70,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: any[] }) {
               })
             ) : (
               <tr>
-                <td colSpan={3} className="px-6 py-8 text-center text-gray-500 italic">{emptyMessage}</td>
+                <td colSpan={4} className="px-6 py-8 text-center text-gray-500 italic">{emptyMessage}</td>
               </tr>
             )}
           </tbody>
@@ -55,16 +80,25 @@ export default function HistoryDrillDown({ subjects }: { subjects: any[] }) {
 
     return (
       <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
-        <div className="flex items-center gap-4 mb-8">
-          <button onClick={() => setSelectedSession(null)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition font-medium text-sm flex items-center gap-1">
-            ← Volver a Fechas
-          </button>
-          <div className="pl-4 border-l-2 border-gray-100">
-            <h3 className="text-xl font-bold text-gray-900">
-              Clase del {format(new Date(selectedSession.date), "EEEE d 'de' MMMM", { locale: es })}
-            </h3>
-            <p className="text-sm text-indigo-600 font-semibold">{selectedSubject?.name}</p>
+        <div className="flex justify-between items-start md:items-center flex-col md:flex-row gap-4 mb-8">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setSelectedSession(null)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition font-medium text-sm flex items-center gap-1">
+              ← Volver
+            </button>
+            <div className="pl-4 border-l-2 border-gray-100">
+              <h3 className="text-xl font-bold text-gray-900">
+                Clase del {format(new Date(selectedSession.date), "EEEE d 'de' MMMM", { locale: es })}
+              </h3>
+              <p className="text-sm text-indigo-600 font-semibold">{selectedSubject?.name}</p>
+            </div>
           </div>
+          <button 
+            onClick={exportToCSV}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold text-sm rounded-xl transition"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+            Exportar CSV
+          </button>
         </div>
 
         <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">

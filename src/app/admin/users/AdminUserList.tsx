@@ -23,11 +23,12 @@ export default function AdminUserList({ initialUsers, currentUser }: { initialUs
         <button onClick={() => setFilter('STUDENT')} className={`px-4 py-2 rounded-xl text-sm font-bold transition ${filter === 'STUDENT' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-blue-50'}`}>Estudiantes</button>
       </div>
 
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-        <table className="w-full text-left">
+      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-x-auto">
+        <table className="w-full text-left min-w-[700px]">
           <thead className="bg-gray-50/80 border-b border-gray-100">
             <tr>
               <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Usuario</th>
+              <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Código (ID)</th>
               <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Último Ingreso</th>
               <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Rol Actual</th>
               <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Acciones</th>
@@ -40,6 +41,9 @@ export default function AdminUserList({ initialUsers, currentUser }: { initialUs
                   <td className="px-6 py-4">
                     <div className="font-bold text-gray-900">{profile.name}</div>
                     <div className="text-xs text-gray-500 font-medium">{profile.email}</div>
+                  </td>
+                  <td className="px-6 py-4 font-mono text-xs font-bold text-gray-600">
+                    {profile.student_code || '---'}
                   </td>
                   <td className="px-6 py-4">
                     {profile.last_sign_in_at ? (
@@ -62,7 +66,7 @@ export default function AdminUserList({ initialUsers, currentUser }: { initialUs
               ))
             ) : (
               <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-gray-500 italic">No hay usuarios con este rol.</td>
+                <td colSpan={5} className="px-6 py-8 text-center text-gray-500 italic">No hay usuarios con este rol.</td>
               </tr>
             )}
           </tbody>
