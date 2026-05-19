@@ -10,9 +10,52 @@ export default function HistoryDrillDown({ subjects }: { subjects: any[] }) {
 
   // Nivel 3: Detalle de Asistencia de una Sesión específica
   if (selectedSession) {
+    const enrolledIds = new Set(selectedSubject.enrollments?.map((e: any) => e.student_id) || [])
+    const enrolledAttendances = selectedSession.attendances?.filter((a: any) => enrolledIds.has(a.student_id)) || []
+    const guestAttendances = selectedSession.attendances?.filter((a: any) => !enrolledIds.has(a.student_id)) || []
+
+    const renderTable = (attendances: any[], emptyMessage: string) => (
+      <div className="overflow-hidden rounded-2xl border border-gray-100 mb-8">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-gray-50/80">
+            <tr>
+              <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Nombre del Estudiante</th>
+              <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Fecha de Registro</th>
+              <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs text-right">Hora Exacta</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {attendances && attendances.length > 0 ? (
+              attendances.map((att: any) => {
+                const dateObj = new Date(att.scanned_at)
+                return (
+                  <tr key={att.id} className="hover:bg-gray-50/50 transition">
+                    <td className="px-6 py-4 font-bold text-gray-900 flex items-center gap-2.5">
+                      <div className="w-2 h-2 bg-emerald-400 rounded-full shadow-sm shadow-emerald-200"></div>
+                      {att.student?.name}
+                    </td>
+                    <td className="px-6 py-4 text-gray-500 font-medium">
+                      {format(dateObj, "dd/MM/yyyy")}
+                    </td>
+                    <td className="px-6 py-4 text-gray-600 font-mono text-right">
+                      {format(dateObj, "hh:mm a")}
+                    </td>
+                  </tr>
+                )
+              })
+            ) : (
+              <tr>
+                <td colSpan={3} className="px-6 py-8 text-center text-gray-500 italic">{emptyMessage}</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    )
+
     return (
       <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center gap-4 mb-8">
           <button onClick={() => setSelectedSession(null)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition font-medium text-sm flex items-center gap-1">
             ← Volver a Fechas
           </button>
@@ -24,42 +67,17 @@ export default function HistoryDrillDown({ subjects }: { subjects: any[] }) {
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-gray-100">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50/80">
-              <tr>
-                <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Nombre del Estudiante</th>
-                <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Fecha de Registro</th>
-                <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs text-right">Hora Exacta</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {selectedSession.attendances && selectedSession.attendances.length > 0 ? (
-                selectedSession.attendances.map((att: any) => {
-                  const dateObj = new Date(att.scanned_at)
-                  return (
-                    <tr key={att.id} className="hover:bg-gray-50/50 transition">
-                      <td className="px-6 py-4 font-bold text-gray-900 flex items-center gap-2.5">
-                        <div className="w-2 h-2 bg-emerald-400 rounded-full shadow-sm shadow-emerald-200"></div>
-                        {att.student?.name}
-                      </td>
-                      <td className="px-6 py-4 text-gray-500 font-medium">
-                        {format(dateObj, "dd/MM/yyyy")}
-                      </td>
-                      <td className="px-6 py-4 text-gray-600 font-mono text-right">
-                        {format(dateObj, "hh:mm a")}
-                      </td>
-                    </tr>
-                  )
-                })
-              ) : (
-                <tr>
-                  <td colSpan={3} className="px-6 py-12 text-center text-gray-500 italic">No hay registros de asistencia para esta clase.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+          <span className="w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs">{enrolledAttendances.length}</span>
+          Estudiantes Regulares (Inscritos)
+        </h4>
+        {renderTable(enrolledAttendances, "Ningún estudiante inscrito registró asistencia.")}
+
+        <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+          <span className="w-6 h-6 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center text-xs">{guestAttendances.length}</span>
+          Invitados (No Inscritos)
+        </h4>
+        {renderTable(guestAttendances, "No hubo invitados en esta clase.")}
       </div>
     )
   }

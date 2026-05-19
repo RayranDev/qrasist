@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase/adminClient'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import RoleSelect from './RoleSelect'
-import { CreateUserForm, ActionButtons } from './UserComponents'
+import AdminUserList from './AdminUserList'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,10 +12,23 @@ export default async function AdminUsersPage() {
 
   if (!user) redirect('/login')
 
+  // Obtener perfiles
   const { data: profiles } = await supabase
     .from('profiles')
     .select('*')
-    .order('role', { ascending: true })
+
+  // Obtener datos de autenticación (emails, last_sign_in)
+  const { data: authData } = await supabaseAdmin.auth.admin.listUsers()
+
+  // Combinar datos
+  const mergedUsers = profiles?.map(profile => {
+    const authUser = authData?.users.find(u => u.id === profile.id)
+    return {
+      ...profile,
+      email: authUser?.email || 'Sin correo',
+      last_sign_in_at: authUser?.last_sign_in_at || null
+    }
+  }).sort((a, b) => a.role.localeCompare(b.role)) || []
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] p-8">
@@ -37,43 +50,7 @@ export default async function AdminUsersPage() {
           </div>
         </header>
 
-        <CreateUserForm />
-
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50/80 border-b border-gray-100">
-              <tr>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Nombre</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">ID del Sistema</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Rol Actual</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {profiles?.map((profile: any) => (
-                <tr key={profile.id} className="hover:bg-gray-50/50 transition">
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-gray-900">{profile.name}</div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 font-mono text-xs">
-                    {profile.id}
-                  </td>
-                  <td className="px-6 py-4">
-                    <RoleSelect userId={profile.id} currentRole={profile.role} />
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex justify-end items-center gap-4">
-                      <span className="text-xs text-emerald-600 font-bold flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-md">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 block"></span> Activo
-                      </span>
-                      {user.id !== profile.id && <ActionButtons userId={profile.id} currentName={profile.name} />}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <AdminUserList initialUsers={mergedUsers} currentUser={user} />
       </div>
     </div>
   )

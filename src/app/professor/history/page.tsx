@@ -20,6 +20,9 @@ export default async function ProfessorHistoryPage() {
       id,
       name,
       code,
+      enrollments (
+        student_id
+      ),
       sessions (
         id,
         date,
@@ -27,6 +30,7 @@ export default async function ProfessorHistoryPage() {
         attendances (
           id,
           scanned_at,
+          student_id,
           student:profiles (
             name
           )
