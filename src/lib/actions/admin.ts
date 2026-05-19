@@ -37,22 +37,27 @@ export async function createUserAccount(formData: FormData) {
   const email = formData.get('email') as string
   const password = formData.get('password') as string
   const name = formData.get('name') as string
+  const studentCode = formData.get('student_code') as string
   const role = formData.get('role') as 'ADMIN' | 'PROFESSOR' | 'STUDENT'
 
-  if (!email || !password || !name) return { success: false, error: 'Faltan datos.' }
+  if (!email || !password || !name || !studentCode) return { success: false, error: 'Faltan datos obligatorios.' }
+
+  // Verificar que el student_code no exista (para evitar que se cree en Auth y luego falle en Profiles)
+  const { data: existingCode } = await supabaseAdmin.from('profiles').select('id').eq('student_code', studentCode).maybeSingle()
+  if (existingCode) return { success: false, error: 'Ese código/ID institucional ya está registrado por otro usuario.' }
 
   // Crear usuario usando la API Admin (GoTrue)
   const { data, error } = await supabaseAdmin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
-    user_metadata: { full_name: name }
+    user_metadata: { full_name: name, student_code: studentCode }
   })
 
   if (error) return { success: false, error: error.message }
 
-  // Actualizar el rol (el trigger lo creó como STUDENT por defecto)
-  await supabaseAdmin.from('profiles').update({ role }).eq('id', data.user.id)
+  // Actualizar el rol y el código (el trigger lo creó con rol STUDENT por defecto)
+  await supabaseAdmin.from('profiles').update({ role, student_code: studentCode }).eq('id', data.user.id)
 
   revalidatePath('/admin/users')
   return { success: true }
@@ -73,9 +78,15 @@ export async function deleteUserAccount(userId: string) {
   return { success: true }
 }
 
-export async function updateUserAccount(userId: string, data: { name?: string, password?: string }) {
+export async function updateUserAccount(userId: string, data: { name?: string, password?: string, student_code?: string }) {
   const adminUser = await verifyAdminAccess()
   if (!adminUser) return { success: false, error: 'Acceso denegado.' }
+
+  // Verificar unicidad del student_code
+  if (data.student_code) {
+    const { data: existingCode } = await supabaseAdmin.from('profiles').select('id').eq('student_code', data.student_code).neq('id', userId).maybeSingle()
+    if (existingCode) return { success: false, error: 'Ese código/ID institucional ya pertenece a otro usuario.' }
+  }
 
   if (data.password) {
     const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
@@ -84,10 +95,22 @@ export async function updateUserAccount(userId: string, data: { name?: string, p
     if (authError) return { success: false, error: authError.message }
   }
 
+  const updates: any = {}
+  const metaUpdates: any = {}
+
   if (data.name) {
-    const { error: profileError } = await supabaseAdmin.from('profiles').update({ name: data.name }).eq('id', userId)
-    // Update metadata as well
-    await supabaseAdmin.auth.admin.updateUserById(userId, { user_metadata: { full_name: data.name } })
+    updates.name = data.name
+    metaUpdates.full_name = data.name
+  }
+  
+  if (data.student_code) {
+    updates.student_code = data.student_code
+    metaUpdates.student_code = data.student_code
+  }
+
+  if (Object.keys(updates).length > 0) {
+    const { error: profileError } = await supabaseAdmin.from('profiles').update(updates).eq('id', userId)
+    await supabaseAdmin.auth.admin.updateUserById(userId, { user_metadata: metaUpdates })
     if (profileError) return { success: false, error: profileError.message }
   }
 

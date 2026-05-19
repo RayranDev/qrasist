@@ -59,7 +59,7 @@ export default function AdminUserList({ initialUsers, currentUser }: { initialUs
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex justify-end items-center gap-4">
-                      {currentUser.id !== profile.id && <ActionButtons userId={profile.id} currentName={profile.name} />}
+                      {currentUser.id !== profile.id && <ActionButtons userId={profile.id} currentName={profile.name} currentCode={profile.student_code} />}
                     </div>
                   </td>
                 </tr>

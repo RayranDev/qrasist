@@ -1,8 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
+import LocalTime from '@/components/LocalTime'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,8 +57,8 @@ export default async function StudentHistoryPage() {
                   <div>
                     <h3 className="font-semibold text-gray-900">{record.session?.subject?.name}</h3>
                     <p className="text-xs text-indigo-600 font-medium mb-1">{record.session?.subject?.code}</p>
-                    <p className="text-xs text-gray-500">
-                      {format(new Date(record.scanned_at), "EEEE d 'de' MMMM, h:mm a", { locale: es })}
+                    <p className="text-xs text-gray-500 capitalize">
+                      <LocalTime date={record.scanned_at} />
                     </p>
                   </div>
                 </div>

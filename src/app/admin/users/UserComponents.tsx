@@ -32,7 +32,7 @@ export function CreateUserForm() {
         <h3 className="text-xl font-bold text-gray-900">Agregar Nuevo Usuario</h3>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-5 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-5 items-end">
         <div>
           <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1 uppercase tracking-wider">Nombre Completo</label>
           <input required name="name" type="text" placeholder="Ej. Juan Pérez" className={inputClass} />
@@ -44,6 +44,10 @@ export function CreateUserForm() {
         <div>
           <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1 uppercase tracking-wider">Contraseña</label>
           <input required name="password" type="text" placeholder="Min 6 caracteres" minLength={6} className={inputClass} />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1 uppercase tracking-wider">Código (ID)</label>
+          <input required name="student_code" type="text" placeholder="Ej. 10234" className={inputClass} />
         </div>
         <div>
           <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1 uppercase tracking-wider">Rol Inicial</label>
@@ -63,10 +67,11 @@ export function CreateUserForm() {
   )
 }
 
-export function ActionButtons({ userId, currentName }: { userId: string, currentName: string }) {
+export function ActionButtons({ userId, currentName, currentCode }: { userId: string, currentName: string, currentCode?: string }) {
   const [isEditing, setIsEditing] = useState(false)
   const [loading, setLoading] = useState(false)
   const [name, setName] = useState(currentName)
+  const [code, setCode] = useState(currentCode || '')
   const [password, setPassword] = useState('')
 
   const handleDelete = async () => {
@@ -80,6 +85,7 @@ export function ActionButtons({ userId, currentName }: { userId: string, current
     setLoading(true)
     const result = await updateUserAccount(userId, { 
       name: name !== currentName ? name : undefined,
+      student_code: code !== currentCode ? code : undefined,
       password: password.trim() !== '' ? password : undefined
     })
     
@@ -97,13 +103,17 @@ export function ActionButtons({ userId, currentName }: { userId: string, current
   if (isEditing) {
     return (
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-        <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full animate-in zoom-in-95 duration-200">
+        <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full animate-in zoom-in-95 duration-200 text-left">
           <h3 className="text-lg font-bold text-gray-900 mb-4">Editar Usuario</h3>
           
           <div className="space-y-4 mb-6">
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">Nombre Completo</label>
               <input value={name} onChange={e => setName(e.target.value)} type="text" className={inputClass} />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1">Código Institucional</label>
+              <input value={code} onChange={e => setCode(e.target.value)} type="text" className={inputClass} />
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">Nueva Contraseña (Opcional)</label>
