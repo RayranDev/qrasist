@@ -1,18 +1,9 @@
 -- ============================================================
 -- SETUP INICIAL — QR-Asist
--- Limpia la base de datos y crea el admin + materias base
--- Ejecutar en el SQL Editor de Supabase
+-- PASO 1: Ejecuta este script completo en el SQL Editor de Supabase
+-- PASO 2: Crea el admin desde Authentication > Users > "Add user"
+--         (ver instrucciones al final del script)
 -- ============================================================
-
--- ⚠️  CAMBIA ESTOS VALORES ANTES DE EJECUTAR ⚠️
--- ============================================================
-DO $$
-DECLARE
-  v_admin_email    TEXT := 'admin@urepublicana.edu.co';   -- ← Cambia esto
-  v_admin_password TEXT := 'Admin1234!';                   -- ← Cambia esto
-  v_admin_name     TEXT := 'Administrador';                -- ← Cambia esto
-  v_admin_id       UUID;
-BEGIN
 
 -- ============================================================
 -- 1. LIMPIAR DATOS (orden correcto por FK)
@@ -26,41 +17,7 @@ DELETE FROM auth.identities;
 DELETE FROM auth.users;
 
 -- ============================================================
--- 2. CREAR USUARIO ADMIN
--- ============================================================
-v_admin_id := gen_random_uuid();
-
-INSERT INTO auth.users (
-  id, instance_id, email, encrypted_password,
-  email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
-  created_at, updated_at, role, aud
-) VALUES (
-  v_admin_id,
-  '00000000-0000-0000-0000-000000000000',
-  v_admin_email,
-  crypt(v_admin_password, gen_salt('bf')),
-  now(),
-  '{"provider":"email","providers":["email"]}',
-  jsonb_build_object('full_name', v_admin_name),
-  now(), now(),
-  'authenticated', 'authenticated'
-);
-
-INSERT INTO auth.identities (id, user_id, provider, identity_data, provider_id, last_sign_in_at, created_at, updated_at)
-VALUES (
-  gen_random_uuid(), v_admin_id, 'email',
-  jsonb_build_object('sub', v_admin_id::text, 'email', v_admin_email),
-  v_admin_id::text,
-  now(), now(), now()
-);
-
--- El trigger crea el profile como STUDENT; lo subimos a ADMIN
-UPDATE public.profiles
-SET role = 'ADMIN', email = v_admin_email
-WHERE id = v_admin_id;
-
--- ============================================================
--- 3. CREAR MATERIAS
+-- 2. CREAR MATERIAS
 -- ============================================================
 INSERT INTO public.subjects (name, code) VALUES
   ('Algoritmos',                          'ALG-101'),
@@ -73,8 +30,7 @@ INSERT INTO public.subjects (name, code) VALUES
   ('Desarrollo en Dispositivos Móviles',  'DDM-301');
 
 -- ============================================================
--- 4. VALIDACIÓN DE DOMINIO (constraint en profiles)
---    Solo docentes y estudiantes deben usar @urepublicana.edu.co
+-- 3. CONSTRAINT: dominio institucional para docentes/estudiantes
 -- ============================================================
 ALTER TABLE public.profiles
   DROP CONSTRAINT IF EXISTS chk_email_domain;
@@ -87,14 +43,19 @@ ALTER TABLE public.profiles
   );
 
 -- ============================================================
--- 5. VERIFICACIÓN FINAL
+-- 4. VERIFICACIÓN
 -- ============================================================
-RAISE NOTICE 'Admin creado: %', v_admin_email;
-RAISE NOTICE 'Materias creadas: %', (SELECT COUNT(*) FROM public.subjects);
-RAISE NOTICE 'Usuarios totales: %', (SELECT COUNT(*) FROM public.profiles);
-
-END $$;
-
--- Ver resultado
-SELECT role, name, email FROM public.profiles;
 SELECT code, name FROM public.subjects ORDER BY name;
+
+-- ============================================================
+-- PASO 2 — CREAR EL ADMIN (hacer DESPUÉS de ejecutar este script)
+-- ============================================================
+-- 1. En Supabase: Authentication > Users > clic en "Add user" (arriba a la derecha)
+-- 2. Marca "Auto Confirm User"
+-- 3. Ingresa el correo y contraseña del admin
+-- 4. Clic en "Create User"
+-- 5. Luego ejecuta SOLO esta consulta con el correo que usaste:
+
+-- UPDATE public.profiles
+-- SET role = 'ADMIN'
+-- WHERE email = 'TU_CORREO_AQUI@urepublicana.edu.co';
