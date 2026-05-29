@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import SessionButton from './SessionButton'
 import Link from 'next/link'
-import MobileWarningBanner from '@/components/MobileWarningBanner'
 import ProfileModal from './ProfileModal'
 
 export default async function ProfessorSubjectsPage() {
@@ -27,7 +26,6 @@ export default async function ProfessorSubjectsPage() {
 
   return (
     <div className="min-h-screen bg-[#F7F7F5]">
-      <MobileWarningBanner />
       <div className="p-4 md:p-8">
         <div className="max-w-6xl mx-auto">
           <header className="flex flex-col sm:flex-row justify-between gap-4 items-start sm:items-center mb-8">

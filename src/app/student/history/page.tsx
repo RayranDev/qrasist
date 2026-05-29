@@ -37,7 +37,7 @@ export default async function StudentHistoryPage() {
         <header className="flex justify-between items-center mb-6 pt-4">
           <div>
             <Link href="/student/scanner" className="text-emerald-600 hover:text-emerald-700 font-semibold text-sm flex items-center gap-1 mb-2">
-              ← Volver
+              ← Volver al Inicio
             </Link>
             <h1 className="text-2xl font-bold text-gray-900">Mi Historial</h1>
             <p className="text-gray-500 mt-1 text-sm">Registro de tus clases asistidas</p>

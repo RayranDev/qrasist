@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import QRDisplay from '@/components/qr/QRDisplay'
 import Link from 'next/link'
-import MobileWarningBanner from '@/components/MobileWarningBanner'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +29,6 @@ export default async function ProfessorSessionPage({ params }: { params: Promise
 
   return (
     <div className="min-h-screen bg-[#F7F7F5]">
-      <MobileWarningBanner />
       <div className="p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
         <header className="flex justify-between items-center mb-8 md:mb-12">

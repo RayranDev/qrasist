@@ -3,48 +3,9 @@
 import { useEffect, useState, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 
-const S = 13 // grid size
-
-// Patrón decorativo que evoca un QR real:
-// tres patrones de esquina 5×5 + timing lines + datos pseudo-aleatorios
-function buildPattern(): number[][] {
-  return Array.from({ length: S }, (_, r) =>
-    Array.from({ length: S }, (_, c) => {
-      // Esquina superior-izquierda
-      if (r < 5 && c < 5) {
-        if (r === 0 || r === 4 || c === 0 || c === 4) return 1
-        if (r === 1 || r === 3 || c === 1 || c === 3) return 0
-        return 1
-      }
-      // Esquina superior-derecha
-      if (r < 5 && c >= S - 5) {
-        const cc = c - (S - 5)
-        if (r === 0 || r === 4 || cc === 0 || cc === 4) return 1
-        if (r === 1 || r === 3 || cc === 1 || cc === 3) return 0
-        return 1
-      }
-      // Esquina inferior-izquierda
-      if (r >= S - 5 && c < 5) {
-        const rr = r - (S - 5)
-        if (rr === 0 || rr === 4 || c === 0 || c === 4) return 1
-        if (rr === 1 || rr === 3 || c === 1 || c === 3) return 0
-        return 1
-      }
-      // Timing lines (fila y columna 6)
-      if (r === 6 && c > 5 && c < S - 5) return c % 2 === 0 ? 1 : 0
-      if (c === 6 && r > 5 && r < S - 5) return r % 2 === 0 ? 1 : 0
-      // Datos: pseudo-aleatorio determinístico
-      return ((r * 17 + c * 13 + (r ^ c) * 5) % 3) !== 0 ? 1 : 0
-    })
-  )
-}
-
-const PATTERN = buildPattern()
-
 export default function NavigationProgress() {
   const pathname = usePathname()
   const [visible, setVisible] = useState(false)
-  const [show, setShow] = useState(false)
   const prevPath = useRef(pathname)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -55,13 +16,7 @@ export default function NavigationProgress() {
     if (timerRef.current) clearTimeout(timerRef.current)
 
     setVisible(true)
-    setShow(true)
-
-    // Ocultar a los 750ms
-    timerRef.current = setTimeout(() => {
-      setShow(false)
-      setTimeout(() => setVisible(false), 200)
-    }, 750)
+    timerRef.current = setTimeout(() => setVisible(false), 800)
 
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [pathname])
@@ -69,68 +24,45 @@ export default function NavigationProgress() {
   if (!visible) return null
 
   return (
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#F7F7F5]/85 backdrop-blur-sm"
-      style={{
-        opacity: show ? 1 : 0,
-        transition: 'opacity 0.2s ease',
-      }}
-    >
-      <div className="flex flex-col items-center gap-5">
+    <div className="fixed inset-0 z-9999 flex items-center justify-center pointer-events-none">
+      {/* Fondo muy sutil */}
+      <div className="absolute inset-0 bg-white/30 backdrop-blur-[2px]" />
 
-        {/* QR animado */}
-        <div className="relative p-3 bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+      {/* Card flotante pequeña */}
+      <div className="relative flex flex-col items-center gap-3 bg-white/90 rounded-2xl px-7 py-6 shadow-lg border border-gray-100">
 
-          {/* Grid de celdas */}
-          <div
-            className="grid gap-[2.5px]"
-            style={{ gridTemplateColumns: `repeat(${S}, 1fr)` }}
+        {/* Icono QR con línea de escaneo */}
+        <div className="relative w-14 h-14 flex items-center justify-center">
+          {/* SVG del icono QR (mismo que login) */}
+          <svg
+            className="w-12 h-12 text-gray-800"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
           >
-            {PATTERN.map((row, r) =>
-              row.map((cell, c) => (
-                <div
-                  key={`${r}-${c}`}
-                  className={`w-[18px] h-[18px] rounded-[2px] ${cell ? 'bg-gray-900' : 'bg-transparent'}`}
-                  style={cell ? {
-                    animation: `qr-cell-in 0.35s ease both`,
-                    animationDelay: `${(r + c) * 18}ms`,
-                  } : undefined}
-                />
-              ))
-            )}
-          </div>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
+            />
+          </svg>
 
-          {/* Línea de escaneo */}
+          {/* Línea de escaneo sobre el ícono */}
           <div
-            className="absolute left-3 right-3 h-[2.5px] rounded-full"
+            className="absolute left-0 right-0 h-0.5 rounded-full"
             style={{
-              background: 'linear-gradient(90deg, transparent, #10b981, #34d399, #10b981, transparent)',
-              boxShadow: '0 0 10px 3px rgba(52, 211, 153, 0.55)',
-              animation: 'qr-scan 0.75s ease-in-out both',
+              background: 'linear-gradient(90deg, transparent 0%, #10b981 30%, #34d399 50%, #10b981 70%, transparent 100%)',
+              boxShadow: '0 0 6px 1px rgba(52,211,153,0.6)',
+              animation: 'qr-scan 0.8s ease-in-out both',
             }}
           />
-
-          {/* Esquinas decorativas (superpuestas sobre el QR) */}
-          {[
-            'top-2 left-2 border-t-2 border-l-2 rounded-tl',
-            'top-2 right-2 border-t-2 border-r-2 rounded-tr',
-            'bottom-2 left-2 border-b-2 border-l-2 rounded-bl',
-            'bottom-2 right-2 border-b-2 border-r-2 rounded-br',
-          ].map((cls, i) => (
-            <span
-              key={i}
-              className={`absolute w-5 h-5 border-emerald-400 ${cls}`}
-              style={{ animation: 'corner-pulse 1s ease-in-out infinite', animationDelay: `${i * 120}ms` }}
-            />
-          ))}
         </div>
 
         {/* Texto */}
-        <div className="flex items-center gap-2.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-          <span className="text-sm font-black text-gray-800 tracking-tight">QR‑Asist</span>
-        </div>
-
+        <p className="text-xs font-bold text-gray-500 tracking-widest uppercase">
+          QR‑Asist
+        </p>
       </div>
     </div>
   )

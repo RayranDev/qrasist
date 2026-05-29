@@ -45,7 +45,7 @@ export default function EnrollmentManager({ subjectId, enrolledStudents, allStud
                   onClick={() => handleRemove(enrollment.student.id)}
                   className="px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition disabled:opacity-50"
                 >
-                  {loadingId === enrollment.student.id ? '...' : 'Remover'}
+                  {loadingId === enrollment.student.id ? '...' : 'Quitar'}
                 </button>
               </div>
             ))

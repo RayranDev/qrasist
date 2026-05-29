@@ -47,7 +47,7 @@ export default async function StudentScannerPage() {
           </div>
           <form action="/auth/signout" method="post">
             <button className="px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl transition">
-              Salir
+              Cerrar Sesión
             </button>
           </form>
         </header>
