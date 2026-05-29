@@ -58,7 +58,6 @@ export default async function SubjectEnrollmentsPage({ params }: { params: Promi
         />
       </div>
       </div>
-      </div>
     </div>
   )
 }

@@ -95,8 +95,8 @@ export async function registerAttendance(qrToken: string) {
     return { success: false, error: 'Error del servidor. Intenta nuevamente.' }
   }
 
-  const now = new Date()
-  const timeStr = now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true })
+  const registeredAt = new Date()
+  const timeStr = registeredAt.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true })
   const subjectName = subject?.name || 'Materia'
   const subjectCode = subject?.code || ''
 

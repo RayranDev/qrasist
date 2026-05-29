@@ -46,7 +46,6 @@ export default async function ProfessorSessionPage({ params }: { params: Promise
         <QRDisplay qrToken={session.qr_token} expiresAt={session.expires_at} />
       </div>
       </div>
-      </div>
     </div>
   )
 }
