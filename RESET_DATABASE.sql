@@ -26,14 +26,17 @@ CREATE TYPE user_role AS ENUM ('ADMIN', 'PROFESSOR', 'STUDENT');
 CREATE TABLE profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   role user_role NOT NULL DEFAULT 'STUDENT',
-  name TEXT NOT NULL
+  name TEXT NOT NULL,
+  student_code TEXT UNIQUE,
+  is_active BOOLEAN NOT NULL DEFAULT true
 );
 
 CREATE TABLE subjects (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   name TEXT NOT NULL,
   code TEXT UNIQUE NOT NULL,
-  professor_id UUID REFERENCES profiles(id)
+  professor_id UUID REFERENCES profiles(id),
+  is_active BOOLEAN NOT NULL DEFAULT true
 );
 
 CREATE TABLE enrollments (
@@ -49,7 +52,8 @@ CREATE TABLE sessions (
   date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   duration_minutes INT DEFAULT 90,
   qr_token UUID DEFAULT uuid_generate_v4(),
-  expires_at TIMESTAMP WITH TIME ZONE
+  expires_at TIMESTAMP WITH TIME ZONE,
+  is_active BOOLEAN NOT NULL DEFAULT true
 );
 
 CREATE TABLE attendances (

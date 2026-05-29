@@ -13,7 +13,7 @@ export default async function AdminUsersPage() {
 
   if (!user) redirect('/login')
 
-  // Obtener perfiles
+  // Obtener todos los perfiles (activos e inactivos para la gestión de admin)
   const { data: profiles } = await supabase
     .from('profiles')
     .select('*')

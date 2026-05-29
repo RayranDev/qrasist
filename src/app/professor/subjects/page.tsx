@@ -21,6 +21,7 @@ export default async function ProfessorSubjectsPage() {
     .from('subjects')
     .select('*, enrollments(student_id)')
     .eq('professor_id', user.id)
+    .eq('is_active', true)
 
   const firstName = profile?.name?.split(' ')[0] || 'Profe'
 

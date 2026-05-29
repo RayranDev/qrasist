@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { createSubject, deleteSubject, updateSubject } from '@/lib/actions/adminSubjects'
+import { createSubject, deleteSubject, updateSubject, reactivateSubject } from '@/lib/actions/adminSubjects'
 
 const inputClass = "w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all shadow-sm"
 
@@ -13,7 +13,6 @@ export function CreateSubjectForm({ professors }: { professors: any[] }) {
     setLoading(true)
     const formData = new FormData(e.currentTarget)
     const result = await createSubject(formData)
-    
     if (result.success) {
       (e.target as HTMLFormElement).reset()
     } else {
@@ -30,7 +29,7 @@ export function CreateSubjectForm({ professors }: { professors: any[] }) {
         </div>
         <h3 className="text-xl font-bold text-gray-900">Crear Nueva Materia</h3>
       </div>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-5 items-end">
         <div>
           <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1 uppercase tracking-wider">Nombre</label>
@@ -66,21 +65,30 @@ export function SubjectActionButtons({ subject, professors }: { subject: any, pr
   const [code, setCode] = useState(subject.code)
   const [profId, setProfId] = useState(subject.professor_id || '')
 
-  const handleDelete = async () => {
-    if (confirm(`¿Estás seguro de eliminar "${subject.name}"? Se borrarán todas sus clases y asistencias.`)) {
-      const result = await deleteSubject(subject.id)
-      if (!result.success) alert(result.error)
-    }
+  const isActive = subject.is_active !== false
+
+  const handleDeactivate = async () => {
+    if (!confirm(`¿Desactivar "${subject.name}"? La materia quedará archivada y no estará visible para docentes ni estudiantes. Podrás reactivarla cuando quieras.`)) return
+    setLoading(true)
+    const result = await deleteSubject(subject.id)
+    if (!result.success) alert(result.error)
+    setLoading(false)
+  }
+
+  const handleReactivate = async () => {
+    setLoading(true)
+    const result = await reactivateSubject(subject.id)
+    if (!result.success) alert(result.error)
+    setLoading(false)
   }
 
   const handleSave = async () => {
     setLoading(true)
-    const result = await updateSubject(subject.id, { 
+    const result = await updateSubject(subject.id, {
       name,
       code,
       professor_id: profId === '' ? null : profId
     })
-    
     if (result.success) {
       setIsEditing(false)
     } else {
@@ -94,7 +102,6 @@ export function SubjectActionButtons({ subject, professors }: { subject: any, pr
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
         <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full animate-in zoom-in-95 duration-200">
           <h3 className="text-lg font-bold text-gray-900 mb-4">Editar Materia</h3>
-          
           <div className="space-y-4 mb-6 text-left">
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">Nombre</label>
@@ -114,7 +121,6 @@ export function SubjectActionButtons({ subject, professors }: { subject: any, pr
               </select>
             </div>
           </div>
-
           <div className="flex gap-3">
             <button disabled={loading} onClick={() => setIsEditing(false)} className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition">
               Cancelar
@@ -130,12 +136,20 @@ export function SubjectActionButtons({ subject, professors }: { subject: any, pr
 
   return (
     <div className="flex items-center gap-1 relative z-10">
-      <button onClick={() => setIsEditing(true)} className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Editar">
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-      </button>
-      <button onClick={handleDelete} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Borrar">
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-      </button>
+      {isActive ? (
+        <>
+          <button onClick={() => setIsEditing(true)} disabled={loading} className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Editar">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+          </button>
+          <button onClick={handleDeactivate} disabled={loading} className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition" title="Archivar materia">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+          </button>
+        </>
+      ) : (
+        <button onClick={handleReactivate} disabled={loading} className="px-3 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition disabled:opacity-50" title="Reactivar materia">
+          {loading ? '...' : 'Reactivar'}
+        </button>
+      )}
     </div>
   )
 }

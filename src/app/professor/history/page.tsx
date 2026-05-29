@@ -14,13 +14,15 @@ export default async function ProfessorHistoryPage() {
     redirect('/login')
   }
 
-  // Obtenemos jerarquía completa: Materias -> Sesiones -> Asistencias
+  // Obtenemos jerarquía completa: Materias (todas) -> Sesiones (todas) -> Asistencias
+  // Incluimos inactivos para mantener historial completo; la UI los diferencia
   const { data: subjects } = await supabase
     .from('subjects')
     .select(`
       id,
       name,
       code,
+      is_active,
       enrollments (
         student_id
       ),
@@ -28,6 +30,7 @@ export default async function ProfessorHistoryPage() {
         id,
         date,
         duration_minutes,
+        is_active,
         attendances (
           id,
           scanned_at,

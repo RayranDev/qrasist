@@ -25,11 +25,12 @@ export default async function SubjectEnrollmentsPage({ params }: { params: Promi
     .select('student:profiles(id, name)')
     .eq('subject_id', id)
 
-  // Obtener todos los estudiantes (rol STUDENT)
+  // Solo estudiantes activos disponibles para inscribir
   const { data: allStudents } = await supabase
     .from('profiles')
     .select('id, name')
     .eq('role', 'STUDENT')
+    .eq('is_active', true)
     .order('name')
 
   return (

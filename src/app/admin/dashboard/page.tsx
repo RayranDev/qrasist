@@ -14,47 +14,51 @@ export default async function AdminDashboardPage() {
   const { data: profile } = await supabase.from('profiles').select('role, name').eq('id', user.id).single()
   if (!profile || profile.role !== 'ADMIN') redirect('/login')
 
-  // Conteos generales
+  // Conteos generales (solo activos)
   const [
     { count: totalAdmins },
     { count: totalProfessors },
     { count: totalStudents },
     { count: totalSubjects },
   ] = await Promise.all([
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'ADMIN'),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'PROFESSOR'),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'STUDENT'),
-    supabase.from('subjects').select('*', { count: 'exact', head: true }),
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'ADMIN').eq('is_active', true),
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'PROFESSOR').eq('is_active', true),
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'STUDENT').eq('is_active', true),
+    supabase.from('subjects').select('*', { count: 'exact', head: true }).eq('is_active', true),
   ])
 
-  // Sesiones del día
+  // Sesiones activas del día
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
   const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999)
   const { count: sessionsToday } = await supabase
     .from('sessions')
     .select('*', { count: 'exact', head: true })
+    .eq('is_active', true)
     .gte('date', todayStart.toISOString())
     .lte('date', todayEnd.toISOString())
 
-  // Docentes con materias asignadas
+  // Docentes activos con materias activas asignadas
   const { data: professors } = await supabase
     .from('profiles')
     .select('id, name')
     .eq('role', 'PROFESSOR')
+    .eq('is_active', true)
 
   const { data: allSubjects } = await supabase
     .from('subjects')
     .select('id, name, code, professor_id')
+    .eq('is_active', true)
 
   const professorStats = (professors || []).map(p => ({
     ...p,
     subjectCount: (allSubjects || []).filter(s => s.professor_id === p.id).length,
   })).sort((a, b) => b.subjectCount - a.subjectCount)
 
-  // Materias con cantidad de estudiantes
+  // Materias activas con cantidad de estudiantes activos inscritos
   const { data: subjectsWithEnrollments } = await supabase
     .from('subjects')
     .select('id, name, code, enrollments(student_id)')
+    .eq('is_active', true)
     .order('name')
 
   const subjectStats = (subjectsWithEnrollments || []).map(s => ({
@@ -64,11 +68,12 @@ export default async function AdminDashboardPage() {
     studentCount: (s.enrollments as any[])?.length || 0,
   })).sort((a, b) => b.studentCount - a.studentCount)
 
-  // Estudiantes con cantidad de materias
+  // Estudiantes activos con cantidad de materias activas
   const { data: students } = await supabase
     .from('profiles')
     .select('id, name, student_code')
     .eq('role', 'STUDENT')
+    .eq('is_active', true)
     .order('name')
 
   const { data: allEnrollments } = await supabase

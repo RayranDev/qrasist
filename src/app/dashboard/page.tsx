@@ -11,16 +11,20 @@ export default async function DashboardRedirect() {
     redirect('/login')
   }
 
-  // Obtenemos el perfil para saber qué rol tiene
+  // Obtenemos el perfil para saber qué rol tiene y si está activo
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, is_active')
     .eq('id', user.id)
     .single()
 
   if (!profile) {
-    // Si no tiene perfil, lo mandamos a una vista genérica o cerramos sesión
     redirect('/login?error=Perfil+no+encontrado')
+  }
+
+  if (profile.is_active === false) {
+    await supabase.auth.signOut()
+    redirect('/login?error=Tu+cuenta+ha+sido+desactivada.+Contacta+al+administrador.')
   }
 
   // Redirigimos según el rol

@@ -70,14 +70,33 @@ export async function deleteUserAccount(userId: string) {
   const adminUser = await verifyAdminAccess()
   if (!adminUser) return { success: false, error: 'Acceso denegado.' }
 
-  if (userId === adminUser.id) return { success: false, error: 'No puedes borrarte a ti mismo.' }
+  if (userId === adminUser.id) return { success: false, error: 'No puedes desactivarte a ti mismo.' }
 
-  // Eliminar usuario desde la raíz de Auth
-  const { error } = await supabaseAdmin.auth.admin.deleteUser(userId)
-  
+  const { error } = await supabaseAdmin
+    .from('profiles')
+    .update({ is_active: false })
+    .eq('id', userId)
+
   if (error) return { success: false, error: error.message }
 
   revalidatePath('/admin/users')
+  revalidatePath('/admin/dashboard')
+  return { success: true }
+}
+
+export async function reactivateUser(userId: string) {
+  const adminUser = await verifyAdminAccess()
+  if (!adminUser) return { success: false, error: 'Acceso denegado.' }
+
+  const { error } = await supabaseAdmin
+    .from('profiles')
+    .update({ is_active: true })
+    .eq('id', userId)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/admin/users')
+  revalidatePath('/admin/dashboard')
   return { success: true }
 }
 

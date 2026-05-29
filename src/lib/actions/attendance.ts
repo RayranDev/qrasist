@@ -22,24 +22,29 @@ export async function registerAttendance(qrToken: string) {
     .single()
 
   if (sessionError || !session) {
-    return { success: false, error: 'Código QR inválido. No pertenece a esta clase.' } // Error 2
+    return { success: false, error: 'Código QR inválido. No pertenece a esta clase.' }
   }
 
-  // 3. Validar si el token expiró
+  // 3. Validar que la sesión no haya sido archivada por el docente
+  if (session.is_active === false) {
+    return { success: false, error: 'Esta sesión ha sido archivada y ya no acepta registros.' }
+  }
+
+  // 4. Validar si el token expiró
   const now = new Date()
   const expiresAt = new Date(session.expires_at)
   if (now > expiresAt) {
     return { success: false, error: 'Este código QR ha expirado. Solicita al profesor que genere uno nuevo.' } // Error 3
   }
 
-  // 4. Traer datos de la materia para el mensaje de confirmación
+  // 5. Traer datos de la materia para el mensaje de confirmación
   const { data: subject } = await supabase
     .from('subjects')
     .select('name, code')
     .eq('id', session.subject_id)
     .single()
 
-  // 5. Verificar si el estudiante está inscrito en la materia
+  // 6. Verificar si el estudiante está inscrito en la materia
   const { data: enrollment } = await supabase
     .from('enrollments')
     .select('id')
@@ -49,7 +54,7 @@ export async function registerAttendance(qrToken: string) {
 
   const isEnrolled = !!enrollment
 
-  // 6. Verificar duplicado por materia en el mismo día
+  // 7. Verificar duplicado por materia en el mismo día
   const todayStart = new Date()
   todayStart.setHours(0, 0, 0, 0)
   const todayEnd = new Date()
@@ -74,7 +79,7 @@ export async function registerAttendance(qrToken: string) {
     return { success: false, error: `Ya registraste asistencia para ${subject?.name || 'esta materia'} hoy.` }
   }
 
-  // 7. Intentar registrar la asistencia
+  // 8. Intentar registrar la asistencia
   const { error: insertError } = await supabase
     .from('attendances')
     .insert({

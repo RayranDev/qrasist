@@ -45,11 +45,35 @@ export async function deleteSubject(subjectId: string) {
     return { success: false, error: 'No autorizado' }
   }
 
-  const { error } = await supabase.from('subjects').delete().eq('id', subjectId)
-  
-  if (error) return { success: false, error: 'Error al eliminar la materia' }
+  const { error } = await supabase
+    .from('subjects')
+    .update({ is_active: false })
+    .eq('id', subjectId)
+
+  if (error) return { success: false, error: 'Error al desactivar la materia' }
 
   revalidatePath('/admin/subjects')
+  revalidatePath('/admin/dashboard')
+  return { success: true }
+}
+
+export async function reactivateSubject(subjectId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user || !(await checkAdmin(supabase, user.id))) {
+    return { success: false, error: 'No autorizado' }
+  }
+
+  const { error } = await supabase
+    .from('subjects')
+    .update({ is_active: true })
+    .eq('id', subjectId)
+
+  if (error) return { success: false, error: 'Error al reactivar la materia' }
+
+  revalidatePath('/admin/subjects')
+  revalidatePath('/admin/dashboard')
   return { success: true }
 }
 

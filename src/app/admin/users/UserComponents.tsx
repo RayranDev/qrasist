@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { createUserAccount, deleteUserAccount, updateUserAccount } from '@/lib/actions/admin'
+import { createUserAccount, deleteUserAccount, updateUserAccount, reactivateUser } from '@/lib/actions/admin'
 
-function DeleteConfirmModal({ userName, onConfirm, onCancel, loading }: {
+function DeactivateConfirmModal({ userName, onConfirm, onCancel, loading }: {
   userName: string
   onConfirm: () => void
   onCancel: () => void
@@ -15,21 +15,24 @@ function DeleteConfirmModal({ userName, onConfirm, onCancel, loading }: {
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full animate-in zoom-in-95 duration-200">
-        <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
-          <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4">
+          <svg className="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
           </svg>
         </div>
-        <h3 className="text-lg font-bold text-gray-900 text-center mb-1">Eliminar usuario</h3>
+        <h3 className="text-lg font-bold text-gray-900 text-center mb-1">Desactivar usuario</h3>
+        <p className="text-sm text-gray-500 text-center mb-1">
+          El usuario no podrá iniciar sesión. Sus datos e historial se conservan.
+        </p>
         <p className="text-sm text-gray-500 text-center mb-5">
-          Esta acción es irreversible. Escribe <span className="font-bold text-gray-800">{userName}</span> para confirmar.
+          Escribe <span className="font-bold text-gray-800">{userName}</span> para confirmar.
         </p>
         <input
           value={typed}
           onChange={e => setTyped(e.target.value)}
           type="text"
           placeholder="Escribe el nombre exacto..."
-          className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:bg-white focus:border-red-400 focus:ring-2 focus:ring-red-100 transition-all mb-4"
+          className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:bg-white focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all mb-4"
         />
         <div className="flex gap-3">
           <button
@@ -42,9 +45,9 @@ function DeleteConfirmModal({ userName, onConfirm, onCancel, loading }: {
           <button
             onClick={onConfirm}
             disabled={!match || loading}
-            className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex-1 py-2.5 bg-amber-500 text-white rounded-xl text-sm font-bold hover:bg-amber-600 transition disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {loading ? 'Eliminando...' : 'Eliminar'}
+            {loading ? 'Desactivando...' : 'Desactivar'}
           </button>
         </div>
       </div>
@@ -60,7 +63,6 @@ export function CreateUserForm() {
     setLoading(true)
     const formData = new FormData(e.currentTarget)
     const result = await createUserAccount(formData)
-    
     if (result.success) {
       (e.target as HTMLFormElement).reset()
     } else {
@@ -69,7 +71,6 @@ export function CreateUserForm() {
     setLoading(false)
   }
 
-  // Clases compartidas para inputs mejorados
   const inputClass = "w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all shadow-sm"
 
   return (
@@ -128,30 +129,41 @@ export function CreateUserForm() {
   )
 }
 
-export function ActionButtons({ userId, currentName, currentCode }: { userId: string, currentName: string, currentCode?: string }) {
+export function ActionButtons({ userId, currentName, currentCode, isActive }: {
+  userId: string
+  currentName: string
+  currentCode?: string
+  isActive: boolean
+}) {
   const [isEditing, setIsEditing] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [isDeactivating, setIsDeactivating] = useState(false)
   const [loading, setLoading] = useState(false)
   const [name, setName] = useState(currentName)
   const [code, setCode] = useState(currentCode || '')
   const [password, setPassword] = useState('')
 
-  const handleDelete = async () => {
+  const handleDeactivate = async () => {
     setLoading(true)
     const result = await deleteUserAccount(userId)
     if (!result.success) alert(result.error)
     setLoading(false)
-    setIsDeleting(false)
+    setIsDeactivating(false)
+  }
+
+  const handleReactivate = async () => {
+    setLoading(true)
+    const result = await reactivateUser(userId)
+    if (!result.success) alert(result.error)
+    setLoading(false)
   }
 
   const handleSave = async () => {
     setLoading(true)
-    const result = await updateUserAccount(userId, { 
+    const result = await updateUserAccount(userId, {
       name: name !== currentName ? name : undefined,
       student_code: code !== currentCode ? code : undefined,
       password: password.trim() !== '' ? password : undefined
     })
-    
     if (result.success) {
       setIsEditing(false)
       setPassword('')
@@ -168,7 +180,6 @@ export function ActionButtons({ userId, currentName, currentCode }: { userId: st
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
         <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full animate-in zoom-in-95 duration-200 text-left">
           <h3 className="text-lg font-bold text-gray-900 mb-4">Editar Usuario</h3>
-          
           <div className="space-y-4 mb-6">
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">Nombre Completo</label>
@@ -191,7 +202,6 @@ export function ActionButtons({ userId, currentName, currentCode }: { userId: st
               <input value={password} onChange={e => setPassword(e.target.value)} type="text" placeholder="Dejar en blanco para no cambiar" className={inputClass} />
             </div>
           </div>
-
           <div className="flex gap-3">
             <button disabled={loading} onClick={() => setIsEditing(false)} className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition">
               Cancelar
@@ -207,21 +217,34 @@ export function ActionButtons({ userId, currentName, currentCode }: { userId: st
 
   return (
     <>
-      {isDeleting && (
-        <DeleteConfirmModal
+      {isDeactivating && (
+        <DeactivateConfirmModal
           userName={currentName}
-          onConfirm={handleDelete}
-          onCancel={() => setIsDeleting(false)}
+          onConfirm={handleDeactivate}
+          onCancel={() => setIsDeactivating(false)}
           loading={loading}
         />
       )}
       <div className="flex items-center gap-2">
-        <button onClick={() => setIsEditing(true)} className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Editar">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-        </button>
-        <button onClick={() => setIsDeleting(true)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Borrar">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-        </button>
+        {isActive ? (
+          <>
+            <button onClick={() => setIsEditing(true)} className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Editar">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+            </button>
+            <button onClick={() => setIsDeactivating(true)} className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition" title="Desactivar">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={handleReactivate}
+            disabled={loading}
+            className="px-3 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition disabled:opacity-50"
+            title="Reactivar usuario"
+          >
+            {loading ? '...' : 'Reactivar'}
+          </button>
+        )}
       </div>
     </>
   )
