@@ -72,7 +72,8 @@ export async function deleteUserAccount(userId: string) {
 
   if (userId === adminUser.id) return { success: false, error: 'No puedes desactivarte a ti mismo.' }
 
-  const { error } = await supabaseAdmin
+  const supabase = await createClient()
+  const { error } = await supabase
     .from('profiles')
     .update({ is_active: false })
     .eq('id', userId)
@@ -88,7 +89,8 @@ export async function reactivateUser(userId: string) {
   const adminUser = await verifyAdminAccess()
   if (!adminUser) return { success: false, error: 'Acceso denegado.' }
 
-  const { error } = await supabaseAdmin
+  const supabase = await createClient()
+  const { error } = await supabase
     .from('profiles')
     .update({ is_active: true })
     .eq('id', userId)
