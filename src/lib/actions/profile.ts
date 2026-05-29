@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { supabaseAdmin } from '@/lib/supabase/adminClient'
+import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { revalidatePath } from 'next/cache'
 
 export async function updateOwnProfile(data: { name?: string; password?: string }) {
@@ -12,12 +12,12 @@ export async function updateOwnProfile(data: { name?: string; password?: string 
   if (data.name) {
     const { error } = await supabase.from('profiles').update({ name: data.name }).eq('id', user.id)
     if (error) return { success: false, error: 'Error al actualizar el nombre.' }
-    await supabaseAdmin.auth.admin.updateUserById(user.id, { user_metadata: { full_name: data.name } })
+    await getSupabaseAdmin().auth.admin.updateUserById(user.id, { user_metadata: { full_name: data.name } })
   }
 
   if (data.password) {
     if (data.password.length < 6) return { success: false, error: 'La contraseña debe tener al menos 6 caracteres.' }
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(user.id, { password: data.password })
+    const { error } = await getSupabaseAdmin().auth.admin.updateUserById(user.id, { password: data.password })
     if (error) return { success: false, error: 'Error al actualizar la contraseña.' }
   }
 
