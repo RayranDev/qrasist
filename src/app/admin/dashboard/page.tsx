@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import { supabaseAdmin } from '@/lib/supabase/adminClient'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import MobileWarningBanner from '@/components/MobileWarningBanner'
