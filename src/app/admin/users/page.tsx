@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { supabaseAdmin } from '@/lib/supabase/adminClient'
+import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import AdminUserList from './AdminUserList'
@@ -20,18 +20,7 @@ export default async function AdminUsersPage() {
 
   // last_sign_in_at viene del admin API (requiere service role).
   // Si falla silenciosamente, simplemente no se muestra.
-  let lastSignInMap: Record<string, string | null> = {}
-  try {
-    const { data: authData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
-    if (authData?.users) {
-      authData.users.forEach(u => { lastSignInMap[u.id] = u.last_sign_in_at || null })
-    }
-  } catch { /* service role key no disponible — last_sign_in se omite */ }
-
-  const mergedUsers = profiles?.map(profile => ({
-    ...profile,
-    last_sign_in_at: lastSignInMap[profile.id] || null
-  })).sort((a, b) => a.role.localeCompare(b.role)) || []
+  const mergedUsers = profiles?.slice().sort((a, b) => a.role.localeCompare(b.role)) || []
 
   return (
     <div className="min-h-screen bg-[#F7F7F5]">

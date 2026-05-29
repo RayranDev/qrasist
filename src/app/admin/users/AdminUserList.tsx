@@ -2,9 +2,7 @@
 
 import { useState } from 'react'
 import RoleSelect from './RoleSelect'
-import { CreateUserForm, ActionButtons } from './UserComponents'
-import { formatDistanceToNow } from 'date-fns'
-import { es } from 'date-fns/locale'
+import { CreateUserForm, ActionButtons, StudentHistoryModal } from './UserComponents'
 
 type FilterRole = 'ALL' | 'ADMIN' | 'PROFESSOR' | 'STUDENT'
 type FilterStatus = 'active' | 'inactive'
@@ -12,6 +10,7 @@ type FilterStatus = 'active' | 'inactive'
 export default function AdminUserList({ initialUsers, currentUser }: { initialUsers: any[], currentUser: any }) {
   const [roleFilter, setRoleFilter] = useState<FilterRole>('ALL')
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('active')
+  const [historyUser, setHistoryUser] = useState<{ id: string; name: string } | null>(null)
 
   const filtered = initialUsers.filter(u => {
     const roleMatch = roleFilter === 'ALL' || u.role === roleFilter
@@ -24,6 +23,14 @@ export default function AdminUserList({ initialUsers, currentUser }: { initialUs
   return (
     <>
       <CreateUserForm />
+
+      {historyUser && (
+        <StudentHistoryModal
+          userId={historyUser.id}
+          studentName={historyUser.name}
+          onClose={() => setHistoryUser(null)}
+        />
+      )}
 
       {/* Filtros de rol */}
       <div className="flex flex-wrap gap-2 mb-3">
@@ -75,12 +82,11 @@ export default function AdminUserList({ initialUsers, currentUser }: { initialUs
       </div>
 
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-x-auto">
-        <table className="w-full text-left min-w-175">
+        <table className="w-full text-left min-w-160">
           <thead className="bg-gray-50/80 border-b border-gray-100">
             <tr>
               <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Usuario</th>
-              <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Código (ID)</th>
-              <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Último Ingreso</th>
+              <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Código / ID</th>
               <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Rol Actual</th>
               <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Acciones</th>
             </tr>
@@ -106,15 +112,6 @@ export default function AdminUserList({ initialUsers, currentUser }: { initialUs
                     {profile.student_code || '---'}
                   </td>
                   <td className="px-6 py-4">
-                    {profile.last_sign_in_at ? (
-                      <span className="text-sm text-gray-600 font-medium">
-                        Hace {formatDistanceToNow(new Date(profile.last_sign_in_at), { locale: es })}
-                      </span>
-                    ) : (
-                      <span className="text-sm text-gray-400 italic">Nunca</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
                     {profile.is_active !== false ? (
                       <RoleSelect userId={profile.id} currentRole={profile.role} />
                     ) : (
@@ -122,12 +119,24 @@ export default function AdminUserList({ initialUsers, currentUser }: { initialUs
                     )}
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex justify-end items-center gap-4">
+                    <div className="flex justify-end items-center gap-2">
+                      {profile.role === 'STUDENT' && profile.is_active !== false && (
+                        <button
+                          onClick={() => setHistoryUser({ id: profile.id, name: profile.name })}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                          title="Ver historial de asistencias"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                          </svg>
+                        </button>
+                      )}
                       {currentUser.id !== profile.id && (
                         <ActionButtons
                           userId={profile.id}
                           currentName={profile.name}
                           currentCode={profile.student_code}
+                          currentRole={profile.role}
                           isActive={profile.is_active !== false}
                         />
                       )}
@@ -137,7 +146,7 @@ export default function AdminUserList({ initialUsers, currentUser }: { initialUs
               ))
             ) : (
               <tr>
-                <td colSpan={5} className="px-6 py-8 text-center text-gray-500 italic">
+                <td colSpan={4} className="px-6 py-8 text-center text-gray-500 italic">
                   {statusFilter === 'inactive' ? 'No hay usuarios inactivos.' : 'No hay usuarios con este rol.'}
                 </td>
               </tr>

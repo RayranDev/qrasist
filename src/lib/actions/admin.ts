@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { supabaseAdmin } from '@/lib/supabase/adminClient'
+import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { revalidatePath } from 'next/cache'
 
 async function verifyAdminAccess() {
@@ -23,9 +23,9 @@ export async function updateUserRole(userId: string, newRole: 'ADMIN' | 'PROFESS
 
   const supabase = await createClient()
   const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId)
-  
+
   if (error) return { success: false, error: 'Error al actualizar el rol.' }
-  
+
   revalidatePath('/admin/users')
   return { success: true }
 }
@@ -47,12 +47,14 @@ export async function createUserAccount(formData: FormData) {
     return { success: false, error: 'El correo de docentes y estudiantes debe ser @urepublicana.edu.co' }
   }
 
-  // Verificar que el student_code no exista (para evitar que se cree en Auth y luego falle en Profiles)
-  const { data: existingCode } = await supabaseAdmin.from('profiles').select('id').eq('student_code', studentCode).maybeSingle()
+  const admin = getSupabaseAdmin()
+
+  // Verificar que el student_code no exista
+  const { data: existingCode } = await admin.from('profiles').select('id').eq('student_code', studentCode).maybeSingle()
   if (existingCode) return { success: false, error: 'Ese código/ID institucional ya está registrado por otro usuario.' }
 
   // Crear usuario usando la API Admin (GoTrue)
-  const { data, error } = await supabaseAdmin.auth.admin.createUser({
+  const { data, error } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
@@ -61,11 +63,11 @@ export async function createUserAccount(formData: FormData) {
 
   if (error) return { success: false, error: error.message }
 
-  // Esperar un poco a que el trigger de Supabase cree el profile
+  // Esperar a que el trigger de Supabase cree el profile
   await new Promise(resolve => setTimeout(resolve, 500))
 
-  // Actualizar rol, código e email (el trigger ya creó el perfil con STUDENT por defecto)
-  await supabaseAdmin.from('profiles').update({ role, student_code: studentCode, email }).eq('id', data.user.id)
+  // Actualizar rol, código e email
+  await admin.from('profiles').update({ role, student_code: studentCode, email }).eq('id', data.user.id)
 
   revalidatePath('/admin/users')
   return { success: true }
@@ -111,38 +113,66 @@ export async function updateUserAccount(userId: string, data: { name?: string, p
   const adminUser = await verifyAdminAccess()
   if (!adminUser) return { success: false, error: 'Acceso denegado.' }
 
+  const admin = getSupabaseAdmin()
+
   // Verificar unicidad del student_code
   if (data.student_code) {
-    const { data: existingCode } = await supabaseAdmin.from('profiles').select('id').eq('student_code', data.student_code).neq('id', userId).maybeSingle()
+    const { data: existingCode } = await admin.from('profiles').select('id').eq('student_code', data.student_code).neq('id', userId).maybeSingle()
     if (existingCode) return { success: false, error: 'Ese código/ID institucional ya pertenece a otro usuario.' }
   }
 
   if (data.password) {
-    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+    const { error: authError } = await admin.auth.admin.updateUserById(userId, {
       password: data.password
     })
     if (authError) return { success: false, error: authError.message }
   }
 
-  const updates: any = {}
-  const metaUpdates: any = {}
+  const updates: Record<string, string> = {}
+  const metaUpdates: Record<string, string> = {}
 
   if (data.name) {
     updates.name = data.name
     metaUpdates.full_name = data.name
   }
-  
+
   if (data.student_code) {
     updates.student_code = data.student_code
     metaUpdates.student_code = data.student_code
   }
 
   if (Object.keys(updates).length > 0) {
-    const { error: profileError } = await supabaseAdmin.from('profiles').update(updates).eq('id', userId)
-    await supabaseAdmin.auth.admin.updateUserById(userId, { user_metadata: metaUpdates })
+    const { error: profileError } = await admin.from('profiles').update(updates).eq('id', userId)
+    await admin.auth.admin.updateUserById(userId, { user_metadata: metaUpdates })
     if (profileError) return { success: false, error: profileError.message }
   }
 
   revalidatePath('/admin/users')
   return { success: true }
+}
+
+export async function getStudentAttendanceHistory(studentId: string) {
+  const adminUser = await verifyAdminAccess()
+  if (!adminUser) return { success: false, error: 'Acceso denegado.', data: null }
+
+  const admin = getSupabaseAdmin()
+  const { data, error } = await admin
+    .from('attendances')
+    .select(`
+      id,
+      scanned_at,
+      session:sessions (
+        id,
+        date,
+        subject:subjects (
+          name,
+          code
+        )
+      )
+    `)
+    .eq('student_id', studentId)
+    .order('scanned_at', { ascending: false })
+
+  if (error) return { success: false, error: error.message, data: null }
+  return { success: true, data, error: null }
 }
