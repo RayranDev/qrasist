@@ -13,23 +13,25 @@ export default async function AdminUsersPage() {
 
   if (!user) redirect('/login')
 
-  // Obtener todos los perfiles (activos e inactivos para la gestión de admin)
+  // Obtener todos los perfiles — el email viene de la columna profiles.email
   const { data: profiles } = await supabase
     .from('profiles')
     .select('*')
 
-  // Obtener datos de autenticación (emails, last_sign_in)
-  const { data: authData } = await supabaseAdmin.auth.admin.listUsers()
-
-  // Combinar datos
-  const mergedUsers = profiles?.map(profile => {
-    const authUser = authData?.users.find(u => u.id === profile.id)
-    return {
-      ...profile,
-      email: authUser?.email || 'Sin correo',
-      last_sign_in_at: authUser?.last_sign_in_at || null
+  // last_sign_in_at viene del admin API (requiere service role).
+  // Si falla silenciosamente, simplemente no se muestra.
+  let lastSignInMap: Record<string, string | null> = {}
+  try {
+    const { data: authData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
+    if (authData?.users) {
+      authData.users.forEach(u => { lastSignInMap[u.id] = u.last_sign_in_at || null })
     }
-  }).sort((a, b) => a.role.localeCompare(b.role)) || []
+  } catch { /* service role key no disponible — last_sign_in se omite */ }
+
+  const mergedUsers = profiles?.map(profile => ({
+    ...profile,
+    last_sign_in_at: lastSignInMap[profile.id] || null
+  })).sort((a, b) => a.role.localeCompare(b.role)) || []
 
   return (
     <div className="min-h-screen bg-[#F7F7F5]">

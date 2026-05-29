@@ -59,8 +59,8 @@ export async function createUserAccount(formData: FormData) {
   // Esperar un poco a que el trigger de Supabase cree el profile
   await new Promise(resolve => setTimeout(resolve, 500))
 
-  // Actualizar el rol y el código (el trigger lo creó con rol STUDENT por defecto)
-  await supabaseAdmin.from('profiles').update({ role, student_code: studentCode }).eq('id', data.user.id)
+  // Actualizar rol, código e email (el trigger ya creó el perfil con STUDENT por defecto)
+  await supabaseAdmin.from('profiles').update({ role, student_code: studentCode, email }).eq('id', data.user.id)
 
   revalidatePath('/admin/users')
   return { success: true }

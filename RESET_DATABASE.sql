@@ -28,6 +28,7 @@ CREATE TABLE profiles (
   role user_role NOT NULL DEFAULT 'STUDENT',
   name TEXT NOT NULL,
   student_code TEXT UNIQUE,
+  email TEXT,
   is_active BOOLEAN NOT NULL DEFAULT true
 );
 
@@ -71,12 +72,13 @@ CREATE TABLE attendances (
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
-  INSERT INTO public.profiles (id, role, name)
+  INSERT INTO public.profiles (id, role, name, student_code, email)
   VALUES (
-    new.id, 
-    'STUDENT', 
-    -- Si no se envía nombre (como desde la interfaz de Supabase), usamos el usuario del correo
-    COALESCE(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)) 
+    new.id,
+    'STUDENT',
+    COALESCE(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
+    new.raw_user_meta_data->>'student_code',
+    new.email
   );
   RETURN new;
 END;
