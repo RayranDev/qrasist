@@ -164,16 +164,21 @@ export function CreateUserForm() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setLoading(true)
-    const formData = new FormData(e.currentTarget)
-    const result = await createUserAccount(formData)
-    if (result.success) {
-      (e.target as HTMLFormElement).reset()
-      setRole('STUDENT')
-      setShowPassword(false)
-    } else {
-      alert(result.error)
+    try {
+      const formData = new FormData(e.currentTarget)
+      const result = await createUserAccount(formData)
+      if (result.success) {
+        (e.target as HTMLFormElement).reset()
+        setRole('STUDENT')
+        setShowPassword(false)
+      } else {
+        alert(result.error)
+      }
+    } catch (err: any) {
+      alert('Error al crear usuario: ' + (err?.message ?? 'Error desconocido'))
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const inputClass = "w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all shadow-sm"
@@ -304,19 +309,24 @@ export function ActionButtons({ userId, currentName, currentCode, currentRole, i
 
   const handleSave = async () => {
     setLoading(true)
-    const result = await updateUserAccount(userId, {
-      name: name !== currentName ? name : undefined,
-      student_code: code !== currentCode ? code : undefined,
-      password: password.trim() !== '' ? password : undefined
-    })
-    if (result.success) {
-      setIsEditing(false)
-      setPassword('')
-      setShowPassword(false)
-    } else {
-      alert(result.error)
+    try {
+      const result = await updateUserAccount(userId, {
+        name: name !== currentName ? name : undefined,
+        student_code: code !== currentCode ? code : undefined,
+        password: password.trim() !== '' ? password : undefined
+      })
+      if (result.success) {
+        setIsEditing(false)
+        setPassword('')
+        setShowPassword(false)
+      } else {
+        alert(result.error)
+      }
+    } catch (err: any) {
+      alert('Error al guardar: ' + (err?.message ?? 'Error desconocido'))
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const inputClass = "w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-emerald-500 transition-all"
