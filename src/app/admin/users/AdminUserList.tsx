@@ -17,10 +17,10 @@ export default function AdminUserList({ initialUsers, currentUser }: { initialUs
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-2 mb-6">
-        <button onClick={() => setFilter('ALL')} className={`px-4 py-2 rounded-xl text-sm font-bold transition ${filter === 'ALL' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>Todos</button>
+        <button onClick={() => setFilter('ALL')} className={`px-4 py-2 rounded-xl text-sm font-bold transition ${filter === 'ALL' ? 'bg-emerald-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>Todos</button>
         <button onClick={() => setFilter('ADMIN')} className={`px-4 py-2 rounded-xl text-sm font-bold transition ${filter === 'ADMIN' ? 'bg-purple-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-purple-50'}`}>Administradores</button>
         <button onClick={() => setFilter('PROFESSOR')} className={`px-4 py-2 rounded-xl text-sm font-bold transition ${filter === 'PROFESSOR' ? 'bg-amber-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-amber-50'}`}>Docentes</button>
-        <button onClick={() => setFilter('STUDENT')} className={`px-4 py-2 rounded-xl text-sm font-bold transition ${filter === 'STUDENT' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-blue-50'}`}>Estudiantes</button>
+        <button onClick={() => setFilter('STUDENT')} className={`px-4 py-2 rounded-xl text-sm font-bold transition ${filter === 'STUDENT' ? 'bg-emerald-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-emerald-50'}`}>Estudiantes</button>
       </div>
 
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-x-auto">

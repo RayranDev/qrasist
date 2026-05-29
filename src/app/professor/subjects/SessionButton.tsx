@@ -23,7 +23,7 @@ export default function SessionButton({ subjectId }: { subjectId: string }) {
     <button 
       onClick={handleCreate}
       disabled={loading}
-      className="w-full py-3 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 transition shadow-sm active:scale-95 disabled:opacity-50"
+      className="w-full py-3 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 transition shadow-sm active:scale-95 disabled:opacity-50"
     >
       {loading ? 'Generando...' : 'Iniciar Sesión (Generar QR)'}
     </button>

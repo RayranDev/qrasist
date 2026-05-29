@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createSubject, deleteSubject, updateSubject } from '@/lib/actions/adminSubjects'
 
-const inputClass = "w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all shadow-sm"
+const inputClass = "w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all shadow-sm"
 
 export function CreateSubjectForm({ professors }: { professors: any[] }) {
   const [loading, setLoading] = useState(false)
@@ -25,7 +25,7 @@ export function CreateSubjectForm({ professors }: { professors: any[] }) {
   return (
     <form onSubmit={handleSubmit} className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100 mb-8">
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
+        <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
         </div>
         <h3 className="text-xl font-bold text-gray-900">Crear Nueva Materia</h3>
@@ -50,7 +50,7 @@ export function CreateSubjectForm({ professors }: { professors: any[] }) {
           </select>
         </div>
         <div>
-          <button disabled={loading} type="submit" className="w-full py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition shadow-md active:scale-95 flex items-center justify-center gap-2">
+          <button disabled={loading} type="submit" className="w-full py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition shadow-md active:scale-95 flex items-center justify-center gap-2">
             {loading ? 'Guardando...' : 'Agregar Materia'}
           </button>
         </div>
@@ -119,7 +119,7 @@ export function SubjectActionButtons({ subject, professors }: { subject: any, pr
             <button disabled={loading} onClick={() => setIsEditing(false)} className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition">
               Cancelar
             </button>
-            <button disabled={loading} onClick={handleSave} className="flex-1 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition">
+            <button disabled={loading} onClick={handleSave} className="flex-1 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition">
               {loading ? 'Guardando...' : 'Guardar'}
             </button>
           </div>
@@ -130,7 +130,7 @@ export function SubjectActionButtons({ subject, professors }: { subject: any, pr
 
   return (
     <div className="flex items-center gap-1 relative z-10">
-      <button onClick={() => setIsEditing(true)} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="Editar">
+      <button onClick={() => setIsEditing(true)} className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Editar">
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
       </button>
       <button onClick={handleDelete} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Borrar">

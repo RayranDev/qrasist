@@ -67,7 +67,7 @@ export default function EnrollmentManager({ subjectId, enrolledStudents, allStud
                 <button 
                   disabled={loadingId === student.id}
                   onClick={() => handleAdd(student.id)}
-                  className="px-3 py-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition disabled:opacity-50"
+                  className="px-3 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition disabled:opacity-50"
                 >
                   {loadingId === student.id ? '...' : '+ Añadir'}
                 </button>

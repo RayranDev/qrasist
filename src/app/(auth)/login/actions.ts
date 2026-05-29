@@ -26,8 +26,11 @@ export async function login(formData: FormData) {
 export async function signup(formData: FormData) {
   const email = (formData.get('email') as string).trim()
   const password = (formData.get('password') as string).trim()
-  const name = formData.get('name') as string
+  const name = (formData.get('name') as string || '').trim()
   const studentCode = (formData.get('student_code') as string).trim()
+
+  if (!name) redirect('/login?error=El+nombre+es+obligatorio')
+  if (!/^\d{12}$/.test(studentCode)) redirect('/login?error=El+c%C3%B3digo+debe+tener+exactamente+12+d%C3%ADgitos+num%C3%A9ricos')
 
   const supabase = await createClient()
 

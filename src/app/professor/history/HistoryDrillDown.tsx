@@ -89,7 +89,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: any[] }) {
               <h3 className="text-xl font-bold text-gray-900">
                 Clase del {format(new Date(selectedSession.date), "EEEE d 'de' MMMM", { locale: es })}
               </h3>
-              <p className="text-sm text-indigo-600 font-semibold">{selectedSubject?.name}</p>
+              <p className="text-sm text-emerald-600 font-semibold">{selectedSubject?.name}</p>
             </div>
           </div>
           <button 
@@ -102,7 +102,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: any[] }) {
         </div>
 
         <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-          <span className="w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs">{enrolledAttendances.length}</span>
+          <span className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-xs">{enrolledAttendances.length}</span>
           Estudiantes Regulares (Inscritos)
         </h4>
         {renderTable(enrolledAttendances, "Ningún estudiante inscrito registró asistencia.")}
@@ -135,10 +135,10 @@ export default function HistoryDrillDown({ subjects }: { subjects: any[] }) {
             selectedSubject.sessions.map((session: any) => (
               <div 
                 key={session.id} 
-                className="p-5 border-2 border-gray-50 bg-gray-50/50 rounded-2xl hover:border-indigo-300 hover:bg-white transition flex justify-between items-center group relative"
+                className="p-5 border-2 border-gray-50 bg-gray-50/50 rounded-2xl hover:border-emerald-300 hover:bg-white transition flex justify-between items-center group relative"
               >
                 <div className="flex-1 cursor-pointer" onClick={() => setSelectedSession(session)}>
-                  <h4 className="font-bold text-gray-900 group-hover:text-indigo-600 transition capitalize">
+                  <h4 className="font-bold text-gray-900 group-hover:text-emerald-600 transition capitalize">
                     {format(new Date(session.date), "EEEE d 'de' MMMM", { locale: es })}
                   </h4>
                   <p className="text-sm font-medium text-gray-500 mt-1 flex items-center gap-1.5">
@@ -164,7 +164,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: any[] }) {
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                   </button>
-                  <div className="text-gray-300 group-hover:text-indigo-600 transition cursor-pointer" onClick={() => setSelectedSession(session)}>
+                  <div className="text-gray-300 group-hover:text-emerald-600 transition cursor-pointer" onClick={() => setSelectedSession(session)}>
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                   </div>
                 </div>
@@ -186,19 +186,19 @@ export default function HistoryDrillDown({ subjects }: { subjects: any[] }) {
           <div 
             key={subject.id} 
             onClick={() => setSelectedSubject(subject)}
-            className="bg-white p-6 border border-gray-100 rounded-3xl shadow-sm hover:shadow-md hover:border-indigo-300 transition cursor-pointer group flex flex-col justify-between"
+            className="bg-white p-6 border border-gray-100 rounded-3xl shadow-sm hover:shadow-md hover:border-emerald-300 transition cursor-pointer group flex flex-col justify-between"
           >
             <div>
-              <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
+              <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-1">{subject.name}</h3>
-              <p className="text-sm font-semibold text-indigo-600 mb-6">{subject.code}</p>
+              <p className="text-sm font-semibold text-emerald-600 mb-6">{subject.code}</p>
             </div>
             
             <div className="pt-4 border-t border-gray-50 flex justify-between items-center text-sm text-gray-500 font-medium">
               <span>{subject.sessions?.length || 0} sesiones</span>
-              <span className="text-indigo-600 opacity-0 group-hover:opacity-100 transition flex items-center gap-1">Ver clases <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></span>
+              <span className="text-emerald-600 opacity-0 group-hover:opacity-100 transition flex items-center gap-1">Ver clases <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></span>
             </div>
           </div>
         ))

@@ -32,12 +32,12 @@ export default async function StudentHistoryPage() {
     .order('scanned_at', { ascending: false })
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col">
-      <div className="flex-1 p-6 max-w-md mx-auto w-full flex flex-col">
-        <header className="flex justify-between items-center mb-8 pt-4">
+    <div className="min-h-screen bg-[#F7F7F5] flex flex-col">
+      <div className="flex-1 p-5 max-w-md mx-auto w-full flex flex-col">
+        <header className="flex justify-between items-center mb-6 pt-4">
           <div>
-            <Link href="/student/scanner" className="text-indigo-600 hover:text-indigo-700 font-medium text-sm flex items-center gap-1 mb-2">
-              ← Volver al Escáner
+            <Link href="/student/scanner" className="text-emerald-600 hover:text-emerald-700 font-semibold text-sm flex items-center gap-1 mb-2">
+              ← Volver
             </Link>
             <h1 className="text-2xl font-bold text-gray-900">Mi Historial</h1>
             <p className="text-gray-500 mt-1 text-sm">Registro de tus clases asistidas</p>
@@ -56,7 +56,7 @@ export default async function StudentHistoryPage() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900">{record.session?.subject?.name}</h3>
-                    <p className="text-xs text-indigo-600 font-medium mb-1">{record.session?.subject?.code}</p>
+                    <p className="text-xs text-emerald-600 font-medium mb-1">{record.session?.subject?.code}</p>
                     <p className="text-xs text-gray-500 capitalize">
                       <LocalTime date={record.scanned_at} />
                     </p>

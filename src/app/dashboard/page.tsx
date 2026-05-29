@@ -26,7 +26,7 @@ export default async function DashboardRedirect() {
   // Redirigimos según el rol
   switch (profile.role) {
     case 'ADMIN':
-      redirect('/admin/subjects')
+      redirect('/admin/dashboard')
     case 'PROFESSOR':
       redirect('/professor/subjects')
     case 'STUDENT':

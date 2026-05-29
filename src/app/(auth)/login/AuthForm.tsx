@@ -6,7 +6,7 @@ import { login, signup } from './actions'
 export default function AuthForm({ error }: { error?: string }) {
   const [isLogin, setIsLogin] = useState(true)
 
-  const inputClass = "w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-gray-900 bg-gray-50 placeholder-gray-400 font-medium"
+  const inputClass = "w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all text-gray-900 bg-gray-50 placeholder-gray-400 font-medium"
 
   return (
     <>
@@ -25,7 +25,19 @@ export default function AuthForm({ error }: { error?: string }) {
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider ml-1">Código Estudiantil</label>
-              <input required name="student_code" type="text" className={inputClass} placeholder="Ej. 202310123" />
+              <input
+                required
+                name="student_code"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]{12}"
+                minLength={12}
+                maxLength={12}
+                className={inputClass}
+                placeholder="12 dígitos numéricos"
+                title="El código debe tener exactamente 12 dígitos numéricos"
+                onInput={e => { (e.target as HTMLInputElement).value = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 12) }}
+              />
             </div>
           </div>
         )}
@@ -40,7 +52,7 @@ export default function AuthForm({ error }: { error?: string }) {
           <input required name="password" type="password" minLength={6} className={inputClass} placeholder="••••••••" />
         </div>
 
-        <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl transition-all shadow-md active:scale-[0.98] mt-2">
+        <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-xl transition-all shadow-md active:scale-[0.98] mt-2">
           {isLogin ? 'Iniciar Sesión' : 'Crear Cuenta Estudiantil'}
         </button>
       </form>
@@ -50,7 +62,7 @@ export default function AuthForm({ error }: { error?: string }) {
         <button 
           type="button" 
           onClick={() => setIsLogin(!isLogin)} 
-          className="text-sm text-indigo-600 font-bold hover:text-indigo-700 hover:underline transition"
+          className="text-sm text-emerald-600 font-bold hover:text-emerald-700 hover:underline transition"
         >
           {isLogin ? 'Regístrate aquí' : 'Inicia Sesión aquí'}
         </button>

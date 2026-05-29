@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/adminClient'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import AdminUserList from './AdminUserList'
+import MobileWarningBanner from '@/components/MobileWarningBanner'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,14 +32,19 @@ export default async function AdminUsersPage() {
   }).sort((a, b) => a.role.localeCompare(b.role)) || []
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] p-8">
+    <div className="min-h-screen bg-[#F7F7F5]">
+      <MobileWarningBanner />
+      <div className="p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
         <header className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Gestión de Usuarios</h1>
             <p className="text-gray-500 mt-1">Administra los roles, perfiles y contraseñas</p>
           </div>
-          <div className="flex gap-4 items-center">
+          <div className="flex flex-wrap gap-3 items-center">
+            <Link href="/admin/dashboard" className="text-sm font-medium text-gray-500 hover:text-gray-900 transition">
+              Dashboard
+            </Link>
             <Link href="/admin/subjects" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition">
               Ver Materias
             </Link>
@@ -51,6 +57,7 @@ export default async function AdminUsersPage() {
         </header>
 
         <AdminUserList initialUsers={mergedUsers} currentUser={user} />
+      </div>
       </div>
     </div>
   )

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import EnrollmentManager from './EnrollmentManager'
+import MobileWarningBanner from '@/components/MobileWarningBanner'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,16 +33,18 @@ export default async function SubjectEnrollmentsPage({ params }: { params: Promi
     .order('name')
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] p-8">
+    <div className="min-h-screen bg-[#F7F7F5]">
+      <MobileWarningBanner />
+      <div className="p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
         <header className="mb-8">
-          <Link href="/admin/subjects" className="text-indigo-600 hover:text-indigo-700 font-medium text-sm flex items-center gap-1 mb-4 w-fit">
+          <Link href="/admin/subjects" className="text-emerald-600 hover:text-emerald-700 font-medium text-sm flex items-center gap-1 mb-4 w-fit">
             ← Volver a Materias
           </Link>
           <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Gestionar Estudiantes</h1>
             <div className="flex items-center gap-3">
-              <span className="px-3 py-1 bg-indigo-50 text-indigo-700 font-bold rounded-lg text-sm">{subject.code}</span>
+              <span className="px-3 py-1 bg-emerald-50 text-emerald-700 font-bold rounded-lg text-sm">{subject.code}</span>
               <p className="text-gray-600 font-medium">{subject.name}</p>
             </div>
           </div>
@@ -52,6 +55,8 @@ export default async function SubjectEnrollmentsPage({ params }: { params: Promi
           enrolledStudents={enrolledStudents || []} 
           allStudents={allStudents || []} 
         />
+      </div>
+      </div>
       </div>
     </div>
   )
