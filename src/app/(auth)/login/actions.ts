@@ -31,6 +31,7 @@ export async function signup(formData: FormData) {
 
   if (!name) redirect('/login?error=El+nombre+es+obligatorio')
   if (!/^\d{12}$/.test(studentCode)) redirect('/login?error=El+c%C3%B3digo+debe+tener+exactamente+12+d%C3%ADgitos+num%C3%A9ricos')
+  if (!email.endsWith('@urepublicana.edu.co')) redirect('/login?error=El+correo+debe+ser+institucional+%40urepublicana.edu.co')
 
   const supabase = await createClient()
 

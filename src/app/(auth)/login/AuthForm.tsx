@@ -44,7 +44,7 @@ export default function AuthForm({ error }: { error?: string }) {
 
         <div className="animate-in fade-in duration-300">
           <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider ml-1">Correo Electrónico</label>
-          <input required name="email" type="email" className={inputClass} placeholder="estudiante@universidad.edu" />
+          <input required name="email" type="email" className={inputClass} placeholder="usuario@urepublicana.edu.co" />
         </div>
 
         <div className="animate-in fade-in duration-300">

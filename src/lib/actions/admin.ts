@@ -42,6 +42,11 @@ export async function createUserAccount(formData: FormData) {
 
   if (!email || !password || !name || !studentCode) return { success: false, error: 'Faltan datos obligatorios.' }
 
+  // Validar dominio institucional para docentes y estudiantes
+  if (role !== 'ADMIN' && !email.endsWith('@urepublicana.edu.co')) {
+    return { success: false, error: 'El correo de docentes y estudiantes debe ser @urepublicana.edu.co' }
+  }
+
   // Verificar que el student_code no exista (para evitar que se cree en Auth y luego falle en Profiles)
   const { data: existingCode } = await supabaseAdmin.from('profiles').select('id').eq('student_code', studentCode).maybeSingle()
   if (existingCode) return { success: false, error: 'Ese código/ID institucional ya está registrado por otro usuario.' }
