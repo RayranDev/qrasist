@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { CreateSubjectForm, SubjectActionButtons } from './SubjectComponents'
+import ExportSubjectsButton from './ExportSubjectsButton'
 import MobileWarningBanner from '@/components/MobileWarningBanner'
 
 export const dynamic = 'force-dynamic'
@@ -17,7 +18,7 @@ export default async function AdminSubjectsPage() {
   // Fetch subjects (todos para mostrar activos e inactivos) y profesores activos
   const { data: subjects } = await supabase
     .from('subjects')
-    .select('*, professor:profiles(name)')
+    .select('*, professor:profiles(name), enrollments(student_id)')
     .order('is_active', { ascending: false })
     .order('name')
   const { data: professors } = await supabase
@@ -25,6 +26,14 @@ export default async function AdminSubjectsPage() {
     .select('id, name')
     .eq('role', 'PROFESSOR')
     .eq('is_active', true)
+
+  const exportRows = (subjects || []).map((s) => ({
+    code: s.code,
+    name: s.name,
+    professorName: s.professor?.name || 'Sin asignar',
+    isActive: s.is_active !== false,
+    studentCount: (s.enrollments as { student_id: string }[] | null)?.length || 0,
+  }))
 
   return (
     <div className="min-h-screen bg-surface">
@@ -60,13 +69,16 @@ export default async function AdminSubjectsPage() {
           <CreateSubjectForm professors={professors || []} />
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
               <h2 className="text-xl font-semibold">Materias</h2>
-              {subjects?.some((s) => s.is_active === false) && (
-                <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">
-                  {subjects.filter((s) => s.is_active === false).length} archivada(s)
-                </span>
-              )}
+              <div className="flex items-center gap-3">
+                {subjects?.some((s) => s.is_active === false) && (
+                  <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">
+                    {subjects.filter((s) => s.is_active === false).length} archivada(s)
+                  </span>
+                )}
+                <ExportSubjectsButton subjects={exportRows} />
+              </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {subjects?.map((sub) => {

@@ -50,46 +50,38 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
     const guestAttendances =
       selectedSession.attendances?.filter((a) => !enrolledIds.has(a.student_id)) || []
 
-    const exportToCSV = () => {
-      const rows = [
+    const exportToExcel = async () => {
+      const toRow = (a: Attendance, tipo: 'Regular' | 'Invitado') => {
+        const d = new Date(a.scanned_at)
+        return {
+          nombre: a.student?.name || 'Desconocido',
+          codigo: a.student?.student_code || 'N/A',
+          fecha: format(d, 'dd/MM/yyyy'),
+          hora: format(d, 'hh:mm a'),
+          tipo,
+        }
+      }
+
+      const { downloadWorkbook } = await import('@/lib/excel/exportWorkbook')
+      await downloadWorkbook(
+        `asistencia_${selectedSubject!.code}_${format(new Date(selectedSession.date), 'dd-MM-yyyy')}`,
         [
-          'Nombre Completo',
-          'Codigo Estudiantil',
-          'Fecha de Registro',
-          'Hora Exacta',
-          'Tipo de Asistente',
-        ],
-      ]
-      enrolledAttendances.forEach((a) => {
-        const d = new Date(a.scanned_at)
-        rows.push([
-          a.student?.name || 'Desconocido',
-          a.student?.student_code || 'N/A',
-          format(d, 'dd/MM/yyyy'),
-          format(d, 'hh:mm a'),
-          'Regular',
-        ])
-      })
-      guestAttendances.forEach((a) => {
-        const d = new Date(a.scanned_at)
-        rows.push([
-          a.student?.name || 'Desconocido',
-          a.student?.student_code || 'N/A',
-          format(d, 'dd/MM/yyyy'),
-          format(d, 'hh:mm a'),
-          'Invitado',
-        ])
-      })
-      const csvContent = 'data:text/csv;charset=utf-8,' + rows.map((e) => e.join(',')).join('\n')
-      const encodedUri = encodeURI(csvContent)
-      const link = document.createElement('a')
-      link.setAttribute('href', encodedUri)
-      link.setAttribute(
-        'download',
-        `asistencia_${selectedSubject!.code}_${format(new Date(selectedSession.date), 'dd-MM-yyyy')}.csv`
+          {
+            name: 'Asistencia',
+            columns: [
+              { header: 'Nombre Completo', key: 'nombre', width: 30 },
+              { header: 'Código Estudiantil', key: 'codigo', width: 20 },
+              { header: 'Fecha de Registro', key: 'fecha', width: 16 },
+              { header: 'Hora Exacta', key: 'hora', width: 14 },
+              { header: 'Tipo de Asistente', key: 'tipo', width: 16 },
+            ],
+            rows: [
+              ...enrolledAttendances.map((a) => toRow(a, 'Regular')),
+              ...guestAttendances.map((a) => toRow(a, 'Invitado')),
+            ],
+          },
+        ]
       )
-      document.body.appendChild(link)
-      link.click()
     }
 
     const renderTable = (attendances: Attendance[], emptyMessage: string) => (
@@ -164,7 +156,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
             </div>
           </div>
           <button
-            onClick={exportToCSV}
+            onClick={exportToExcel}
             className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold text-sm rounded-xl transition"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -175,7 +167,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
                 d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
               />
             </svg>
-            Exportar CSV
+            Exportar Excel
           </button>
         </div>
 
