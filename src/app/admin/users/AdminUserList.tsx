@@ -9,6 +9,7 @@ import {
   ActionButtons,
   StudentHistoryModal,
   StudentCareersModal,
+  ProfessorCareersModal,
 } from './UserComponents'
 import { ClipboardList, GraduationCap } from 'lucide-react'
 
@@ -37,6 +38,11 @@ interface StudentCareerLink {
   career_id: string
 }
 
+interface ProfessorCareerLink {
+  professor_id: string
+  career_id: string
+}
+
 function buildHref(role: FilterRole, status: FilterStatus, page: number) {
   const params = new URLSearchParams()
   if (role !== 'ALL') params.set('role', role)
@@ -57,6 +63,7 @@ export default function AdminUserList({
   totalCount,
   careers,
   studentCareers,
+  professorCareers,
 }: {
   users: Profile[]
   currentUser: User
@@ -68,9 +75,11 @@ export default function AdminUserList({
   totalCount: number
   careers: Career[]
   studentCareers: StudentCareerLink[]
+  professorCareers: ProfessorCareerLink[]
 }) {
   const [historyUser, setHistoryUser] = useState<{ id: string; name: string } | null>(null)
   const [careersUser, setCareersUser] = useState<{ id: string; name: string } | null>(null)
+  const [careersProf, setCareersProf] = useState<{ id: string; name: string } | null>(null)
 
   return (
     <>
@@ -93,6 +102,18 @@ export default function AdminUserList({
             .filter((sc) => sc.student_id === careersUser.id)
             .map((sc) => sc.career_id)}
           onClose={() => setCareersUser(null)}
+        />
+      )}
+
+      {careersProf && (
+        <ProfessorCareersModal
+          professorId={careersProf.id}
+          professorName={careersProf.name}
+          careers={careers}
+          initialCareerIds={professorCareers
+            .filter((pc) => pc.professor_id === careersProf.id)
+            .map((pc) => pc.career_id)}
+          onClose={() => setCareersProf(null)}
         />
       )}
 
@@ -221,6 +242,15 @@ export default function AdminUserList({
                             <GraduationCap className="w-5 h-5" strokeWidth={2} />
                           </button>
                         </>
+                      )}
+                      {profile.role === 'PROFESSOR' && profile.is_active !== false && (
+                        <button
+                          onClick={() => setCareersProf({ id: profile.id, name: profile.name })}
+                          className="p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition"
+                          title="Carreras del profesor"
+                        >
+                          <GraduationCap className="w-5 h-5" strokeWidth={2} />
+                        </button>
                       )}
                       {currentUser.id !== profile.id && (
                         <ActionButtons

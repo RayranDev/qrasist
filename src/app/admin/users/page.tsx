@@ -63,6 +63,11 @@ export default async function AdminUsersPage({
     .select('student_id, career_id')
     .eq('is_active', true)
 
+  const { data: professorCareers } = await supabase
+    .from('professor_careers')
+    .select('professor_id, career_id')
+    .eq('is_active', true)
+
   const totalPages = Math.max(1, Math.ceil((totalCount || 0) / PAGE_SIZE))
 
   return (
@@ -87,6 +92,7 @@ export default async function AdminUsersPage({
             totalCount={totalCount || 0}
             careers={careers || []}
             studentCareers={studentCareers || []}
+            professorCareers={professorCareers || []}
           />
         </div>
       </div>

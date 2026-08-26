@@ -229,3 +229,31 @@ export async function setStudentCareer(studentId: string, careerId: string, enab
   revalidatePath('/admin/users')
   return { success: true }
 }
+
+// ------------------------------------------------------------
+// Profesor <-> carrera
+// ------------------------------------------------------------
+
+export async function setProfessorCareer(professorId: string, careerId: string, enabled: boolean) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user || !(await checkAdmin(supabase, user.id))) {
+    return { success: false, error: 'No autorizado' }
+  }
+
+  const { error } = await supabase
+    .from('professor_careers')
+    .upsert(
+      { professor_id: professorId, career_id: careerId, is_active: enabled },
+      { onConflict: 'professor_id,career_id' }
+    )
+
+  if (error) return { success: false, error: 'Error al actualizar las carreras del profesor' }
+
+  revalidatePath('/admin/users')
+  revalidatePath('/admin/subjects')
+  return { success: true }
+}
