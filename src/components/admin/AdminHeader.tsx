@@ -31,11 +31,15 @@ export default function AdminHeader({
         {description && <p className="text-gray-500 mt-1 text-sm">{description}</p>}
       </div>
       <div className="flex flex-wrap gap-3 items-center">
-        {NAV_LINKS.filter((link) => link.href !== activeHref).map((link) => (
+        {NAV_LINKS.map((link) => (
           <Link
             key={link.href}
             href={link.href}
-            className="px-4 py-2 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition"
+            className={
+              link.href === activeHref
+                ? 'px-4 py-2 text-sm font-bold text-emerald-700 bg-emerald-50 rounded-xl hover:bg-emerald-100 transition'
+                : 'px-4 py-2 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition'
+            }
           >
             {link.label}
           </Link>

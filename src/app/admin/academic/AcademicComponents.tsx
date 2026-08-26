@@ -148,6 +148,13 @@ export function CreatePeriodForm() {
     setLoading(true)
     const formData = new FormData(e.currentTarget)
     const name = formData.get('name') as string
+    const startDate = formData.get('start_date') as string
+    const endDate = formData.get('end_date') as string
+    if (startDate && endDate && startDate >= endDate) {
+      showToast('La fecha de inicio debe ser anterior a la fecha de fin.', 'error')
+      setLoading(false)
+      return
+    }
     const result = await createPeriod(formData)
     if (result.success) {
       ;(e.target as HTMLFormElement).reset()

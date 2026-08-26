@@ -107,6 +107,9 @@ export async function createPeriod(formData: FormData) {
   if (!/^\d{4}-[1-3]$/.test(name)) {
     return { success: false, error: 'El período debe tener el formato AAAA-N, ej. 2026-1' }
   }
+  if (startDate && endDate && startDate >= endDate) {
+    return { success: false, error: 'La fecha de inicio debe ser anterior a la fecha de fin' }
+  }
 
   const { error } = await supabase
     .from('periods')
@@ -174,6 +177,7 @@ export async function assignSubjectToCareer(
   if (error) return { success: false, error: 'Error al asignar la materia al pénsum' }
 
   revalidatePath(`${ACADEMIC_PATH}/${careerId}/pensum`)
+  revalidatePath('/admin/subjects')
   return { success: true }
 }
 
@@ -195,6 +199,7 @@ export async function removeSubjectFromCareer(subjectCareerId: string, careerId:
   if (error) return { success: false, error: 'Error al quitar la materia del pénsum' }
 
   revalidatePath(`${ACADEMIC_PATH}/${careerId}/pensum`)
+  revalidatePath('/admin/subjects')
   return { success: true }
 }
 
