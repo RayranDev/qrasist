@@ -181,6 +181,12 @@ export default async function AdminDashboardPage() {
               >
                 Carreras
               </Link>
+              <Link
+                href="/admin/import"
+                className="px-4 py-2 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition"
+              >
+                Carga Masiva
+              </Link>
               <form action="/auth/signout" method="post">
                 <button className="px-4 py-2 text-sm font-bold text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition">
                   Cerrar Sesión
