@@ -6,7 +6,17 @@ import MobileWarningBanner from '@/components/MobileWarningBanner'
 
 export const dynamic = 'force-dynamic'
 
-export default async function AdminUsersPage() {
+const PAGE_SIZE = 20
+
+type RoleFilter = 'ALL' | 'ADMIN' | 'PROFESSOR' | 'STUDENT'
+type StatusFilter = 'active' | 'inactive'
+
+export default async function AdminUsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; role?: string; status?: string }>
+}) {
+  const params = await searchParams
   const supabase = await createClient()
   const {
     data: { user },
@@ -14,12 +24,35 @@ export default async function AdminUsersPage() {
 
   if (!user) redirect('/login')
 
-  // Obtener todos los perfiles — el email viene de la columna profiles.email
-  const { data: profiles } = await supabase.from('profiles').select('*')
+  const roleFilter = (['ALL', 'ADMIN', 'PROFESSOR', 'STUDENT'] as RoleFilter[]).includes(
+    params.role as RoleFilter
+  )
+    ? (params.role as RoleFilter)
+    : 'ALL'
+  const statusFilter: StatusFilter = params.status === 'inactive' ? 'inactive' : 'active'
+  const currentPage = Math.max(1, parseInt(params.page || '1', 10) || 1)
+  const from = (currentPage - 1) * PAGE_SIZE
+  const to = from + PAGE_SIZE - 1
 
-  // last_sign_in_at viene del admin API (requiere service role).
-  // Si falla silenciosamente, simplemente no se muestra.
-  const mergedUsers = profiles?.slice().sort((a, b) => a.role.localeCompare(b.role)) || []
+  let query = supabase
+    .from('profiles')
+    .select('*', { count: 'exact' })
+    .eq('is_active', statusFilter === 'active')
+    .order('role')
+    .order('name')
+
+  if (roleFilter !== 'ALL') {
+    query = query.eq('role', roleFilter)
+  }
+
+  const { data: users, count: totalCount } = await query.range(from, to)
+
+  const { count: inactiveCount } = await supabase
+    .from('profiles')
+    .select('*', { count: 'exact', head: true })
+    .eq('is_active', false)
+
+  const totalPages = Math.max(1, Math.ceil((totalCount || 0) / PAGE_SIZE))
 
   return (
     <div className="min-h-screen bg-surface">
@@ -52,7 +85,16 @@ export default async function AdminUsersPage() {
             </div>
           </header>
 
-          <AdminUserList initialUsers={mergedUsers} currentUser={user} />
+          <AdminUserList
+            users={users || []}
+            currentUser={user}
+            roleFilter={roleFilter}
+            statusFilter={statusFilter}
+            inactiveCount={inactiveCount || 0}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalCount={totalCount || 0}
+          />
         </div>
       </div>
     </div>

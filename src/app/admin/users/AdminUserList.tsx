@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
 import RoleSelect from './RoleSelect'
 import { CreateUserForm, ActionButtons, StudentHistoryModal } from './UserComponents'
@@ -17,24 +18,35 @@ interface Profile {
   is_active: boolean | null
 }
 
+function buildHref(role: FilterRole, status: FilterStatus, page: number) {
+  const params = new URLSearchParams()
+  if (role !== 'ALL') params.set('role', role)
+  if (status !== 'active') params.set('status', status)
+  if (page > 1) params.set('page', String(page))
+  const qs = params.toString()
+  return qs ? `?${qs}` : '?'
+}
+
 export default function AdminUserList({
-  initialUsers,
+  users,
   currentUser,
+  roleFilter,
+  statusFilter,
+  inactiveCount,
+  currentPage,
+  totalPages,
+  totalCount,
 }: {
-  initialUsers: Profile[]
+  users: Profile[]
   currentUser: User
+  roleFilter: FilterRole
+  statusFilter: FilterStatus
+  inactiveCount: number
+  currentPage: number
+  totalPages: number
+  totalCount: number
 }) {
-  const [roleFilter, setRoleFilter] = useState<FilterRole>('ALL')
-  const [statusFilter, setStatusFilter] = useState<FilterStatus>('active')
   const [historyUser, setHistoryUser] = useState<{ id: string; name: string } | null>(null)
-
-  const filtered = initialUsers.filter((u) => {
-    const roleMatch = roleFilter === 'ALL' || u.role === roleFilter
-    const statusMatch = statusFilter === 'active' ? u.is_active !== false : u.is_active === false
-    return roleMatch && statusMatch
-  })
-
-  const inactiveCount = initialUsers.filter((u) => u.is_active === false).length
 
   return (
     <>
@@ -70,27 +82,27 @@ export default function AdminUserList({
             STUDENT: 'hover:bg-emerald-50',
           }
           return (
-            <button
+            <Link
               key={r}
-              onClick={() => setRoleFilter(r)}
+              href={buildHref(r, statusFilter, 1)}
               className={`px-4 py-2 rounded-xl text-sm font-bold transition ${roleFilter === r ? active[r] : `bg-white text-gray-600 border border-gray-200 ${hover[r]}`}`}
             >
               {labels[r]}
-            </button>
+            </Link>
           )
         })}
       </div>
 
       {/* Toggle activos / inactivos */}
       <div className="flex gap-2 mb-6">
-        <button
-          onClick={() => setStatusFilter('active')}
+        <Link
+          href={buildHref(roleFilter, 'active', 1)}
           className={`px-4 py-1.5 rounded-xl text-xs font-bold transition ${statusFilter === 'active' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}
         >
           Activos
-        </button>
-        <button
-          onClick={() => setStatusFilter('inactive')}
+        </Link>
+        <Link
+          href={buildHref(roleFilter, 'inactive', 1)}
           className={`px-4 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${statusFilter === 'inactive' ? 'bg-amber-500 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-amber-50'}`}
         >
           Inactivos
@@ -101,7 +113,7 @@ export default function AdminUserList({
               {inactiveCount}
             </span>
           )}
-        </button>
+        </Link>
       </div>
 
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-x-auto">
@@ -123,8 +135,8 @@ export default function AdminUserList({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {filtered.length > 0 ? (
-              filtered.map((profile) => (
+            {users.length > 0 ? (
+              users.map((profile) => (
                 <tr
                   key={profile.id}
                   className={`transition ${profile.is_active === false ? 'bg-gray-50/80 opacity-60' : 'hover:bg-gray-50/50'}`}
@@ -202,6 +214,39 @@ export default function AdminUserList({
           </tbody>
         </table>
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4 px-1">
+          <p className="text-xs text-gray-500 font-medium">
+            Página {currentPage} de {totalPages} · {totalCount} usuario
+            {totalCount !== 1 ? 's' : ''}
+          </p>
+          <div className="flex gap-2">
+            <Link
+              href={buildHref(roleFilter, statusFilter, currentPage - 1)}
+              aria-disabled={currentPage <= 1}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
+                currentPage <= 1
+                  ? 'pointer-events-none opacity-40 border-gray-200 text-gray-400'
+                  : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              ← Anterior
+            </Link>
+            <Link
+              href={buildHref(roleFilter, statusFilter, currentPage + 1)}
+              aria-disabled={currentPage >= totalPages}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
+                currentPage >= totalPages
+                  ? 'pointer-events-none opacity-40 border-gray-200 text-gray-400'
+                  : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Siguiente →
+            </Link>
+          </div>
+        </div>
+      )}
     </>
   )
 }
