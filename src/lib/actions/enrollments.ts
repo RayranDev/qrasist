@@ -2,12 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import type { SupabaseClient } from '@supabase/supabase-js'
-
-async function checkAdmin(supabase: SupabaseClient, userId: string) {
-  const { data } = await supabase.from('profiles').select('role').eq('id', userId).single()
-  return data?.role === 'ADMIN'
-}
+import { checkAdmin } from './authGuards'
 
 export async function addEnrollment(subjectId: string, studentId: string) {
   const supabase = await createClient()
