@@ -7,6 +7,7 @@ import {
   updateSubject,
   reactivateSubject,
 } from '@/lib/actions/adminSubjects'
+import { useToast } from '@/components/toast/ToastProvider'
 
 const inputClass =
   'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all shadow-sm'
@@ -26,16 +27,19 @@ interface Subject {
 
 export function CreateSubjectForm({ professors }: { professors: Professor[] }) {
   const [loading, setLoading] = useState(false)
+  const showToast = useToast()
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setLoading(true)
     const formData = new FormData(e.currentTarget)
+    const name = formData.get('name') as string
     const result = await createSubject(formData)
     if (result.success) {
       ;(e.target as HTMLFormElement).reset()
+      showToast(`Materia "${name}" creada.`, 'success')
     } else {
-      alert(result.error)
+      showToast(result.error || 'No se pudo crear la materia.', 'error')
     }
     setLoading(false)
   }
@@ -123,6 +127,7 @@ export function SubjectActionButtons({
   const [name, setName] = useState(subject.name)
   const [code, setCode] = useState(subject.code)
   const [profId, setProfId] = useState(subject.professor_id || '')
+  const showToast = useToast()
 
   const isActive = subject.is_active !== false
 
@@ -135,14 +140,22 @@ export function SubjectActionButtons({
       return
     setLoading(true)
     const result = await deleteSubject(subject.id)
-    if (!result.success) alert(result.error)
+    if (result.success) {
+      showToast(`"${subject.name}" archivada.`, 'success')
+    } else {
+      showToast(result.error || 'No se pudo archivar la materia.', 'error')
+    }
     setLoading(false)
   }
 
   const handleReactivate = async () => {
     setLoading(true)
     const result = await reactivateSubject(subject.id)
-    if (!result.success) alert(result.error)
+    if (result.success) {
+      showToast(`"${subject.name}" reactivada.`, 'success')
+    } else {
+      showToast(result.error || 'No se pudo reactivar la materia.', 'error')
+    }
     setLoading(false)
   }
 
@@ -155,8 +168,9 @@ export function SubjectActionButtons({
     })
     if (result.success) {
       setIsEditing(false)
+      showToast('Materia actualizada.', 'success')
     } else {
-      alert(result.error)
+      showToast(result.error || 'No se pudo guardar la materia.', 'error')
     }
     setLoading(false)
   }

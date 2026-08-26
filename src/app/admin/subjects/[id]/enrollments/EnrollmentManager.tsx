@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { addEnrollment, removeEnrollment } from '@/lib/actions/enrollments'
+import { useToast } from '@/components/toast/ToastProvider'
 
 interface Student {
   id: string
@@ -22,22 +23,31 @@ export default function EnrollmentManager({
   allStudents: Student[]
 }) {
   const [loadingId, setLoadingId] = useState<string | null>(null)
+  const showToast = useToast()
 
   const enrolledIds = new Set(enrolledStudents.map((e) => e.student.id))
   const availableStudents = allStudents.filter((s) => !enrolledIds.has(s.id))
 
-  const handleAdd = async (studentId: string) => {
+  const handleAdd = async (studentId: string, studentName: string) => {
     setLoadingId(studentId)
     const res = await addEnrollment(subjectId, studentId)
-    if (!res.success) alert(res.error)
+    if (res.success) {
+      showToast(`${studentName} inscrito correctamente.`, 'success')
+    } else {
+      showToast(res.error || 'No se pudo inscribir al estudiante.', 'error')
+    }
     setLoadingId(null)
   }
 
-  const handleRemove = async (studentId: string) => {
+  const handleRemove = async (studentId: string, studentName: string) => {
     if (!confirm('¿Estás seguro de quitar a este estudiante de la materia?')) return
     setLoadingId(studentId)
     const res = await removeEnrollment(subjectId, studentId)
-    if (!res.success) alert(res.error)
+    if (res.success) {
+      showToast(`${studentName} fue removido de la materia.`, 'success')
+    } else {
+      showToast(res.error || 'No se pudo quitar al estudiante.', 'error')
+    }
     setLoadingId(null)
   }
 
@@ -62,7 +72,7 @@ export default function EnrollmentManager({
                 <div className="font-bold text-gray-900 text-sm">{enrollment.student.name}</div>
                 <button
                   disabled={loadingId === enrollment.student.id}
-                  onClick={() => handleRemove(enrollment.student.id)}
+                  onClick={() => handleRemove(enrollment.student.id, enrollment.student.name)}
                   className="px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition disabled:opacity-50"
                 >
                   {loadingId === enrollment.student.id ? '...' : 'Quitar'}
@@ -91,7 +101,7 @@ export default function EnrollmentManager({
                 <div className="font-medium text-gray-600 text-sm">{student.name}</div>
                 <button
                   disabled={loadingId === student.id}
-                  onClick={() => handleAdd(student.id)}
+                  onClick={() => handleAdd(student.id, student.name)}
                   className="px-3 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition disabled:opacity-50"
                 >
                   {loadingId === student.id ? '...' : '+ Añadir'}

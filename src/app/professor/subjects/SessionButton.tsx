@@ -3,10 +3,12 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSession } from '@/lib/actions/session'
+import { useToast } from '@/components/toast/ToastProvider'
 
 export default function SessionButton({ subjectId }: { subjectId: string }) {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const showToast = useToast()
 
   const handleCreate = async () => {
     setLoading(true)
@@ -14,7 +16,7 @@ export default function SessionButton({ subjectId }: { subjectId: string }) {
     if (res.success) {
       router.push(`/professor/session/${res.sessionId}`)
     } else {
-      alert(res.error || 'Error desconocido')
+      showToast(res.error || 'Error desconocido al generar la sesión.', 'error')
       setLoading(false)
     }
   }

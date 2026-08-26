@@ -8,6 +8,7 @@ import {
   reactivateUser,
   getStudentAttendanceHistory,
 } from '@/lib/actions/admin'
+import { useToast } from '@/components/toast/ToastProvider'
 
 interface AttendanceRecord {
   id: string
@@ -240,6 +241,7 @@ export function CreateUserForm() {
   const [loading, setLoading] = useState(false)
   const [role, setRole] = useState<'STUDENT' | 'PROFESSOR' | 'ADMIN'>('STUDENT')
   const [showPassword, setShowPassword] = useState(false)
+  const showToast = useToast()
 
   const isStudent = role === 'STUDENT'
 
@@ -248,17 +250,19 @@ export function CreateUserForm() {
     setLoading(true)
     try {
       const formData = new FormData(e.currentTarget)
+      const name = formData.get('name') as string
       const result = await createUserAccount(formData)
       if (result.success) {
         ;(e.target as HTMLFormElement).reset()
         setRole('STUDENT')
         setShowPassword(false)
+        showToast(`Usuario "${name}" creado.`, 'success')
       } else {
-        alert(result.error)
+        showToast(result.error || 'No se pudo crear el usuario.', 'error')
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error desconocido'
-      alert('Error al crear usuario: ' + message)
+      showToast('Error al crear usuario: ' + message, 'error')
     } finally {
       setLoading(false)
     }
@@ -421,13 +425,18 @@ export function ActionButtons({
   const [code, setCode] = useState(currentCode || '')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const showToast = useToast()
 
   const isStudent = currentRole === 'STUDENT'
 
   const handleDeactivate = async () => {
     setLoading(true)
     const result = await deleteUserAccount(userId)
-    if (!result.success) alert(result.error)
+    if (result.success) {
+      showToast(`${currentName} fue desactivado.`, 'success')
+    } else {
+      showToast(result.error || 'No se pudo desactivar el usuario.', 'error')
+    }
     setLoading(false)
     setIsDeactivating(false)
   }
@@ -435,7 +444,11 @@ export function ActionButtons({
   const handleReactivate = async () => {
     setLoading(true)
     const result = await reactivateUser(userId)
-    if (!result.success) alert(result.error)
+    if (result.success) {
+      showToast(`${currentName} fue reactivado.`, 'success')
+    } else {
+      showToast(result.error || 'No se pudo reactivar el usuario.', 'error')
+    }
     setLoading(false)
   }
 
@@ -451,12 +464,13 @@ export function ActionButtons({
         setIsEditing(false)
         setPassword('')
         setShowPassword(false)
+        showToast('Usuario actualizado.', 'success')
       } else {
-        alert(result.error)
+        showToast(result.error || 'No se pudo guardar el usuario.', 'error')
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error desconocido'
-      alert('Error al guardar: ' + message)
+      showToast('Error al guardar: ' + message, 'error')
     } finally {
       setLoading(false)
     }

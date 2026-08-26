@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { format } from 'date-fns'
+import { useToast } from '@/components/toast/ToastProvider'
 import { es } from 'date-fns/locale'
 
 interface Student {
@@ -205,6 +206,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
     const SessionCard = ({ session, archived }: { session: Session; archived: boolean }) => {
       const [actionLoading, setActionLoading] = useState(false)
       const [showConfirm, setShowConfirm] = useState(false)
+      const showToast = useToast()
 
       const handleArchive = async () => {
         setActionLoading(true)
@@ -213,7 +215,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
         if (res.success) {
           window.location.reload()
         } else {
-          alert(res.error)
+          showToast(res.error || 'No se pudo archivar la sesión.', 'error')
         }
         setActionLoading(false)
         setShowConfirm(false)
@@ -227,7 +229,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
         if (res.success) {
           window.location.reload()
         } else {
-          alert(res.error)
+          showToast(res.error || 'No se pudo reactivar la sesión.', 'error')
         }
         setActionLoading(false)
       }
