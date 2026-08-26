@@ -457,6 +457,7 @@ Todas viven en `supabase/migrations/`, numeradas en el orden real en que se ejec
 | `007_attendance_dedup.sql` | Constraint real de "una asistencia por materia por día" (índice único) |
 | `008_fix_privilege_trigger_service_role.sql` | Corrige el trigger anti-escalada de 006: bloqueaba por error los cambios de rol hechos con la service_role key (`createUserAccount`) |
 | `009_fix_attendance_subject_fk_cascade.sql` | Agrega `ON DELETE CASCADE` a `attendances.subject_id` (faltaba desde 007) |
+| `010_careers_periods_pensum.sql` | Carreras, períodos académicos, pénsum (materia↔carrera↔nivel) y estudiante↔carrera |
 
 ---
 
