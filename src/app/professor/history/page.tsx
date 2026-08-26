@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import HistoryDrillDown from './HistoryDrillDown'
+import BackLink from '@/components/BackLink'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,13 +65,10 @@ export default async function ProfessorHistoryPage() {
         <div className="max-w-6xl mx-auto">
           <header className="flex justify-between items-center mb-10">
             <div>
-              <Link
-                href="/professor/subjects"
-                className="text-emerald-600 hover:text-emerald-700 font-medium text-sm flex items-center gap-1 mb-2"
-              >
-                ← Volver a Mis Materias
-              </Link>
-              <h1 className="text-3xl font-bold text-gray-900">Historial Consolidado</h1>
+              <BackLink href="/professor/subjects">Volver a Mis Materias</BackLink>
+              <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">
+                Historial Consolidado
+              </h1>
               <p className="text-gray-500 mt-1">
                 Explora la asistencia de tus materias, clases y estudiantes
               </p>

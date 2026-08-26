@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import LocalTime from '@/components/LocalTime'
+import BackLink from '@/components/BackLink'
 import { Check, Clock } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -54,13 +54,8 @@ export default async function StudentHistoryPage() {
       <div className="flex-1 p-5 max-w-md mx-auto w-full flex flex-col">
         <header className="flex justify-between items-center mb-6 pt-4">
           <div>
-            <Link
-              href="/student/scanner"
-              className="text-emerald-600 hover:text-emerald-700 font-semibold text-sm flex items-center gap-1 mb-2"
-            >
-              ← Volver al Inicio
-            </Link>
-            <h1 className="text-2xl font-bold text-gray-900">Mi Historial</h1>
+            <BackLink href="/student/scanner">Volver al Inicio</BackLink>
+            <h1 className="text-xl font-black text-gray-900">Mi Historial</h1>
             <p className="text-gray-500 mt-1 text-sm">Registro de tus clases asistidas</p>
           </div>
         </header>

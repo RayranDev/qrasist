@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { AssignSubjectForm, PensumByLevel } from './PensumManager'
 import MobileWarningBanner from '@/components/MobileWarningBanner'
+import BackLink from '@/components/BackLink'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,13 +47,10 @@ export default async function CareerPensumPage({ params }: { params: Promise<{ i
       <div className="p-4 md:p-8">
         <div className="max-w-4xl mx-auto">
           <header className="mb-8">
-            <Link
-              href="/admin/academic"
-              className="text-emerald-600 hover:text-emerald-700 font-medium text-sm flex items-center gap-1 mb-2"
-            >
-              ← Volver a Carreras
-            </Link>
-            <h1 className="text-3xl font-bold text-gray-900">Pénsum: {career.name}</h1>
+            <BackLink href="/admin/academic">Volver a Carreras</BackLink>
+            <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">
+              Pénsum: {career.name}
+            </h1>
             <p className="text-gray-500 mt-1 font-mono text-sm">{career.code}</p>
           </header>
 
