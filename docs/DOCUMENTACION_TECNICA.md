@@ -459,6 +459,7 @@ Todas viven en `supabase/migrations/`, numeradas en el orden real en que se ejec
 | `009_fix_attendance_subject_fk_cascade.sql` | Agrega `ON DELETE CASCADE` a `attendances.subject_id` (faltaba desde 007) |
 | `010_careers_periods_pensum.sql` | Carreras, períodos académicos, pénsum (materia↔carrera↔nivel) y estudiante↔carrera |
 | `011_enrollment_requests.sql` | Solicitud de inscripción por código: `subjects.enrollment_code`, tabla `enrollment_requests`, permisos de PROFESSOR sobre su propia materia |
+| `012_split_names.sql` | `profiles.name` pasa a ser columna generada a partir de `first_name`/`last_name` (nuevas), con backfill de los nombres existentes |
 
 ---
 

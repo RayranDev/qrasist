@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { normalizeName } from '@/lib/utils/normalizeText'
 
 export async function login(formData: FormData) {
   const email = ((formData.get('email') as string) || '').trim()
@@ -26,10 +27,11 @@ export async function login(formData: FormData) {
 export async function signup(formData: FormData) {
   const email = ((formData.get('email') as string) || '').trim()
   const password = ((formData.get('password') as string) || '').trim()
-  const name = ((formData.get('name') as string) || '').trim()
+  const firstName = normalizeName((formData.get('first_name') as string) || '')
+  const lastName = normalizeName((formData.get('last_name') as string) || '')
   const studentCode = ((formData.get('student_code') as string) || '').trim()
 
-  if (!name) redirect('/login?error=El+nombre+es+obligatorio')
+  if (!firstName || !lastName) redirect('/login?error=Nombre+y+apellido+son+obligatorios')
   if (!/^\d{12}$/.test(studentCode))
     redirect('/login?error=El+c%C3%B3digo+debe+tener+exactamente+12+d%C3%ADgitos+num%C3%A9ricos')
   if (!email.endsWith('@urepublicana.edu.co'))
@@ -42,7 +44,8 @@ export async function signup(formData: FormData) {
     password,
     options: {
       data: {
-        full_name: name,
+        first_name: firstName,
+        last_name: lastName,
         student_code: studentCode,
       },
     },

@@ -17,6 +17,8 @@ type FilterStatus = 'active' | 'inactive'
 interface Profile {
   id: string
   name: string
+  first_name: string
+  last_name: string
   email: string | null
   role: 'ADMIN' | 'PROFESSOR' | 'STUDENT'
   student_code: string | null
@@ -252,7 +254,8 @@ export default function AdminUserList({
                       {currentUser.id !== profile.id && (
                         <ActionButtons
                           userId={profile.id}
-                          currentName={profile.name}
+                          currentFirstName={profile.first_name}
+                          currentLastName={profile.last_name}
                           currentCode={profile.student_code ?? undefined}
                           currentRole={profile.role}
                           isActive={profile.is_active !== false}

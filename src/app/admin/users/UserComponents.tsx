@@ -358,13 +358,14 @@ export function CreateUserForm() {
     setLoading(true)
     try {
       const formData = new FormData(e.currentTarget)
-      const name = formData.get('name') as string
+      const firstName = formData.get('first_name') as string
+      const lastName = formData.get('last_name') as string
       const result = await createUserAccount(formData)
       if (result.success) {
         ;(e.target as HTMLFormElement).reset()
         setRole('STUDENT')
         setShowPassword(false)
-        showToast(`Usuario "${name}" creado.`, 'success')
+        showToast(`Usuario "${firstName} ${lastName}" creado.`, 'success')
       } else {
         showToast(result.error || 'No se pudo crear el usuario.', 'error')
       }
@@ -398,16 +399,28 @@ export function CreateUserForm() {
         <h3 className="text-xl font-bold text-gray-900">Agregar Nuevo Usuario</h3>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-5 items-end">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-5 items-end">
         <div>
           <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1 uppercase tracking-wider">
-            Nombre Completo
+            Nombres
           </label>
           <input
             required
-            name="name"
+            name="first_name"
             type="text"
-            placeholder="Ej. Juan Pérez"
+            placeholder="Ej. Juan"
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1 uppercase tracking-wider">
+            Apellidos
+          </label>
+          <input
+            required
+            name="last_name"
+            type="text"
+            placeholder="Ej. Pérez"
             className={inputClass}
           />
         </div>
@@ -515,13 +528,15 @@ export function CreateUserForm() {
 
 export function ActionButtons({
   userId,
-  currentName,
+  currentFirstName,
+  currentLastName,
   currentCode,
   currentRole,
   isActive,
 }: {
   userId: string
-  currentName: string
+  currentFirstName: string
+  currentLastName: string
   currentCode?: string
   currentRole: string
   isActive: boolean
@@ -529,12 +544,14 @@ export function ActionButtons({
   const [isEditing, setIsEditing] = useState(false)
   const [isDeactivating, setIsDeactivating] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [name, setName] = useState(currentName)
+  const [firstName, setFirstName] = useState(currentFirstName)
+  const [lastName, setLastName] = useState(currentLastName)
   const [code, setCode] = useState(currentCode || '')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const showToast = useToast()
 
+  const currentName = `${currentFirstName} ${currentLastName}`.trim()
   const isStudent = currentRole === 'STUDENT'
 
   const handleDeactivate = async () => {
@@ -564,7 +581,8 @@ export function ActionButtons({
     setLoading(true)
     try {
       const result = await updateUserAccount(userId, {
-        name: name !== currentName ? name : undefined,
+        first_name: firstName !== currentFirstName ? firstName : undefined,
+        last_name: lastName !== currentLastName ? lastName : undefined,
         student_code: code !== currentCode ? code : undefined,
         password: password.trim() !== '' ? password : undefined,
       })
@@ -593,14 +611,25 @@ export function ActionButtons({
         <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full animate-in zoom-in-95 duration-200 text-left">
           <h3 className="text-lg font-bold text-gray-900 mb-4">Editar Usuario</h3>
           <div className="space-y-4 mb-6">
-            <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">Nombre Completo</label>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                type="text"
-                className={inputClass}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Nombres</label>
+                <input
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  type="text"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Apellidos</label>
+                <input
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  type="text"
+                  className={inputClass}
+                />
+              </div>
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">

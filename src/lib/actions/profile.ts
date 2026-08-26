@@ -3,8 +3,13 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { revalidatePath } from 'next/cache'
+import { normalizeName } from '@/lib/utils/normalizeText'
 
-export async function updateOwnProfile(data: { name?: string; password?: string }) {
+export async function updateOwnProfile(data: {
+  first_name?: string
+  last_name?: string
+  password?: string
+}) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -12,11 +17,15 @@ export async function updateOwnProfile(data: { name?: string; password?: string 
   } = await supabase.auth.getUser()
   if (authError || !user) return { success: false, error: 'No autenticado.' }
 
-  if (data.name) {
-    const { error } = await supabase.from('profiles').update({ name: data.name }).eq('id', user.id)
+  if (data.first_name || data.last_name) {
+    const updates: Record<string, string> = {}
+    if (data.first_name) updates.first_name = normalizeName(data.first_name)
+    if (data.last_name) updates.last_name = normalizeName(data.last_name)
+
+    const { error } = await supabase.from('profiles').update(updates).eq('id', user.id)
     if (error) return { success: false, error: 'Error al actualizar el nombre.' }
     await getSupabaseAdmin().auth.admin.updateUserById(user.id, {
-      user_metadata: { full_name: data.name },
+      user_metadata: updates,
     })
   }
 

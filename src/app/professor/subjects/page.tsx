@@ -15,7 +15,7 @@ export default async function ProfessorSubjectsPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('name')
+    .select('first_name, last_name')
     .eq('id', user.id)
     .single()
 
@@ -25,7 +25,7 @@ export default async function ProfessorSubjectsPage() {
     .eq('professor_id', user.id)
     .eq('is_active', true)
 
-  const firstName = profile?.name?.split(' ')[0] || 'Profe'
+  const firstName = profile?.first_name || 'Profe'
 
   return (
     <div className="min-h-screen bg-surface">
@@ -44,7 +44,10 @@ export default async function ProfessorSubjectsPage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-3 items-center">
-              <ProfileModal currentName={profile?.name || ''} />
+              <ProfileModal
+                currentFirstName={profile?.first_name || ''}
+                currentLastName={profile?.last_name || ''}
+              />
               <Link
                 href="/professor/history"
                 className="px-4 py-2 text-sm font-bold text-emerald-700 bg-emerald-50 rounded-xl hover:bg-emerald-100 transition"

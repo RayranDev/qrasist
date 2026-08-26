@@ -20,17 +20,31 @@ export default function AuthForm({ error }: { error?: string }) {
       <form action={isLogin ? login : signup} className="space-y-5">
         {!isLogin && (
           <div className="animate-in fade-in slide-in-from-top-2 duration-300 space-y-5">
-            <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider ml-1">
-                Nombre Completo
-              </label>
-              <input
-                required
-                name="name"
-                type="text"
-                className={inputClass}
-                placeholder="Ej. Juan Pérez"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider ml-1">
+                  Nombres
+                </label>
+                <input
+                  required
+                  name="first_name"
+                  type="text"
+                  className={inputClass}
+                  placeholder="Ej. Juan"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider ml-1">
+                  Apellidos
+                </label>
+                <input
+                  required
+                  name="last_name"
+                  type="text"
+                  className={inputClass}
+                  placeholder="Ej. Pérez"
+                />
+              </div>
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider ml-1">

@@ -3,9 +3,16 @@
 import { useState } from 'react'
 import { updateOwnProfile } from '@/lib/actions/profile'
 
-export default function ProfileModal({ currentName }: { currentName: string }) {
+export default function ProfileModal({
+  currentFirstName,
+  currentLastName,
+}: {
+  currentFirstName: string
+  currentLastName: string
+}) {
   const [open, setOpen] = useState(false)
-  const [name, setName] = useState(currentName)
+  const [firstName, setFirstName] = useState(currentFirstName)
+  const [lastName, setLastName] = useState(currentLastName)
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
@@ -14,7 +21,8 @@ export default function ProfileModal({ currentName }: { currentName: string }) {
     setLoading(true)
     setFeedback(null)
     const result = await updateOwnProfile({
-      name: name !== currentName ? name : undefined,
+      first_name: firstName !== currentFirstName ? firstName : undefined,
+      last_name: lastName !== currentLastName ? lastName : undefined,
       password: password.trim() !== '' ? password : undefined,
     })
     if (result.success) {
@@ -57,16 +65,25 @@ export default function ProfileModal({ currentName }: { currentName: string }) {
             <h3 className="text-lg font-black text-gray-900 mb-5">Mi Perfil</h3>
 
             <div className="space-y-4 mb-5">
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Nombre Completo
-                </label>
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  type="text"
-                  className={inputClass}
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Nombres</label>
+                  <input
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    type="text"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Apellidos</label>
+                  <input
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    type="text"
+                    className={inputClass}
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">

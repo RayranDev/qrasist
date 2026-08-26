@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { revalidatePath } from 'next/cache'
+import { normalizeName } from '@/lib/utils/normalizeText'
 
 async function verifyAdminAccess() {
   const supabase = await createClient()
@@ -43,11 +44,12 @@ export async function createUserAccount(formData: FormData) {
 
     const email = ((formData.get('email') as string) || '').trim()
     const password = ((formData.get('password') as string) || '').trim()
-    const name = ((formData.get('name') as string) || '').trim()
+    const firstName = normalizeName((formData.get('first_name') as string) || '')
+    const lastName = normalizeName((formData.get('last_name') as string) || '')
     const studentCode = ((formData.get('student_code') as string) || '').trim()
     const role = formData.get('role') as 'ADMIN' | 'PROFESSOR' | 'STUDENT'
 
-    if (!email || !password || !name || !studentCode)
+    if (!email || !password || !firstName || !lastName || !studentCode)
       return { success: false, error: 'Faltan datos obligatorios.' }
 
     if (role !== 'ADMIN' && !email.endsWith('@urepublicana.edu.co')) {
@@ -74,7 +76,7 @@ export async function createUserAccount(formData: FormData) {
       email,
       password,
       email_confirm: true,
-      user_metadata: { full_name: name, student_code: studentCode },
+      user_metadata: { first_name: firstName, last_name: lastName, student_code: studentCode },
     })
 
     if (error) return { success: false, error: error.message }
@@ -133,7 +135,7 @@ export async function reactivateUser(userId: string) {
 
 export async function updateUserAccount(
   userId: string,
-  data: { name?: string; password?: string; student_code?: string }
+  data: { first_name?: string; last_name?: string; password?: string; student_code?: string }
 ) {
   try {
     const adminUser = await verifyAdminAccess()
@@ -162,9 +164,16 @@ export async function updateUserAccount(
     const updates: Record<string, string> = {}
     const metaUpdates: Record<string, string> = {}
 
-    if (data.name) {
-      updates.name = data.name
-      metaUpdates.full_name = data.name
+    if (data.first_name) {
+      const firstName = normalizeName(data.first_name)
+      updates.first_name = firstName
+      metaUpdates.first_name = firstName
+    }
+
+    if (data.last_name) {
+      const lastName = normalizeName(data.last_name)
+      updates.last_name = lastName
+      metaUpdates.last_name = lastName
     }
 
     if (data.student_code) {
