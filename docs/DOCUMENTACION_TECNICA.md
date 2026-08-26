@@ -455,6 +455,7 @@ Todas viven en `supabase/migrations/`, numeradas en el orden real en que se ejec
 | `005_setup_inicial.sql` | Limpia datos de prueba, crea materias y constraint de dominio |
 | `006_rls_policies.sql` | Habilita Row Level Security en las 5 tablas con políticas por rol |
 | `007_attendance_dedup.sql` | Constraint real de "una asistencia por materia por día" (índice único) |
+| `008_fix_privilege_trigger_service_role.sql` | Corrige el trigger anti-escalada de 006: bloqueaba por error los cambios de rol hechos con la service_role key (`createUserAccount`) |
 
 ---
 
