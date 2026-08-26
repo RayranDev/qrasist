@@ -29,11 +29,19 @@ export default async function AdminSubjectsPage() {
     )
     .order('is_active', { ascending: false })
     .order('name')
-  const { data: professors } = await supabase
+  const { data: professorsRaw } = await supabase
     .from('profiles')
-    .select('id, name')
+    .select('id, name, professor_careers(career_id, is_active)')
     .eq('role', 'PROFESSOR')
     .eq('is_active', true)
+
+  const professors = (professorsRaw || []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    careerIds: ((p.professor_careers || []) as { career_id: string; is_active: boolean }[])
+      .filter((pc) => pc.is_active)
+      .map((pc) => pc.career_id),
+  }))
   const { data: periods } = await supabase
     .from('periods')
     .select('id, name')
@@ -64,7 +72,7 @@ export default async function AdminSubjectsPage() {
             activeHref="/admin/subjects"
           />
 
-          <CreateSubjectForm professors={professors || []} periods={periods || []} />
+          <CreateSubjectForm periods={periods || []} />
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
@@ -82,6 +90,17 @@ export default async function AdminSubjectsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {subjects?.map((sub) => {
                 const isActive = sub.is_active !== false
+                const activeCareerLinks = (
+                  (sub.subject_careers || []) as {
+                    id: string
+                    level: number | null
+                    is_active: boolean
+                    career: { id: string; name: string; code: string } | null
+                  }[]
+                ).filter((a) => a.is_active)
+                const subjectCareerIds = activeCareerLinks
+                  .map((a) => a.career?.id)
+                  .filter((id): id is string => Boolean(id))
                 return (
                   <div
                     key={sub.id}
@@ -112,8 +131,9 @@ export default async function AdminSubjectsPage() {
                         </div>
                         <SubjectActionButtons
                           subject={sub}
-                          professors={professors || []}
+                          professors={professors}
                           periods={periods || []}
+                          subjectCareerIds={subjectCareerIds}
                         />
                       </div>
                       <h3 className="font-bold text-gray-900 mb-1 text-lg">{sub.name}</h3>
@@ -123,14 +143,7 @@ export default async function AdminSubjectsPage() {
 
                       <SubjectCareerAssignment
                         subjectId={sub.id}
-                        assignments={(
-                          (sub.subject_careers || []) as {
-                            id: string
-                            level: number | null
-                            is_active: boolean
-                            career: { id: string; name: string; code: string } | null
-                          }[]
-                        ).filter((a) => a.is_active)}
+                        assignments={activeCareerLinks}
                         careers={careers || []}
                       />
 

@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { checkAdmin } from './authGuards'
+import { checkProfessorAssignable } from './enrollmentGuards'
 
 export async function createSubject(formData: FormData) {
   const supabase = await createClient()
@@ -16,15 +17,16 @@ export async function createSubject(formData: FormData) {
 
   const name = formData.get('name') as string
   const code = formData.get('code') as string
-  const professor_id = formData.get('professor_id') as string
   const period_id = formData.get('period_id') as string
 
   if (!name || !code) return { success: false, error: 'Nombre y código son obligatorios' }
 
+  // Una materia recien creada todavia no pertenece a ninguna
+  // carrera, asi que no puede tener profesor (regla A+B) --
+  // se asigna despues, una vez tenga carrera en su pensum.
   const { error } = await supabase.from('subjects').insert({
     name,
     code,
-    professor_id: professor_id || null,
     period_id: period_id || null,
   })
 
@@ -90,6 +92,11 @@ export async function updateSubject(
   }
 
   if (!data.name || !data.code) return { success: false, error: 'Nombre y código son obligatorios' }
+
+  if (data.professor_id) {
+    const check = await checkProfessorAssignable(supabase, subjectId, data.professor_id)
+    if (!check.ok) return { success: false, error: check.error }
+  }
 
   const { error } = await supabase
     .from('subjects')

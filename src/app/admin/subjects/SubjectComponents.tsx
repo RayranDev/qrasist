@@ -18,6 +18,7 @@ const inputClass =
 interface Professor {
   id: string
   name: string
+  careerIds: string[]
 }
 
 interface Period {
@@ -46,13 +47,7 @@ interface Subject {
   is_active?: boolean
 }
 
-export function CreateSubjectForm({
-  professors,
-  periods,
-}: {
-  professors: Professor[]
-  periods: Period[]
-}) {
+export function CreateSubjectForm({ periods }: { periods: Period[] }) {
   const [loading, setLoading] = useState(false)
   const showToast = useToast()
 
@@ -83,7 +78,7 @@ export function CreateSubjectForm({
         <h3 className="text-xl font-bold text-gray-900">Crear Nueva Materia</h3>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-5 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-5 items-end">
         <div>
           <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1 uppercase tracking-wider">
             Nombre
@@ -110,19 +105,6 @@ export function CreateSubjectForm({
         </div>
         <div>
           <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1 uppercase tracking-wider">
-            Profesor Asignado
-          </label>
-          <select name="professor_id" className={`${inputClass} appearance-none cursor-pointer`}>
-            <option value="">Sin asignar</option>
-            {professors.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1 uppercase tracking-wider">
             Período
           </label>
           <select name="period_id" className={`${inputClass} appearance-none cursor-pointer`}>
@@ -144,6 +126,9 @@ export function CreateSubjectForm({
           </button>
         </div>
       </div>
+      <p className="text-xs text-gray-400 mt-3">
+        El profesor se asigna después, una vez que la materia tenga una carrera vinculada.
+      </p>
     </form>
   )
 }
@@ -152,10 +137,12 @@ export function SubjectActionButtons({
   subject,
   professors,
   periods,
+  subjectCareerIds,
 }: {
   subject: Subject
   professors: Professor[]
   periods: Period[]
+  subjectCareerIds: string[]
 }) {
   const [isEditing, setIsEditing] = useState(false)
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false)
@@ -167,6 +154,10 @@ export function SubjectActionButtons({
   const showToast = useToast()
 
   const isActive = subject.is_active !== false
+  const hasCareer = subjectCareerIds.length > 0
+  const eligibleProfessors = hasCareer
+    ? professors.filter((p) => p.careerIds.some((id) => subjectCareerIds.includes(id)))
+    : []
 
   const handleDeactivate = async () => {
     setLoading(true)
@@ -236,18 +227,29 @@ export function SubjectActionButtons({
               <label className="block text-xs font-bold text-gray-700 mb-1">
                 Profesor Asignado
               </label>
-              <select
-                value={profId}
-                onChange={(e) => setProfId(e.target.value)}
-                className={`${inputClass} appearance-none cursor-pointer`}
-              >
-                <option value="">Sin asignar</option>
-                {professors.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+              {hasCareer ? (
+                <select
+                  value={profId}
+                  onChange={(e) => setProfId(e.target.value)}
+                  className={`${inputClass} appearance-none cursor-pointer`}
+                >
+                  <option value="">Sin asignar</option>
+                  {eligibleProfessors.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5">
+                  Vinculá esta materia a una carrera primero para poder asignar profesor.
+                </p>
+              )}
+              {hasCareer && eligibleProfessors.length === 0 && (
+                <p className="text-xs text-amber-600 mt-1">
+                  Ningún profesor pertenece todavía a la(s) carrera(s) de esta materia.
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">Período</label>
