@@ -1,7 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { CreateSubjectForm, SubjectActionButtons } from './SubjectComponents'
+import {
+  CreateSubjectForm,
+  SubjectActionButtons,
+  SubjectCareerAssignment,
+} from './SubjectComponents'
 import ExportSubjectsButton from './ExportSubjectsButton'
 import MobileWarningBanner from '@/components/MobileWarningBanner'
 import AdminHeader from '@/components/admin/AdminHeader'
@@ -20,7 +24,9 @@ export default async function AdminSubjectsPage() {
   // Fetch subjects (todos para mostrar activos e inactivos) y profesores activos
   const { data: subjects } = await supabase
     .from('subjects')
-    .select('*, professor:profiles(name), enrollments(student_id)')
+    .select(
+      '*, professor:profiles(name), enrollments(student_id), period:periods(id, name), subject_careers(id, level, is_active, career:careers(id, name, code))'
+    )
     .order('is_active', { ascending: false })
     .order('name')
   const { data: professors } = await supabase
@@ -28,6 +34,16 @@ export default async function AdminSubjectsPage() {
     .select('id, name')
     .eq('role', 'PROFESSOR')
     .eq('is_active', true)
+  const { data: periods } = await supabase
+    .from('periods')
+    .select('id, name')
+    .eq('is_active', true)
+    .order('name', { ascending: false })
+  const { data: careers } = await supabase
+    .from('careers')
+    .select('id, name, code')
+    .eq('is_active', true)
+    .order('name')
 
   const exportRows = (subjects || []).map((s) => ({
     code: s.code,
@@ -48,7 +64,7 @@ export default async function AdminSubjectsPage() {
             activeHref="/admin/subjects"
           />
 
-          <CreateSubjectForm professors={professors || []} />
+          <CreateSubjectForm professors={professors || []} periods={periods || []} />
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
@@ -88,13 +104,35 @@ export default async function AdminSubjectsPage() {
                               Archivada
                             </span>
                           )}
+                          {sub.period && (
+                            <span className="px-2 py-0.5 text-xs font-bold bg-violet-50 text-violet-700 rounded-full">
+                              {sub.period.name}
+                            </span>
+                          )}
                         </div>
-                        <SubjectActionButtons subject={sub} professors={professors || []} />
+                        <SubjectActionButtons
+                          subject={sub}
+                          professors={professors || []}
+                          periods={periods || []}
+                        />
                       </div>
                       <h3 className="font-bold text-gray-900 mb-1 text-lg">{sub.name}</h3>
-                      <p className="text-sm text-gray-500 font-medium mb-4">
+                      <p className="text-sm text-gray-500 font-medium mb-3">
                         Prof. {sub.professor?.name || 'Sin asignar'}
                       </p>
+
+                      <SubjectCareerAssignment
+                        subjectId={sub.id}
+                        assignments={(
+                          (sub.subject_careers || []) as {
+                            id: string
+                            level: number | null
+                            is_active: boolean
+                            career: { id: string; name: string; code: string } | null
+                          }[]
+                        ).filter((a) => a.is_active)}
+                        careers={careers || []}
+                      />
 
                       {isActive && (
                         <Link

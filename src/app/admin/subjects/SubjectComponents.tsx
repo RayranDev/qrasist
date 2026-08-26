@@ -7,6 +7,7 @@ import {
   updateSubject,
   reactivateSubject,
 } from '@/lib/actions/adminSubjects'
+import { assignSubjectToCareer, removeSubjectFromCareer } from '@/lib/actions/academic'
 import { useToast } from '@/components/toast/ToastProvider'
 import ConfirmModal from '@/components/ConfirmModal'
 
@@ -18,15 +19,39 @@ interface Professor {
   name: string
 }
 
+interface Period {
+  id: string
+  name: string
+}
+
+interface Career {
+  id: string
+  name: string
+  code: string
+}
+
+interface SubjectCareerLink {
+  id: string
+  level: number | null
+  career: { id: string; name: string; code: string } | null
+}
+
 interface Subject {
   id: string
   name: string
   code: string
   professor_id: string | null
+  period_id: string | null
   is_active?: boolean
 }
 
-export function CreateSubjectForm({ professors }: { professors: Professor[] }) {
+export function CreateSubjectForm({
+  professors,
+  periods,
+}: {
+  professors: Professor[]
+  periods: Period[]
+}) {
   const [loading, setLoading] = useState(false)
   const showToast = useToast()
 
@@ -64,7 +89,7 @@ export function CreateSubjectForm({ professors }: { professors: Professor[] }) {
         <h3 className="text-xl font-bold text-gray-900">Crear Nueva Materia</h3>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-5 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-5 items-end">
         <div>
           <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1 uppercase tracking-wider">
             Nombre
@@ -103,6 +128,19 @@ export function CreateSubjectForm({ professors }: { professors: Professor[] }) {
           </select>
         </div>
         <div>
+          <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1 uppercase tracking-wider">
+            Período
+          </label>
+          <select name="period_id" className={`${inputClass} appearance-none cursor-pointer`}>
+            <option value="">Sin asignar</option>
+            {periods.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
           <button
             disabled={loading}
             type="submit"
@@ -119,9 +157,11 @@ export function CreateSubjectForm({ professors }: { professors: Professor[] }) {
 export function SubjectActionButtons({
   subject,
   professors,
+  periods,
 }: {
   subject: Subject
   professors: Professor[]
+  periods: Period[]
 }) {
   const [isEditing, setIsEditing] = useState(false)
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false)
@@ -129,6 +169,7 @@ export function SubjectActionButtons({
   const [name, setName] = useState(subject.name)
   const [code, setCode] = useState(subject.code)
   const [profId, setProfId] = useState(subject.professor_id || '')
+  const [periodId, setPeriodId] = useState(subject.period_id || '')
   const showToast = useToast()
 
   const isActive = subject.is_active !== false
@@ -162,6 +203,7 @@ export function SubjectActionButtons({
       name,
       code,
       professor_id: profId === '' ? null : profId,
+      period_id: periodId === '' ? null : periodId,
     })
     if (result.success) {
       setIsEditing(false)
@@ -207,6 +249,21 @@ export function SubjectActionButtons({
               >
                 <option value="">Sin asignar</option>
                 {professors.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1">Período</label>
+              <select
+                value={periodId}
+                onChange={(e) => setPeriodId(e.target.value)}
+                className={`${inputClass} appearance-none cursor-pointer`}
+              >
+                <option value="">Sin asignar</option>
+                {periods.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                   </option>
@@ -291,6 +348,127 @@ export function SubjectActionButtons({
           {loading ? '...' : 'Reactivar'}
         </button>
       )}
+    </div>
+  )
+}
+
+export function SubjectCareerAssignment({
+  subjectId,
+  assignments,
+  careers,
+}: {
+  subjectId: string
+  assignments: SubjectCareerLink[]
+  careers: Career[]
+}) {
+  const [adding, setAdding] = useState(false)
+  const [careerId, setCareerId] = useState('')
+  const [level, setLevel] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [removingId, setRemovingId] = useState<string | null>(null)
+  const showToast = useToast()
+
+  const assignedCareerIds = new Set(assignments.map((a) => a.career?.id))
+  const availableCareers = careers.filter((c) => !assignedCareerIds.has(c.id))
+
+  const handleAdd = async () => {
+    if (!careerId) return
+    setLoading(true)
+    const result = await assignSubjectToCareer(subjectId, careerId, level ? Number(level) : null)
+    if (result.success) {
+      showToast('Materia asignada a la carrera.', 'success')
+      setAdding(false)
+      setCareerId('')
+      setLevel('')
+    } else {
+      showToast(result.error || 'No se pudo asignar la materia.', 'error')
+    }
+    setLoading(false)
+  }
+
+  const handleRemove = async (link: SubjectCareerLink) => {
+    if (!link.career) return
+    setRemovingId(link.id)
+    const result = await removeSubjectFromCareer(link.id, link.career.id)
+    if (result.success) {
+      showToast(`Quitada de "${link.career.name}".`, 'success')
+    } else {
+      showToast(result.error || 'No se pudo quitar la materia.', 'error')
+    }
+    setRemovingId(null)
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 mb-3">
+      {assignments.map((a) =>
+        a.career ? (
+          <span
+            key={a.id}
+            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold bg-sky-50 text-sky-700 rounded-lg"
+          >
+            {a.career.code}
+            {a.level != null && <span className="text-sky-400 font-medium">· Nivel {a.level}</span>}
+            <button
+              type="button"
+              onClick={() => handleRemove(a)}
+              disabled={removingId === a.id}
+              className="text-sky-400 hover:text-sky-700 disabled:opacity-50"
+              title="Quitar de esta carrera"
+            >
+              ×
+            </button>
+          </span>
+        ) : null
+      )}
+
+      {adding ? (
+        <div className="flex items-center gap-1.5">
+          <select
+            value={careerId}
+            onChange={(e) => setCareerId(e.target.value)}
+            className="px-2 py-1 text-xs font-bold bg-gray-50 border border-gray-200 rounded-lg"
+          >
+            <option value="">Carrera...</option>
+            {availableCareers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.code}
+              </option>
+            ))}
+          </select>
+          <input
+            type="number"
+            min={1}
+            max={20}
+            value={level}
+            onChange={(e) => setLevel(e.target.value)}
+            placeholder="Nivel"
+            className="w-16 px-2 py-1 text-xs bg-gray-50 border border-gray-200 rounded-lg"
+          />
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={loading || !careerId}
+            className="px-2 py-1 text-xs font-bold bg-emerald-600 text-white rounded-lg disabled:opacity-50"
+          >
+            {loading ? '...' : 'OK'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setAdding(false)}
+            className="px-2 py-1 text-xs font-bold text-gray-400 hover:text-gray-600"
+          >
+            Cancelar
+          </button>
+        </div>
+      ) : availableCareers.length > 0 ? (
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          className="px-2 py-1 text-xs font-bold text-gray-400 border border-dashed border-gray-300 rounded-lg hover:text-sky-600 hover:border-sky-300 transition"
+        >
+          + Carrera
+        </button>
+      ) : null}
     </div>
   )
 }

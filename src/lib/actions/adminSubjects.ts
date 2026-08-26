@@ -17,6 +17,7 @@ export async function createSubject(formData: FormData) {
   const name = formData.get('name') as string
   const code = formData.get('code') as string
   const professor_id = formData.get('professor_id') as string
+  const period_id = formData.get('period_id') as string
 
   if (!name || !code) return { success: false, error: 'Nombre y código son obligatorios' }
 
@@ -24,6 +25,7 @@ export async function createSubject(formData: FormData) {
     name,
     code,
     professor_id: professor_id || null,
+    period_id: period_id || null,
   })
 
   if (error) {
@@ -76,7 +78,7 @@ export async function reactivateSubject(subjectId: string) {
 
 export async function updateSubject(
   subjectId: string,
-  data: { name: string; code: string; professor_id: string | null }
+  data: { name: string; code: string; professor_id: string | null; period_id: string | null }
 ) {
   const supabase = await createClient()
   const {
@@ -95,6 +97,7 @@ export async function updateSubject(
       name: data.name,
       code: data.code,
       professor_id: data.professor_id || null,
+      period_id: data.period_id || null,
     })
     .eq('id', subjectId)
 
