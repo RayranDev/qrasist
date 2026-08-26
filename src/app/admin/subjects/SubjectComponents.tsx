@@ -8,6 +8,7 @@ import {
   reactivateSubject,
 } from '@/lib/actions/adminSubjects'
 import { useToast } from '@/components/toast/ToastProvider'
+import ConfirmModal from '@/components/ConfirmModal'
 
 const inputClass =
   'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all shadow-sm'
@@ -123,6 +124,7 @@ export function SubjectActionButtons({
   professors: Professor[]
 }) {
   const [isEditing, setIsEditing] = useState(false)
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [name, setName] = useState(subject.name)
   const [code, setCode] = useState(subject.code)
@@ -132,12 +134,6 @@ export function SubjectActionButtons({
   const isActive = subject.is_active !== false
 
   const handleDeactivate = async () => {
-    if (
-      !confirm(
-        `¿Desactivar "${subject.name}"? La materia quedará archivada y no estará visible para docentes ni estudiantes. Podrás reactivarla cuando quieras.`
-      )
-    )
-      return
     setLoading(true)
     const result = await deleteSubject(subject.id)
     if (result.success) {
@@ -146,6 +142,7 @@ export function SubjectActionButtons({
       showToast(result.error || 'No se pudo archivar la materia.', 'error')
     }
     setLoading(false)
+    setShowDeactivateConfirm(false)
   }
 
   const handleReactivate = async () => {
@@ -240,6 +237,17 @@ export function SubjectActionButtons({
 
   return (
     <div className="flex items-center gap-1 relative z-10">
+      {showDeactivateConfirm && (
+        <ConfirmModal
+          title="Archivar materia"
+          message={`¿Desactivar "${subject.name}"? La materia quedará archivada y no estará visible para docentes ni estudiantes. Podrás reactivarla cuando quieras.`}
+          confirmLabel="Archivar"
+          loadingLabel="Archivando..."
+          loading={loading}
+          onConfirm={handleDeactivate}
+          onCancel={() => setShowDeactivateConfirm(false)}
+        />
+      )}
       {isActive ? (
         <>
           <button
@@ -258,7 +266,7 @@ export function SubjectActionButtons({
             </svg>
           </button>
           <button
-            onClick={handleDeactivate}
+            onClick={() => setShowDeactivateConfirm(true)}
             disabled={loading}
             className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
             title="Archivar materia"

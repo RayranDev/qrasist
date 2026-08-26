@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { addEnrollment, removeEnrollment } from '@/lib/actions/enrollments'
 import { useToast } from '@/components/toast/ToastProvider'
+import ConfirmModal from '@/components/ConfirmModal'
 
 interface Student {
   id: string
@@ -23,6 +24,7 @@ export default function EnrollmentManager({
   allStudents: Student[]
 }) {
   const [loadingId, setLoadingId] = useState<string | null>(null)
+  const [pendingRemove, setPendingRemove] = useState<{ id: string; name: string } | null>(null)
   const showToast = useToast()
 
   const enrolledIds = new Set(enrolledStudents.map((e) => e.student.id))
@@ -39,8 +41,9 @@ export default function EnrollmentManager({
     setLoadingId(null)
   }
 
-  const handleRemove = async (studentId: string, studentName: string) => {
-    if (!confirm('¿Estás seguro de quitar a este estudiante de la materia?')) return
+  const handleRemove = async () => {
+    if (!pendingRemove) return
+    const { id: studentId, name: studentName } = pendingRemove
     setLoadingId(studentId)
     const res = await removeEnrollment(subjectId, studentId)
     if (res.success) {
@@ -49,10 +52,22 @@ export default function EnrollmentManager({
       showToast(res.error || 'No se pudo quitar al estudiante.', 'error')
     }
     setLoadingId(null)
+    setPendingRemove(null)
   }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      {pendingRemove && (
+        <ConfirmModal
+          title="Quitar estudiante"
+          message={`¿Quitar a ${pendingRemove.name} de esta materia?`}
+          confirmLabel="Quitar"
+          loadingLabel="Quitando..."
+          loading={loadingId === pendingRemove.id}
+          onConfirm={handleRemove}
+          onCancel={() => setPendingRemove(null)}
+        />
+      )}
       {/* Estudiantes Inscritos */}
       <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100">
         <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
@@ -72,7 +87,9 @@ export default function EnrollmentManager({
                 <div className="font-bold text-gray-900 text-sm">{enrollment.student.name}</div>
                 <button
                   disabled={loadingId === enrollment.student.id}
-                  onClick={() => handleRemove(enrollment.student.id, enrollment.student.name)}
+                  onClick={() =>
+                    setPendingRemove({ id: enrollment.student.id, name: enrollment.student.name })
+                  }
                   className="px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition disabled:opacity-50"
                 >
                   {loadingId === enrollment.student.id ? '...' : 'Quitar'}
