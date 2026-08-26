@@ -25,12 +25,11 @@ Cada item se marca al completarse, con el commit que lo resolvió.
 - [x] ✅ Reemplazar los ~36 `<svg>` copiados a mano (editar, archivar, cerrar, etc.) en los 19 archivos que los usan por componentes Lucide — `f8aa039`
 - [x] ✅ `ConfirmModal` gana prop `icon` opcional (default `TriangleAlert`) al ser genérico y no solo para archivar — `f8aa039`
 
-## Sprint 2: Consistencia de header/nav en Profesor y Estudiante
-- [ ] ⬜ Auditar headers actuales de `/professor/subjects`, `/professor/history`, `/professor/session/[id]`
-- [ ] ⬜ Auditar headers de `/student/scanner`, `/student/history`
-- [ ] ⬜ Definir si comparten un header con Admin o uno propio por rol
-- [ ] ⬜ Extraer componente(s) de header/nav para Profesor y Estudiante
-- [ ] ⬜ Verificar consistencia de radios (`rounded-xl/2xl/3xl`) y botones primarios entre roles
+## Sprint 2: Consistencia de header/nav en Profesor y Estudiante (completado)
+- [x] ✅ Auditado: Profesor/Estudiante ya tienen jerarquía hub (pill-nav) + detalle (back-link) coherente por diseño — no requería un header único con Admin — `d9b3c6f`
+- [x] ✅ Extraído `BackLink` compartido (con icono `ArrowLeft`), usado en `professor/history`, `professor/session/[id]`, `student/history`, `admin/subjects/[id]/enrollments`, `admin/academic/[id]/pensum` — mismo patrón vivía duplicado también en Admin — `d9b3c6f`
+- [x] ✅ Normalizado el peso de los títulos de página de detalle a `font-black` (igual que su hub), donde antes usaban `font-bold` — `d9b3c6f`
+- [x] ✅ Decisión: Admin/Profesor/Estudiante mantienen headers propios por rol (escritorio multi-columna vs. app mobile-first) — solo se comparten piezas puntuales (`BackLink`), no un header único forzado
 
 ## Sprint 3: Pulido general (abierto)
 - [ ] ⬜ Ítems que vayan surgiendo durante la revisión general
