@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { CreateCareerForm, CareerList, CreatePeriodForm, PeriodList } from './AcademicComponents'
 import MobileWarningBanner from '@/components/MobileWarningBanner'
+import AdminHeader from '@/components/admin/AdminHeader'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,33 +31,11 @@ export default async function AdminAcademicPage() {
       <MobileWarningBanner />
       <div className="p-4 md:p-8">
         <div className="max-w-5xl mx-auto">
-          <header className="flex justify-between items-center mb-8">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Carreras y Períodos</h1>
-              <p className="text-gray-500 mt-1">
-                Gestiona la estructura académica de la institución
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3 items-center">
-              <Link
-                href="/admin/dashboard"
-                className="text-sm font-medium text-gray-500 hover:text-gray-900 transition"
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/admin/subjects"
-                className="text-sm font-medium text-gray-600 hover:text-gray-900 transition"
-              >
-                Ver Materias
-              </Link>
-              <form action="/auth/signout" method="post">
-                <button className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition">
-                  Cerrar Sesión
-                </button>
-              </form>
-            </div>
-          </header>
+          <AdminHeader
+            title="Carreras y Períodos"
+            description="Gestiona la estructura académica de la institución"
+            activeHref="/admin/academic"
+          />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div>

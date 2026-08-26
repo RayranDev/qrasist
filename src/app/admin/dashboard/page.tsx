@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import MobileWarningBanner from '@/components/MobileWarningBanner'
+import AdminHeader from '@/components/admin/AdminHeader'
 
 export const dynamic = 'force-dynamic'
 
@@ -153,47 +154,12 @@ export default async function AdminDashboardPage() {
       <MobileWarningBanner />
       <div className="p-4 md:p-8">
         <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <header className="flex flex-col sm:flex-row justify-between gap-4 items-start sm:items-center mb-8">
-            <div>
-              <p className="text-sm font-semibold text-emerald-600 mb-1">Panel de Administración</p>
-              <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">
-                Dashboard
-              </h1>
-              <p className="text-gray-500 mt-1 text-sm">Resumen académico en tiempo real</p>
-            </div>
-            <div className="flex flex-wrap gap-3 items-center">
-              <Link
-                href="/admin/subjects"
-                className="px-4 py-2 text-sm font-bold text-emerald-700 bg-emerald-50 rounded-xl hover:bg-emerald-100 transition"
-              >
-                Materias
-              </Link>
-              <Link
-                href="/admin/users"
-                className="px-4 py-2 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition"
-              >
-                Usuarios
-              </Link>
-              <Link
-                href="/admin/academic"
-                className="px-4 py-2 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition"
-              >
-                Carreras
-              </Link>
-              <Link
-                href="/admin/import"
-                className="px-4 py-2 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition"
-              >
-                Carga Masiva
-              </Link>
-              <form action="/auth/signout" method="post">
-                <button className="px-4 py-2 text-sm font-bold text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition">
-                  Cerrar Sesión
-                </button>
-              </form>
-            </div>
-          </header>
+          <AdminHeader
+            eyebrow="Panel de Administración"
+            title="Dashboard"
+            description="Resumen académico en tiempo real"
+            activeHref="/admin/dashboard"
+          />
 
           {/* Stat cards */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">

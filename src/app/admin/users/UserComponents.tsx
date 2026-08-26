@@ -10,6 +10,7 @@ import {
 } from '@/lib/actions/admin'
 import { setStudentCareer } from '@/lib/actions/academic'
 import { useToast } from '@/components/toast/ToastProvider'
+import BulkImportButton from '@/components/admin/BulkImportButton'
 
 interface Career {
   id: string
@@ -385,18 +386,21 @@ export function CreateUserForm() {
       onSubmit={handleSubmit}
       className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100 mb-8"
     >
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
-            />
-          </svg>
+      <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+              />
+            </svg>
+          </div>
+          <h3 className="text-xl font-bold text-gray-900">Agregar Nuevo Usuario</h3>
         </div>
-        <h3 className="text-xl font-bold text-gray-900">Agregar Nuevo Usuario</h3>
+        <BulkImportButton types={['STUDENT', 'PROFESSOR']} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-5 items-end">

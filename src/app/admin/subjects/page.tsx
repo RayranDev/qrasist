@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { CreateSubjectForm, SubjectActionButtons } from './SubjectComponents'
 import ExportSubjectsButton from './ExportSubjectsButton'
 import MobileWarningBanner from '@/components/MobileWarningBanner'
+import AdminHeader from '@/components/admin/AdminHeader'
+import BulkImportButton from '@/components/admin/BulkImportButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,43 +42,11 @@ export default async function AdminSubjectsPage() {
       <MobileWarningBanner />
       <div className="p-4 md:p-8">
         <div className="max-w-6xl mx-auto">
-          <header className="flex justify-between items-center mb-8">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Panel de Administrador</h1>
-              <p className="text-gray-500 mt-1">Gestiona las materias y profesores</p>
-            </div>
-            <div className="flex flex-wrap gap-3 items-center">
-              <Link
-                href="/admin/dashboard"
-                className="text-sm font-medium text-gray-500 hover:text-gray-900 transition"
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/admin/users"
-                className="text-sm font-medium text-gray-600 hover:text-gray-900 transition"
-              >
-                Ver Usuarios
-              </Link>
-              <Link
-                href="/admin/academic"
-                className="text-sm font-medium text-gray-600 hover:text-gray-900 transition"
-              >
-                Carreras
-              </Link>
-              <Link
-                href="/admin/import"
-                className="text-sm font-medium text-gray-600 hover:text-gray-900 transition"
-              >
-                Carga Masiva
-              </Link>
-              <form action="/auth/signout" method="post">
-                <button className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition">
-                  Cerrar Sesión
-                </button>
-              </form>
-            </div>
-          </header>
+          <AdminHeader
+            title="Panel de Administrador"
+            description="Gestiona las materias y profesores"
+            activeHref="/admin/subjects"
+          />
 
           <CreateSubjectForm professors={professors || []} />
 
@@ -89,6 +59,7 @@ export default async function AdminSubjectsPage() {
                     {subjects.filter((s) => s.is_active === false).length} archivada(s)
                   </span>
                 )}
+                <BulkImportButton types={['SUBJECT', 'ENROLLMENT']} />
                 <ExportSubjectsButton subjects={exportRows} />
               </div>
             </div>
