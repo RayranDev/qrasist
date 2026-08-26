@@ -7,6 +7,7 @@ import { checkAdmin } from './authGuards'
 import { normalizeName } from '@/lib/utils/normalizeText'
 import { parseWorkbookRows } from '@/lib/excel/parseWorkbook'
 import { runBulkImport, type ImportResult } from '@/lib/excel/bulkImport'
+import { checkStudentEnrollable } from './enrollmentGuards'
 
 type ActionResult = ImportResult | { success: false; error: string }
 
@@ -137,6 +138,8 @@ interface SubjectImportRow {
   code: string
   professorEmail: string
   periodName: string
+  careerName: string
+  level: number | null
 }
 
 export async function bulkImportSubjects(formData: FormData): Promise<ActionResult> {
@@ -154,10 +157,38 @@ export async function bulkImportSubjects(formData: FormData): Promise<ActionResu
       const code = (row['Código'] || '').trim()
       const professorEmail = (row['Correo Profesor'] || '').trim()
       const periodName = (row['Período'] || '').trim()
+      const careerName = (row['Carrera'] || '').trim()
+      const levelRaw = (row['Nivel'] || '').trim()
+
       if (!name || !code) return { error: 'Nombre y Código son obligatorios.' }
-      return { data: { name, code, professorEmail, periodName } }
+      // Regla A: una materia solo admite profesor si ya pertenece
+      // a una carrera -- en la misma fila, para poder crear ambos
+      // vínculos atómicamente.
+      if (professorEmail && !careerName) {
+        return { error: 'Para asignar un profesor la fila debe incluir una Carrera.' }
+      }
+      let level: number | null = null
+      if (levelRaw) {
+        const n = Number(levelRaw)
+        if (!Number.isInteger(n) || n < 1 || n > 20) {
+          return { error: 'Nivel debe ser un número entre 1 y 20.' }
+        }
+        level = n
+      }
+      return { data: { name, code, professorEmail, periodName, careerName, level } }
     },
     async (data) => {
+      let careerId: string | null = null
+      if (data.careerName) {
+        const { data: career } = await supabase
+          .from('careers')
+          .select('id')
+          .eq('name', data.careerName)
+          .maybeSingle()
+        if (!career) return { success: false, error: `No existe la carrera "${data.careerName}".` }
+        careerId = career.id
+      }
+
       let professorId: string | null = null
       if (data.professorEmail) {
         const { data: prof } = await supabase
@@ -173,6 +204,20 @@ export async function bulkImportSubjects(formData: FormData): Promise<ActionResu
         if (prof.role !== 'PROFESSOR') {
           return { success: false, error: `${data.professorEmail} no tiene rol de profesor.` }
         }
+        // Regla B: el profesor debe pertenecer a la carrera indicada
+        const { data: profCareer } = await supabase
+          .from('professor_careers')
+          .select('id')
+          .eq('professor_id', prof.id)
+          .eq('career_id', careerId)
+          .eq('is_active', true)
+          .maybeSingle()
+        if (!profCareer) {
+          return {
+            success: false,
+            error: `${data.professorEmail} no pertenece a la carrera "${data.careerName}".`,
+          }
+        }
         professorId = prof.id
       }
 
@@ -187,7 +232,7 @@ export async function bulkImportSubjects(formData: FormData): Promise<ActionResu
         periodId = period.id
       }
 
-      const { error } = await supabase
+      const { data: subject, error } = await supabase
         .from('subjects')
         .insert({
           name: data.name,
@@ -195,12 +240,29 @@ export async function bulkImportSubjects(formData: FormData): Promise<ActionResu
           professor_id: professorId,
           period_id: periodId,
         })
+        .select('id')
+        .single()
 
       if (error) {
         if (error.code === '23505')
           return { success: false, error: 'Ya existe una materia con este código.' }
         return { success: false, error: 'Error al crear la materia.' }
       }
+
+      if (careerId) {
+        const { error: scError } = await supabase
+          .from('subject_careers')
+          .insert({
+            subject_id: subject.id,
+            career_id: careerId,
+            level: data.level,
+            is_active: true,
+          })
+        if (scError) {
+          return { success: false, error: 'Materia creada, pero no se pudo vincular a la carrera.' }
+        }
+      }
+
       return { success: true }
     }
   )
@@ -255,6 +317,9 @@ export async function bulkImportEnrollments(formData: FormData): Promise<ActionR
       if (student.role !== 'STUDENT') {
         return { success: false, error: `${data.studentCode} no corresponde a un estudiante.` }
       }
+
+      const check = await checkStudentEnrollable(supabase, subject.id, student.id)
+      if (!check.ok) return { success: false, error: check.error }
 
       const { error } = await supabase
         .from('enrollments')

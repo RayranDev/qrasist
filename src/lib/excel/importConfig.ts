@@ -65,12 +65,16 @@ export const IMPORT_CONFIG: Record<
     columns: [
       { header: 'Nombre', key: 'nombre', width: 28 },
       { header: 'Código', key: 'codigo', width: 16 },
+      { header: 'Carrera', key: 'carrera', width: 26 },
+      { header: 'Nivel', key: 'nivel', width: 8 },
       { header: 'Correo Profesor', key: 'correoProfesor', width: 32 },
       { header: 'Período', key: 'periodo', width: 14 },
     ],
     exampleRow: {
       nombre: 'Cálculo I',
       codigo: 'CALC-101',
+      carrera: 'Ingeniería de Sistemas',
+      nivel: '1',
       correoProfesor: 'maria.gomez@urepublicana.edu.co',
       periodo: '2026-1',
     },
