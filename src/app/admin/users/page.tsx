@@ -14,7 +14,13 @@ type StatusFilter = 'active' | 'inactive'
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; role?: string; status?: string; career?: string }>
+  searchParams: Promise<{
+    page?: string
+    role?: string
+    status?: string
+    career?: string
+    q?: string
+  }>
 }) {
   const params = await searchParams
   const supabase = await createClient()
@@ -52,6 +58,11 @@ export default async function AdminUsersPage({
 
   const careerFilter = careers?.some((c) => c.id === params.career) ? params.career : undefined
 
+  // Se sacan comas y parentesis porque tienen significado especial
+  // en la sintaxis de filtros .or() de PostgREST -- sin esto, un
+  // nombre con coma podria alterar el filtro en vez de buscarlo.
+  const searchQuery = (params.q || '').trim().replace(/[,()]/g, '').slice(0, 100)
+
   let query = supabase
     .from('profiles')
     .select('*', { count: 'exact' })
@@ -61,6 +72,10 @@ export default async function AdminUsersPage({
 
   if (roleFilter !== 'ALL') {
     query = query.eq('role', roleFilter)
+  }
+
+  if (searchQuery) {
+    query = query.or(`name.ilike.%${searchQuery}%,student_code.ilike.%${searchQuery}%`)
   }
 
   if (careerFilter) {
@@ -117,6 +132,7 @@ export default async function AdminUsersPage({
             professorCareers={professorCareers || []}
             careerFilter={careerFilter}
             careerFilterName={careerFilterName}
+            searchQuery={params.q || ''}
           />
         </div>
       </div>
