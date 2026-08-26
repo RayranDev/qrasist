@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import MobileWarningBanner from '@/components/MobileWarningBanner'
 import AdminHeader from '@/components/admin/AdminHeader'
-import { Crown, Presentation, GraduationCap, BookOpen, CalendarDays } from 'lucide-react'
+import { Crown, Presentation, GraduationCap, BookOpen, CalendarDays, Landmark } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +27,7 @@ export default async function AdminDashboardPage() {
     { count: totalProfessors },
     { count: totalStudents },
     { count: totalSubjects },
+    { count: totalCareers },
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -44,7 +45,36 @@ export default async function AdminDashboardPage() {
       .eq('role', 'STUDENT')
       .eq('is_active', true),
     supabase.from('subjects').select('*', { count: 'exact', head: true }).eq('is_active', true),
+    supabase.from('careers').select('*', { count: 'exact', head: true }).eq('is_active', true),
   ])
+
+  // Desglose por carrera: cuantos estudiantes y cuantas materias
+  // pertenecen a cada una (jerarquia carrera -> estudiantes/materias)
+  const { data: careers } = await supabase
+    .from('careers')
+    .select('id, name, code')
+    .eq('is_active', true)
+    .order('name')
+
+  const { data: studentCareerLinks } = await supabase
+    .from('student_careers')
+    .select('student_id, career_id')
+    .eq('is_active', true)
+
+  const { data: subjectCareerLinks } = await supabase
+    .from('subject_careers')
+    .select('subject_id, career_id')
+    .eq('is_active', true)
+
+  const careerStats = (careers || [])
+    .map((c) => ({
+      ...c,
+      studentCount: new Set(
+        (studentCareerLinks || []).filter((sc) => sc.career_id === c.id).map((sc) => sc.student_id)
+      ).size,
+      subjectCount: (subjectCareerLinks || []).filter((sc) => sc.career_id === c.id).length,
+    }))
+    .sort((a, b) => b.studentCount - a.studentCount)
 
   // Sesiones activas del día
   const todayStart = new Date()
@@ -114,6 +144,13 @@ export default async function AdminDashboardPage() {
 
   const statCards = [
     {
+      label: 'Carreras',
+      value: totalCareers ?? 0,
+      color: 'bg-indigo-50 text-indigo-700',
+      icon: Landmark,
+      href: '/admin/academic',
+    },
+    {
       label: 'Administradores',
       value: totalAdmins ?? 0,
       color: 'bg-purple-50 text-purple-700',
@@ -163,7 +200,7 @@ export default async function AdminDashboardPage() {
           />
 
           {/* Stat cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
             {statCards.map((card) => {
               const content = (
                 <>
@@ -195,7 +232,40 @@ export default async function AdminDashboardPage() {
           </div>
 
           {/* Consolidados */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+            {/* Carreras: estudiantes y materias por carrera */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+                <h2 className="font-black text-gray-900">Carreras</h2>
+                <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">
+                  Estudiantes · Materias
+                </span>
+              </div>
+              <div className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
+                {careerStats.length > 0 ? (
+                  careerStats.map((c) => (
+                    <Link
+                      key={c.id}
+                      href={`/admin/academic/${c.id}/pensum`}
+                      className="flex items-center justify-between px-6 py-3.5 hover:bg-gray-50/50 transition"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-800 truncate">{c.name}</p>
+                        <p className="text-xs text-gray-400 font-mono">{c.code}</p>
+                      </div>
+                      <span className="text-sm font-black text-indigo-700 whitespace-nowrap ml-2">
+                        {c.studentCount} · {c.subjectCount}
+                      </span>
+                    </Link>
+                  ))
+                ) : (
+                  <p className="px-6 py-6 text-sm text-gray-400 italic text-center">
+                    Sin carreras registradas
+                  </p>
+                )}
+              </div>
+            </div>
+
             {/* Docentes por materias */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
@@ -204,7 +274,7 @@ export default async function AdminDashboardPage() {
                   Materias asignadas
                 </span>
               </div>
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
                 {professorStats.length > 0 ? (
                   professorStats.map((p) => (
                     <Link
@@ -243,7 +313,7 @@ export default async function AdminDashboardPage() {
                   Estudiantes inscritos
                 </span>
               </div>
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
                 {subjectStats.length > 0 ? (
                   subjectStats.map((s) => (
                     <Link

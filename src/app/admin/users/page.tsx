@@ -14,7 +14,7 @@ type StatusFilter = 'active' | 'inactive'
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; role?: string; status?: string }>
+  searchParams: Promise<{ page?: string; role?: string; status?: string; career?: string }>
 }) {
   const params = await searchParams
   const supabase = await createClient()
@@ -34,24 +34,6 @@ export default async function AdminUsersPage({
   const from = (currentPage - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
 
-  let query = supabase
-    .from('profiles')
-    .select('*', { count: 'exact' })
-    .eq('is_active', statusFilter === 'active')
-    .order('role')
-    .order('name')
-
-  if (roleFilter !== 'ALL') {
-    query = query.eq('role', roleFilter)
-  }
-
-  const { data: users, count: totalCount } = await query.range(from, to)
-
-  const { count: inactiveCount } = await supabase
-    .from('profiles')
-    .select('*', { count: 'exact', head: true })
-    .eq('is_active', false)
-
   const { data: careers } = await supabase
     .from('careers')
     .select('id, name, code')
@@ -68,7 +50,47 @@ export default async function AdminUsersPage({
     .select('professor_id, career_id')
     .eq('is_active', true)
 
+  const careerFilter = careers?.some((c) => c.id === params.career) ? params.career : undefined
+
+  let query = supabase
+    .from('profiles')
+    .select('*', { count: 'exact' })
+    .eq('is_active', statusFilter === 'active')
+    .order('role')
+    .order('name')
+
+  if (roleFilter !== 'ALL') {
+    query = query.eq('role', roleFilter)
+  }
+
+  if (careerFilter) {
+    const idsByRole: Record<string, string[]> = {
+      STUDENT: (studentCareers || [])
+        .filter((sc) => sc.career_id === careerFilter)
+        .map((sc) => sc.student_id),
+      PROFESSOR: (professorCareers || [])
+        .filter((pc) => pc.career_id === careerFilter)
+        .map((pc) => pc.professor_id),
+    }
+    const matchingIds =
+      roleFilter === 'STUDENT' || roleFilter === 'PROFESSOR'
+        ? idsByRole[roleFilter]
+        : [...idsByRole.STUDENT, ...idsByRole.PROFESSOR]
+    query = query.in(
+      'id',
+      matchingIds.length > 0 ? matchingIds : ['00000000-0000-0000-0000-000000000000']
+    )
+  }
+
+  const { data: users, count: totalCount } = await query.range(from, to)
+
+  const { count: inactiveCount } = await supabase
+    .from('profiles')
+    .select('*', { count: 'exact', head: true })
+    .eq('is_active', false)
+
   const totalPages = Math.max(1, Math.ceil((totalCount || 0) / PAGE_SIZE))
+  const careerFilterName = careers?.find((c) => c.id === careerFilter)?.name
 
   return (
     <div className="min-h-screen bg-surface">
@@ -93,6 +115,8 @@ export default async function AdminUsersPage({
             careers={careers || []}
             studentCareers={studentCareers || []}
             professorCareers={professorCareers || []}
+            careerFilter={careerFilter}
+            careerFilterName={careerFilterName}
           />
         </div>
       </div>

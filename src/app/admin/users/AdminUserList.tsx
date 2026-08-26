@@ -43,11 +43,12 @@ interface ProfessorCareerLink {
   career_id: string
 }
 
-function buildHref(role: FilterRole, status: FilterStatus, page: number) {
+function buildHref(role: FilterRole, status: FilterStatus, page: number, career?: string) {
   const params = new URLSearchParams()
   if (role !== 'ALL') params.set('role', role)
   if (status !== 'active') params.set('status', status)
   if (page > 1) params.set('page', String(page))
+  if (career) params.set('career', career)
   const qs = params.toString()
   return qs ? `?${qs}` : '?'
 }
@@ -64,6 +65,8 @@ export default function AdminUserList({
   careers,
   studentCareers,
   professorCareers,
+  careerFilter,
+  careerFilterName,
 }: {
   users: Profile[]
   currentUser: User
@@ -76,6 +79,8 @@ export default function AdminUserList({
   careers: Career[]
   studentCareers: StudentCareerLink[]
   professorCareers: ProfessorCareerLink[]
+  careerFilter?: string
+  careerFilterName?: string
 }) {
   const [historyUser, setHistoryUser] = useState<{ id: string; name: string } | null>(null)
   const [careersUser, setCareersUser] = useState<{ id: string; name: string } | null>(null)
@@ -141,7 +146,7 @@ export default function AdminUserList({
           return (
             <Link
               key={r}
-              href={buildHref(r, statusFilter, 1)}
+              href={buildHref(r, statusFilter, 1, careerFilter)}
               className={`px-4 py-2 rounded-xl text-sm font-bold transition ${roleFilter === r ? active[r] : `bg-white text-gray-600 border border-gray-200 ${hover[r]}`}`}
             >
               {labels[r]}
@@ -150,16 +155,31 @@ export default function AdminUserList({
         })}
       </div>
 
+      {careerFilter && careerFilterName && (
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg flex items-center gap-2">
+            Carrera: {careerFilterName}
+            <Link
+              href={buildHref(roleFilter, statusFilter, 1)}
+              className="text-indigo-400 hover:text-indigo-700"
+              title="Quitar filtro de carrera"
+            >
+              ×
+            </Link>
+          </span>
+        </div>
+      )}
+
       {/* Toggle activos / inactivos */}
       <div className="flex gap-2 mb-6">
         <Link
-          href={buildHref(roleFilter, 'active', 1)}
+          href={buildHref(roleFilter, 'active', 1, careerFilter)}
           className={`px-4 py-1.5 rounded-xl text-xs font-bold transition ${statusFilter === 'active' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}
         >
           Activos
         </Link>
         <Link
-          href={buildHref(roleFilter, 'inactive', 1)}
+          href={buildHref(roleFilter, 'inactive', 1, careerFilter)}
           className={`px-4 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${statusFilter === 'inactive' ? 'bg-amber-500 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-amber-50'}`}
         >
           Inactivos
@@ -287,7 +307,7 @@ export default function AdminUserList({
           </p>
           <div className="flex gap-2">
             <Link
-              href={buildHref(roleFilter, statusFilter, currentPage - 1)}
+              href={buildHref(roleFilter, statusFilter, currentPage - 1, careerFilter)}
               aria-disabled={currentPage <= 1}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
                 currentPage <= 1
@@ -298,7 +318,7 @@ export default function AdminUserList({
               ← Anterior
             </Link>
             <Link
-              href={buildHref(roleFilter, statusFilter, currentPage + 1)}
+              href={buildHref(roleFilter, statusFilter, currentPage + 1, careerFilter)}
               aria-disabled={currentPage >= totalPages}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
                 currentPage >= totalPages
