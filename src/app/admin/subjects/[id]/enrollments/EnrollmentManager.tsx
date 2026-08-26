@@ -8,27 +8,32 @@ import ConfirmModal from '@/components/ConfirmModal'
 interface Student {
   id: string
   name: string
+  careerIds: string[]
 }
 
 interface Enrollment {
-  student: Student
+  student: { id: string; name: string }
 }
 
 export default function EnrollmentManager({
   subjectId,
   enrolledStudents,
   allStudents,
+  subjectCareerIds,
 }: {
   subjectId: string
   enrolledStudents: Enrollment[]
   allStudents: Student[]
+  subjectCareerIds: string[]
 }) {
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [pendingRemove, setPendingRemove] = useState<{ id: string; name: string } | null>(null)
   const showToast = useToast()
 
   const enrolledIds = new Set(enrolledStudents.map((e) => e.student.id))
-  const availableStudents = allStudents.filter((s) => !enrolledIds.has(s.id))
+  const availableStudents = allStudents.filter(
+    (s) => !enrolledIds.has(s.id) && s.careerIds.some((id) => subjectCareerIds.includes(id))
+  )
 
   const handleAdd = async (studentId: string, studentName: string) => {
     setLoadingId(studentId)

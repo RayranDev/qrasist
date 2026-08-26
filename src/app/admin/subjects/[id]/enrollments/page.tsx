@@ -25,19 +25,37 @@ export default async function SubjectEnrollmentsPage({
 
   if (!subject) redirect('/admin/subjects')
 
+  // Carreras de la materia (regla A: sin carrera no se gestionan
+  // estudiantes)
+  const { data: subjectCareers } = await supabase
+    .from('subject_careers')
+    .select('career_id')
+    .eq('subject_id', id)
+    .eq('is_active', true)
+  const subjectCareerIds = (subjectCareers || []).map((sc) => sc.career_id)
+
   // Obtener inscripciones actuales
   const { data: enrolledStudents } = await supabase
     .from('enrollments')
     .select('student:profiles(id, name)')
     .eq('subject_id', id)
 
-  // Solo estudiantes activos disponibles para inscribir
-  const { data: allStudents } = await supabase
+  // Solo estudiantes activos, con su(s) carrera(s), disponibles
+  // para inscribir (regla D: debe coincidir con la de la materia)
+  const { data: allStudentsRaw } = await supabase
     .from('profiles')
-    .select('id, name')
+    .select('id, name, student_careers(career_id, is_active)')
     .eq('role', 'STUDENT')
     .eq('is_active', true)
     .order('name')
+
+  const allStudents = (allStudentsRaw || []).map((s) => ({
+    id: s.id,
+    name: s.name,
+    careerIds: ((s.student_careers || []) as { career_id: string; is_active: boolean }[])
+      .filter((sc) => sc.is_active)
+      .map((sc) => sc.career_id),
+  }))
 
   return (
     <div className="min-h-screen bg-surface">
@@ -59,15 +77,31 @@ export default async function SubjectEnrollmentsPage({
             </div>
           </header>
 
-          <EnrollmentManager
-            subjectId={id}
-            enrolledStudents={
-              (enrolledStudents || []) as unknown as Parameters<
-                typeof EnrollmentManager
-              >[0]['enrolledStudents']
-            }
-            allStudents={allStudents || []}
-          />
+          {subjectCareerIds.length === 0 ? (
+            <div className="bg-amber-50 border border-amber-200 rounded-3xl p-8 text-center">
+              <p className="font-bold text-amber-800 mb-1">
+                Esta materia no pertenece a ninguna carrera todavía.
+              </p>
+              <p className="text-sm text-amber-700">
+                Asignale una carrera desde{' '}
+                <a href="/admin/subjects" className="underline font-semibold">
+                  Materias
+                </a>{' '}
+                antes de inscribir estudiantes.
+              </p>
+            </div>
+          ) : (
+            <EnrollmentManager
+              subjectId={id}
+              enrolledStudents={
+                (enrolledStudents || []) as unknown as Parameters<
+                  typeof EnrollmentManager
+                >[0]['enrolledStudents']
+              }
+              allStudents={allStudents}
+              subjectCareerIds={subjectCareerIds}
+            />
+          )}
         </div>
       </div>
     </div>

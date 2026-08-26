@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { checkStudentEnrollable } from './enrollmentGuards'
 
 // Alfabeto sin caracteres ambiguos (0/O, 1/I/L) para que el
 // estudiante lo pueda transcribir sin confundirse.
@@ -97,6 +98,9 @@ export async function requestEnrollment(rawCode: string) {
     return { success: false, error: `Ya tienes una solicitud pendiente para ${subject.name}.` }
   }
 
+  const check = await checkStudentEnrollable(supabase, subject.id, user.id)
+  if (!check.ok) return { success: false, error: check.error }
+
   const { error } = await supabase.from('enrollment_requests').upsert(
     {
       student_id: user.id,
@@ -132,6 +136,11 @@ export async function approveEnrollmentRequest(requestId: string) {
   if (request.status !== 'pending') {
     return { success: false, error: 'Esta solicitud ya fue procesada.' }
   }
+
+  // Revalidar por si algo cambio desde que se hizo la solicitud
+  // (ej. un admin quito la carrera del estudiante o de la materia).
+  const check = await checkStudentEnrollable(supabase, request.subject_id, request.student_id)
+  if (!check.ok) return { success: false, error: check.error }
 
   const { error: enrollError } = await supabase
     .from('enrollments')

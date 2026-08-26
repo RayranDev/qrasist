@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { checkAdmin } from './authGuards'
+import { checkStudentEnrollable } from './enrollmentGuards'
 
 export async function addEnrollment(subjectId: string, studentId: string) {
   const supabase = await createClient()
@@ -20,6 +21,9 @@ export async function addEnrollment(subjectId: string, studentId: string) {
   if (studentProfile?.role !== 'STUDENT') {
     return { success: false, error: 'El usuario seleccionado no es un estudiante.' }
   }
+
+  const check = await checkStudentEnrollable(supabase, subjectId, studentId)
+  if (!check.ok) return { success: false, error: check.error }
 
   const { error } = await supabase
     .from('enrollments')
