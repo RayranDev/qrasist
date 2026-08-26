@@ -2,7 +2,14 @@
 
 import { createClient } from '@/lib/supabase/server'
 
+const MIN_DURATION_MINUTES = 1
+const MAX_DURATION_MINUTES = 180
+
 export async function createSession(subjectId: string, durationMinutes: number = 15) {
+  if (!Number.isFinite(durationMinutes) || durationMinutes < MIN_DURATION_MINUTES || durationMinutes > MAX_DURATION_MINUTES) {
+    return { success: false, error: `La duración debe ser entre ${MIN_DURATION_MINUTES} y ${MAX_DURATION_MINUTES} minutos.` }
+  }
+
   const supabase = await createClient()
 
   // 1. Obtener usuario autenticado

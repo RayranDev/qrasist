@@ -35,10 +35,10 @@ export async function createUserAccount(formData: FormData) {
     const adminUser = await verifyAdminAccess()
     if (!adminUser) return { success: false, error: 'Acceso denegado.' }
 
-    const email = (formData.get('email') as string).trim()
-    const password = (formData.get('password') as string).trim()
-    const name = formData.get('name') as string
-    const studentCode = (formData.get('student_code') as string).trim()
+    const email = (formData.get('email') as string || '').trim()
+    const password = (formData.get('password') as string || '').trim()
+    const name = (formData.get('name') as string || '').trim()
+    const studentCode = (formData.get('student_code') as string || '').trim()
     const role = formData.get('role') as 'ADMIN' | 'PROFESSOR' | 'STUDENT'
 
     if (!email || !password || !name || !studentCode) return { success: false, error: 'Faltan datos obligatorios.' }
@@ -62,7 +62,14 @@ export async function createUserAccount(formData: FormData) {
     if (error) return { success: false, error: error.message }
 
     await new Promise(resolve => setTimeout(resolve, 500))
-    await admin.from('profiles').update({ role, student_code: studentCode, email }).eq('id', data.user.id)
+    const { error: profileUpdateError } = await admin
+      .from('profiles')
+      .update({ role, student_code: studentCode, email })
+      .eq('id', data.user.id)
+
+    if (profileUpdateError) {
+      return { success: false, error: `Usuario creado pero el perfil no se pudo completar: ${profileUpdateError.message}` }
+    }
 
     revalidatePath('/admin/users')
     return { success: true }

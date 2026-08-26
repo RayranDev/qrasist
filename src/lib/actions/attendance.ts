@@ -38,11 +38,16 @@ export async function registerAttendance(qrToken: string) {
   }
 
   // 5. Traer datos de la materia para el mensaje de confirmación
+  //    y validar que no esté archivada.
   const { data: subject } = await supabase
     .from('subjects')
-    .select('name, code')
+    .select('name, code, is_active')
     .eq('id', session.subject_id)
     .single()
+
+  if (subject?.is_active === false) {
+    return { success: false, error: 'Esta materia ha sido archivada y ya no acepta registros.' }
+  }
 
   // 6. Verificar si el estudiante está inscrito en la materia
   const { data: enrollment } = await supabase
@@ -54,25 +59,33 @@ export async function registerAttendance(qrToken: string) {
 
   const isEnrolled = !!enrollment
 
-  // 7. Verificar duplicado por materia en el mismo día
-  const todayStart = new Date()
-  todayStart.setHours(0, 0, 0, 0)
-  const todayEnd = new Date()
-  todayEnd.setHours(23, 59, 59, 999)
+  // 7. Verificar duplicado por materia en el mismo día. Este SELECT
+  // es solo para dar un mensaje amigable antes de intentar el
+  // INSERT -- la garantía real es el índice único
+  // idx_unique_attendance_per_subject_per_day (ver
+  // ATTENDANCE_DEDUP_MIGRATION.sql), que cubre la condición de
+  // carrera entre dos sesiones distintas de la misma materia el
+  // mismo día que este SELECT por sí solo no puede evitar.
+  //
+  // El "día" se calcula en hora de Colombia (UTC-5 fijo, sin
+  // horario de verano), igual que attendance_day() en la
+  // migración -- new Date().setHours() usa la zona del servidor
+  // (UTC en Vercel), que correría el corte del día 5 horas.
+  const BOGOTA_OFFSET_MS = 5 * 60 * 60 * 1000
+  const nowBogota = new Date(Date.now() - BOGOTA_OFFSET_MS)
+  const y = nowBogota.getUTCFullYear()
+  const m = nowBogota.getUTCMonth()
+  const d = nowBogota.getUTCDate()
+  const todayStart = new Date(Date.UTC(y, m, d, 0, 0, 0, 0) + BOGOTA_OFFSET_MS)
+  const todayEnd = new Date(Date.UTC(y, m, d, 23, 59, 59, 999) + BOGOTA_OFFSET_MS)
 
   const { data: existingToday } = await supabase
     .from('attendances')
     .select('id')
     .eq('student_id', user.id)
+    .eq('subject_id', session.subject_id)
     .gte('scanned_at', todayStart.toISOString())
     .lte('scanned_at', todayEnd.toISOString())
-    .in('session_id',
-      (await supabase
-        .from('sessions')
-        .select('id')
-        .eq('subject_id', session.subject_id)
-        .then(r => r.data?.map((s: any) => s.id) || []))
-    )
     .maybeSingle()
 
   if (existingToday) {
@@ -90,7 +103,7 @@ export async function registerAttendance(qrToken: string) {
 
   if (insertError) {
     if (insertError.code === '23505') {
-      return { success: false, error: 'Ya has registrado tu asistencia para esta clase.' }
+      return { success: false, error: `Ya registraste asistencia para ${subject?.name || 'esta materia'} hoy.` }
     }
     return { success: false, error: 'Error del servidor. Intenta nuevamente.' }
   }

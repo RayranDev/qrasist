@@ -4,8 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
 export async function login(formData: FormData) {
-  const email = (formData.get('email') as string).trim()
-  const password = (formData.get('password') as string).trim()
+  const email = (formData.get('email') as string || '').trim()
+  const password = (formData.get('password') as string || '').trim()
 
   const supabase = await createClient()
 
@@ -24,10 +24,10 @@ export async function login(formData: FormData) {
 }
 
 export async function signup(formData: FormData) {
-  const email = (formData.get('email') as string).trim()
-  const password = (formData.get('password') as string).trim()
+  const email = (formData.get('email') as string || '').trim()
+  const password = (formData.get('password') as string || '').trim()
   const name = (formData.get('name') as string || '').trim()
-  const studentCode = (formData.get('student_code') as string).trim()
+  const studentCode = (formData.get('student_code') as string || '').trim()
 
   if (!name) redirect('/login?error=El+nombre+es+obligatorio')
   if (!/^\d{12}$/.test(studentCode)) redirect('/login?error=El+c%C3%B3digo+debe+tener+exactamente+12+d%C3%ADgitos+num%C3%A9ricos')
@@ -55,7 +55,10 @@ export async function signup(formData: FormData) {
 
   // Intentar actualizar la tabla pública con el student_code
   if (data.user) {
-    await supabase.from('profiles').update({ student_code: studentCode }).eq('id', data.user.id)
+    const { error: profileError } = await supabase.from('profiles').update({ student_code: studentCode }).eq('id', data.user.id)
+    if (profileError) {
+      redirect('/login?error=' + encodeURIComponent('Tu cuenta se creó pero el código estudiantil no se guardó. Contacta al administrador.'))
+    }
   }
 
   redirect('/dashboard')
