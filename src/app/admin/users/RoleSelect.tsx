@@ -29,9 +29,11 @@ export default function RoleSelect({ userId, currentRole }: Props) {
       onChange={handleChange}
       disabled={loading}
       className={`text-xs font-semibold rounded-lg px-3 py-1.5 outline-none cursor-pointer border-2 transition ${
-        currentRole === 'ADMIN' ? 'bg-purple-50 text-purple-700 border-purple-100 hover:border-purple-200' :
-        currentRole === 'PROFESSOR' ? 'bg-amber-50 text-amber-700 border-amber-100 hover:border-amber-200' :
-        'bg-emerald-50 text-emerald-700 border-emerald-100 hover:border-emerald-200'
+        currentRole === 'ADMIN'
+          ? 'bg-purple-50 text-purple-700 border-purple-100 hover:border-purple-200'
+          : currentRole === 'PROFESSOR'
+            ? 'bg-amber-50 text-amber-700 border-amber-100 hover:border-amber-200'
+            : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:border-emerald-200'
       }`}
     >
       <option value="STUDENT">Estudiante</option>

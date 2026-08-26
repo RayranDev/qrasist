@@ -5,7 +5,9 @@ export default async function DashboardRedirect() {
   const supabase = await createClient()
 
   // Verificamos quién está logueado
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) {
     redirect('/login')

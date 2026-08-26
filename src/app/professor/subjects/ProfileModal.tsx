@@ -26,7 +26,8 @@ export default function ProfileModal({ currentName }: { currentName: string }) {
     setLoading(false)
   }
 
-  const inputClass = "w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all"
+  const inputClass =
+    'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all'
 
   return (
     <>
@@ -35,8 +36,18 @@ export default function ProfileModal({ currentName }: { currentName: string }) {
         className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition"
         title="Editar perfil"
       >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        <svg
+          className="w-5 h-5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+          />
         </svg>
       </button>
 
@@ -47,14 +58,23 @@ export default function ProfileModal({ currentName }: { currentName: string }) {
 
             <div className="space-y-4 mb-5">
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Nombre Completo</label>
-                <input value={name} onChange={e => setName(e.target.value)} type="text" className={inputClass} />
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Nombre Completo
+                </label>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  type="text"
+                  className={inputClass}
+                />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Nueva Contraseña</label>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Nueva Contraseña
+                </label>
                 <input
                   value={password}
-                  onChange={e => setPassword(e.target.value)}
+                  onChange={(e) => setPassword(e.target.value)}
                   type="password"
                   placeholder="Dejar en blanco para no cambiar"
                   className={inputClass}
@@ -63,14 +83,19 @@ export default function ProfileModal({ currentName }: { currentName: string }) {
             </div>
 
             {feedback && (
-              <p className={`text-sm font-semibold mb-4 px-3 py-2 rounded-lg ${feedback.type === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+              <p
+                className={`text-sm font-semibold mb-4 px-3 py-2 rounded-lg ${feedback.type === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}
+              >
                 {feedback.msg}
               </p>
             )}
 
             <div className="flex gap-3">
               <button
-                onClick={() => { setOpen(false); setFeedback(null) }}
+                onClick={() => {
+                  setOpen(false)
+                  setFeedback(null)
+                }}
                 disabled={loading}
                 className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition"
               >

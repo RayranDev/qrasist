@@ -38,8 +38,13 @@ export default function QRDisplay({ qrToken, expiresAt }: QRDisplayProps) {
       {isExpired ? (
         <div className="text-center py-10">
           <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
-             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
           </div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">QR Expirado</h2>
@@ -56,14 +61,14 @@ export default function QRDisplay({ qrToken, expiresAt }: QRDisplayProps) {
               Activo • {timeLeft}
             </p>
           </div>
-          
+
           <div className="p-4 bg-white border-2 border-emerald-50 rounded-2xl">
-            <QRCodeSVG 
-              value={qrToken} 
+            <QRCodeSVG
+              value={qrToken}
               size={240}
               level="H"
               includeMargin={true}
-              fgColor="#111827" 
+              fgColor="#111827"
             />
           </div>
 

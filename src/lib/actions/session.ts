@@ -6,14 +6,23 @@ const MIN_DURATION_MINUTES = 1
 const MAX_DURATION_MINUTES = 180
 
 export async function createSession(subjectId: string, durationMinutes: number = 15) {
-  if (!Number.isFinite(durationMinutes) || durationMinutes < MIN_DURATION_MINUTES || durationMinutes > MAX_DURATION_MINUTES) {
-    return { success: false, error: `La duración debe ser entre ${MIN_DURATION_MINUTES} y ${MAX_DURATION_MINUTES} minutos.` }
+  if (
+    !Number.isFinite(durationMinutes) ||
+    durationMinutes < MIN_DURATION_MINUTES ||
+    durationMinutes > MAX_DURATION_MINUTES
+  ) {
+    return {
+      success: false,
+      error: `La duración debe ser entre ${MIN_DURATION_MINUTES} y ${MAX_DURATION_MINUTES} minutos.`,
+    }
   }
 
   const supabase = await createClient()
 
   // 1. Obtener usuario autenticado
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'No estás autenticado.' }
 
   // 2. Verificar que el profesor dicte esta materia
@@ -35,7 +44,7 @@ export async function createSession(subjectId: string, durationMinutes: number =
     .insert({
       subject_id: subjectId,
       duration_minutes: durationMinutes,
-      expires_at: expiresAt.toISOString()
+      expires_at: expiresAt.toISOString(),
     })
     .select('id, qr_token, expires_at')
     .single()

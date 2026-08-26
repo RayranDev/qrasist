@@ -6,10 +6,16 @@ import { revalidatePath } from 'next/cache'
 
 async function verifyAdminAccess() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
   return profile?.role === 'ADMIN' ? user : null
 }
 
@@ -35,46 +41,62 @@ export async function createUserAccount(formData: FormData) {
     const adminUser = await verifyAdminAccess()
     if (!adminUser) return { success: false, error: 'Acceso denegado.' }
 
-    const email = (formData.get('email') as string || '').trim()
-    const password = (formData.get('password') as string || '').trim()
-    const name = (formData.get('name') as string || '').trim()
-    const studentCode = (formData.get('student_code') as string || '').trim()
+    const email = ((formData.get('email') as string) || '').trim()
+    const password = ((formData.get('password') as string) || '').trim()
+    const name = ((formData.get('name') as string) || '').trim()
+    const studentCode = ((formData.get('student_code') as string) || '').trim()
     const role = formData.get('role') as 'ADMIN' | 'PROFESSOR' | 'STUDENT'
 
-    if (!email || !password || !name || !studentCode) return { success: false, error: 'Faltan datos obligatorios.' }
+    if (!email || !password || !name || !studentCode)
+      return { success: false, error: 'Faltan datos obligatorios.' }
 
     if (role !== 'ADMIN' && !email.endsWith('@urepublicana.edu.co')) {
-      return { success: false, error: 'El correo de docentes y estudiantes debe ser @urepublicana.edu.co' }
+      return {
+        success: false,
+        error: 'El correo de docentes y estudiantes debe ser @urepublicana.edu.co',
+      }
     }
 
     const admin = getSupabaseAdmin()
 
-    const { data: existingCode } = await admin.from('profiles').select('id').eq('student_code', studentCode).maybeSingle()
-    if (existingCode) return { success: false, error: 'Ese código/ID institucional ya está registrado por otro usuario.' }
+    const { data: existingCode } = await admin
+      .from('profiles')
+      .select('id')
+      .eq('student_code', studentCode)
+      .maybeSingle()
+    if (existingCode)
+      return {
+        success: false,
+        error: 'Ese código/ID institucional ya está registrado por otro usuario.',
+      }
 
     const { data, error } = await admin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { full_name: name, student_code: studentCode }
+      user_metadata: { full_name: name, student_code: studentCode },
     })
 
     if (error) return { success: false, error: error.message }
 
-    await new Promise(resolve => setTimeout(resolve, 500))
+    await new Promise((resolve) => setTimeout(resolve, 500))
     const { error: profileUpdateError } = await admin
       .from('profiles')
       .update({ role, student_code: studentCode, email })
       .eq('id', data.user.id)
 
     if (profileUpdateError) {
-      return { success: false, error: `Usuario creado pero el perfil no se pudo completar: ${profileUpdateError.message}` }
+      return {
+        success: false,
+        error: `Usuario creado pero el perfil no se pudo completar: ${profileUpdateError.message}`,
+      }
     }
 
     revalidatePath('/admin/users')
     return { success: true }
-  } catch (err: any) {
-    return { success: false, error: err?.message ?? 'Error interno del servidor.' }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error interno del servidor.'
+    return { success: false, error: message }
   }
 }
 
@@ -82,13 +104,11 @@ export async function deleteUserAccount(userId: string) {
   const adminUser = await verifyAdminAccess()
   if (!adminUser) return { success: false, error: 'Acceso denegado.' }
 
-  if (userId === adminUser.id) return { success: false, error: 'No puedes desactivarte a ti mismo.' }
+  if (userId === adminUser.id)
+    return { success: false, error: 'No puedes desactivarte a ti mismo.' }
 
   const supabase = await createClient()
-  const { error } = await supabase
-    .from('profiles')
-    .update({ is_active: false })
-    .eq('id', userId)
+  const { error } = await supabase.from('profiles').update({ is_active: false }).eq('id', userId)
 
   if (error) return { success: false, error: error.message }
 
@@ -102,10 +122,7 @@ export async function reactivateUser(userId: string) {
   if (!adminUser) return { success: false, error: 'Acceso denegado.' }
 
   const supabase = await createClient()
-  const { error } = await supabase
-    .from('profiles')
-    .update({ is_active: true })
-    .eq('id', userId)
+  const { error } = await supabase.from('profiles').update({ is_active: true }).eq('id', userId)
 
   if (error) return { success: false, error: error.message }
 
@@ -114,7 +131,10 @@ export async function reactivateUser(userId: string) {
   return { success: true }
 }
 
-export async function updateUserAccount(userId: string, data: { name?: string, password?: string, student_code?: string }) {
+export async function updateUserAccount(
+  userId: string,
+  data: { name?: string; password?: string; student_code?: string }
+) {
   try {
     const adminUser = await verifyAdminAccess()
     if (!adminUser) return { success: false, error: 'Acceso denegado.' }
@@ -122,12 +142,20 @@ export async function updateUserAccount(userId: string, data: { name?: string, p
     const admin = getSupabaseAdmin()
 
     if (data.student_code) {
-      const { data: existingCode } = await admin.from('profiles').select('id').eq('student_code', data.student_code).neq('id', userId).maybeSingle()
-      if (existingCode) return { success: false, error: 'Ese código/ID institucional ya pertenece a otro usuario.' }
+      const { data: existingCode } = await admin
+        .from('profiles')
+        .select('id')
+        .eq('student_code', data.student_code)
+        .neq('id', userId)
+        .maybeSingle()
+      if (existingCode)
+        return { success: false, error: 'Ese código/ID institucional ya pertenece a otro usuario.' }
     }
 
     if (data.password) {
-      const { error: authError } = await admin.auth.admin.updateUserById(userId, { password: data.password })
+      const { error: authError } = await admin.auth.admin.updateUserById(userId, {
+        password: data.password,
+      })
       if (authError) return { success: false, error: authError.message }
     }
 
@@ -152,8 +180,9 @@ export async function updateUserAccount(userId: string, data: { name?: string, p
 
     revalidatePath('/admin/users')
     return { success: true }
-  } catch (err: any) {
-    return { success: false, error: err?.message ?? 'Error interno del servidor.' }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error interno del servidor.'
+    return { success: false, error: message }
   }
 }
 
@@ -164,7 +193,8 @@ export async function getStudentAttendanceHistory(studentId: string) {
   const admin = getSupabaseAdmin()
   const { data, error } = await admin
     .from('attendances')
-    .select(`
+    .select(
+      `
       id,
       scanned_at,
       session:sessions (
@@ -175,7 +205,8 @@ export async function getStudentAttendanceHistory(studentId: string) {
           code
         )
       )
-    `)
+    `
+    )
     .eq('student_id', studentId)
     .order('scanned_at', { ascending: false })
 

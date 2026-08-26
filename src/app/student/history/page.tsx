@@ -5,9 +5,24 @@ import LocalTime from '@/components/LocalTime'
 
 export const dynamic = 'force-dynamic'
 
+interface AttendanceRecord {
+  id: string
+  scanned_at: string
+  session: {
+    id: string
+    date: string
+    subject: {
+      name: string
+      code: string
+    } | null
+  } | null
+}
+
 export default async function StudentHistoryPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) {
     redirect('/login')
@@ -16,7 +31,8 @@ export default async function StudentHistoryPage() {
   // Fetch attendances with related session and subject data
   const { data: attendances } = await supabase
     .from('attendances')
-    .select(`
+    .select(
+      `
       id,
       scanned_at,
       session:sessions (
@@ -27,16 +43,20 @@ export default async function StudentHistoryPage() {
           code
         )
       )
-    `)
+    `
+    )
     .eq('student_id', user.id)
     .order('scanned_at', { ascending: false })
 
   return (
-    <div className="min-h-screen bg-[#F7F7F5] flex flex-col">
+    <div className="min-h-screen bg-surface flex flex-col">
       <div className="flex-1 p-5 max-w-md mx-auto w-full flex flex-col">
         <header className="flex justify-between items-center mb-6 pt-4">
           <div>
-            <Link href="/student/scanner" className="text-emerald-600 hover:text-emerald-700 font-semibold text-sm flex items-center gap-1 mb-2">
+            <Link
+              href="/student/scanner"
+              className="text-emerald-600 hover:text-emerald-700 font-semibold text-sm flex items-center gap-1 mb-2"
+            >
               ← Volver al Inicio
             </Link>
             <h1 className="text-2xl font-bold text-gray-900">Mi Historial</h1>
@@ -47,16 +67,26 @@ export default async function StudentHistoryPage() {
         <div className="flex-1">
           {attendances && attendances.length > 0 ? (
             <div className="space-y-4">
-              {attendances.map((record: any) => (
-                <div key={record.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+              {(attendances as unknown as AttendanceRecord[]).map((record) => (
+                <div
+                  key={record.id}
+                  className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4"
+                >
                   <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500 flex-shrink-0">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
                     </svg>
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900">{record.session?.subject?.name}</h3>
-                    <p className="text-xs text-emerald-600 font-medium mb-1">{record.session?.subject?.code}</p>
+                    <p className="text-xs text-emerald-600 font-medium mb-1">
+                      {record.session?.subject?.code}
+                    </p>
                     <p className="text-xs text-gray-500 capitalize">
                       <LocalTime date={record.scanned_at} />
                     </p>
@@ -68,7 +98,12 @@ export default async function StudentHistoryPage() {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
               <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
                 <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
               </div>
               <p className="text-gray-500 font-medium">Aún no tienes asistencias registradas</p>

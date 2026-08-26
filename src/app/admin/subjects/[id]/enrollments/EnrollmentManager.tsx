@@ -3,11 +3,28 @@
 import { useState } from 'react'
 import { addEnrollment, removeEnrollment } from '@/lib/actions/enrollments'
 
-export default function EnrollmentManager({ subjectId, enrolledStudents, allStudents }: { subjectId: string, enrolledStudents: any[], allStudents: any[] }) {
+interface Student {
+  id: string
+  name: string
+}
+
+interface Enrollment {
+  student: Student
+}
+
+export default function EnrollmentManager({
+  subjectId,
+  enrolledStudents,
+  allStudents,
+}: {
+  subjectId: string
+  enrolledStudents: Enrollment[]
+  allStudents: Student[]
+}) {
   const [loadingId, setLoadingId] = useState<string | null>(null)
-  
-  const enrolledIds = new Set(enrolledStudents.map(e => e.student.id))
-  const availableStudents = allStudents.filter(s => !enrolledIds.has(s.id))
+
+  const enrolledIds = new Set(enrolledStudents.map((e) => e.student.id))
+  const availableStudents = allStudents.filter((s) => !enrolledIds.has(s.id))
 
   const handleAdd = async (studentId: string) => {
     setLoadingId(studentId)
@@ -34,13 +51,16 @@ export default function EnrollmentManager({ subjectId, enrolledStudents, allStud
           </span>
           Estudiantes Inscritos
         </h3>
-        
+
         <div className="space-y-3">
           {enrolledStudents.length > 0 ? (
-            enrolledStudents.map((enrollment: any) => (
-              <div key={enrollment.student.id} className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-xl border border-gray-100 transition">
+            enrolledStudents.map((enrollment) => (
+              <div
+                key={enrollment.student.id}
+                className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-xl border border-gray-100 transition"
+              >
                 <div className="font-bold text-gray-900 text-sm">{enrollment.student.name}</div>
-                <button 
+                <button
                   disabled={loadingId === enrollment.student.id}
                   onClick={() => handleRemove(enrollment.student.id)}
                   className="px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition disabled:opacity-50"
@@ -50,7 +70,9 @@ export default function EnrollmentManager({ subjectId, enrolledStudents, allStud
               </div>
             ))
           ) : (
-            <p className="text-gray-500 text-sm italic text-center p-4 bg-gray-50 rounded-xl">No hay estudiantes inscritos en esta materia.</p>
+            <p className="text-gray-500 text-sm italic text-center p-4 bg-gray-50 rounded-xl">
+              No hay estudiantes inscritos en esta materia.
+            </p>
           )}
         </div>
       </div>
@@ -58,13 +80,16 @@ export default function EnrollmentManager({ subjectId, enrolledStudents, allStud
       {/* Estudiantes Disponibles */}
       <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100">
         <h3 className="text-xl font-bold text-gray-900 mb-4">Estudiantes Disponibles</h3>
-        
+
         <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
           {availableStudents.length > 0 ? (
-            availableStudents.map((student: any) => (
-              <div key={student.id} className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-xl border border-gray-100 transition">
+            availableStudents.map((student) => (
+              <div
+                key={student.id}
+                className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-xl border border-gray-100 transition"
+              >
                 <div className="font-medium text-gray-600 text-sm">{student.name}</div>
-                <button 
+                <button
                   disabled={loadingId === student.id}
                   onClick={() => handleAdd(student.id)}
                   className="px-3 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition disabled:opacity-50"
@@ -74,7 +99,9 @@ export default function EnrollmentManager({ subjectId, enrolledStudents, allStud
               </div>
             ))
           ) : (
-            <p className="text-gray-500 text-sm italic text-center p-4 bg-gray-50 rounded-xl">Todos los estudiantes ya están inscritos en esta materia.</p>
+            <p className="text-gray-500 text-sm italic text-center p-4 bg-gray-50 rounded-xl">
+              Todos los estudiantes ya están inscritos en esta materia.
+            </p>
           )}
         </div>
       </div>

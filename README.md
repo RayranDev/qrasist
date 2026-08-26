@@ -6,25 +6,25 @@ Plataforma web académica para gestión de asistencia universitaria mediante có
 
 ## Stack Tecnológico
 
-| Capa | Tecnología |
-|------|-----------|
-| Frontend | Next.js 16 (App Router), React 19, TypeScript |
-| Estilos | Tailwind CSS 4 |
-| Base de datos | PostgreSQL (Supabase) |
-| Auth | Supabase Auth (SSR) |
-| QR Scanner | html5-qrcode |
-| QR Generator | qrcode.react |
-| Deploy | Vercel |
+| Capa          | Tecnología                                    |
+| ------------- | --------------------------------------------- |
+| Frontend      | Next.js 16 (App Router), React 19, TypeScript |
+| Estilos       | Tailwind CSS 4                                |
+| Base de datos | PostgreSQL (Supabase)                         |
+| Auth          | Supabase Auth (SSR)                           |
+| QR Scanner    | html5-qrcode                                  |
+| QR Generator  | qrcode.react                                  |
+| Deploy        | Vercel                                        |
 
 ---
 
 ## Roles y Rutas
 
-| Rol | Ruta inicial | Descripción |
-|-----|-------------|-------------|
-| ADMIN | `/admin/dashboard` | Dashboard con consolidados, gestión de usuarios y materias |
-| PROFESSOR | `/professor/subjects` | Materias asignadas, generación de QR, historial |
-| STUDENT | `/student/scanner` | Escaneo QR + historial reciente |
+| Rol       | Ruta inicial          | Descripción                                                |
+| --------- | --------------------- | ---------------------------------------------------------- |
+| ADMIN     | `/admin/dashboard`    | Dashboard con consolidados, gestión de usuarios y materias |
+| PROFESSOR | `/professor/subjects` | Materias asignadas, generación de QR, historial            |
+| STUDENT   | `/student/scanner`    | Escaneo QR + historial reciente                            |
 
 ---
 
@@ -85,6 +85,7 @@ npm start          # servidor de producción
 ## Funcionalidades por Rol
 
 ### Administrador
+
 - Dashboard con resumen: total usuarios, materias, sesiones del día
 - Consolidados: docentes → N materias, materias → N estudiantes, estudiantes → N materias
 - Crear/editar/eliminar materias (con asignación de profesor)
@@ -94,6 +95,7 @@ npm start          # servidor de producción
 - Banner de recomendación para usuarios mobile
 
 ### Docente
+
 - Saludo personalizado con nombre y conteo de estudiantes por materia
 - Edición de propio perfil (nombre, contraseña)
 - Generación de QR por sesión (15 min default) con countdown en tiempo real
@@ -102,12 +104,14 @@ npm start          # servidor de producción
 - Eliminar sesiones erróneas
 
 ### Estudiante
+
 - Escaneo QR con cámara (feedback detallado: materia + código + hora)
 - Historial de las últimas 5 asistencias visible en pantalla principal
 - Historial completo paginado
 - Registro con validación: código de 12 dígitos numéricos obligatorio
 
 ### Validaciones generales
+
 - No se permiten duplicados de asistencia para la misma materia en el mismo día
 - Código QR con validación de formato UUID antes de llamar al servidor
 - Mensaje de error específico de la app (no alertas nativas del navegador)
@@ -124,11 +128,11 @@ npm start          # servidor de producción
 
 ## Paleta de Colores
 
-| Token | Valor | Uso |
-|-------|-------|-----|
-| Primary | `emerald-600` `#059669` | Botones, acentos, links |
-| Background | `#F7F7F5` | Fondo general |
-| Surface | `#FFFFFF` | Cards, modales |
-| Success | `emerald-500` | Registro exitoso |
-| Warning | `amber-500` | Invitado, alertas |
-| Error | `red-600` | Errores de registro |
+| Token      | Valor                   | Uso                     |
+| ---------- | ----------------------- | ----------------------- |
+| Primary    | `emerald-600` `#059669` | Botones, acentos, links |
+| Background | `#F7F7F5`               | Fondo general           |
+| Surface    | `#FFFFFF`               | Cards, modales          |
+| Success    | `emerald-500`           | Registro exitoso        |
+| Warning    | `amber-500`             | Invitado, alertas       |
+| Error      | `red-600`               | Errores de registro     |

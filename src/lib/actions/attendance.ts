@@ -5,13 +5,16 @@ import { headers } from 'next/headers'
 
 export async function registerAttendance(qrToken: string) {
   const supabase = await createClient()
-  
+
   // Capturar la IP real (Next.js headers)
   const headersList = await headers()
   const ipAddress = headersList.get('x-forwarded-for') || 'unknown'
 
   // 1. Obtener usuario autenticado
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
   if (authError || !user) return { success: false, error: 'No estás autenticado.' }
 
   // 2. Buscar la sesión por el token QR
@@ -34,7 +37,10 @@ export async function registerAttendance(qrToken: string) {
   const now = new Date()
   const expiresAt = new Date(session.expires_at)
   if (now > expiresAt) {
-    return { success: false, error: 'Este código QR ha expirado. Solicita al profesor que genere uno nuevo.' } // Error 3
+    return {
+      success: false,
+      error: 'Este código QR ha expirado. Solicita al profesor que genere uno nuevo.',
+    } // Error 3
   }
 
   // 5. Traer datos de la materia para el mensaje de confirmación
@@ -89,33 +95,51 @@ export async function registerAttendance(qrToken: string) {
     .maybeSingle()
 
   if (existingToday) {
-    return { success: false, error: `Ya registraste asistencia para ${subject?.name || 'esta materia'} hoy.` }
+    return {
+      success: false,
+      error: `Ya registraste asistencia para ${subject?.name || 'esta materia'} hoy.`,
+    }
   }
 
   // 8. Intentar registrar la asistencia
-  const { error: insertError } = await supabase
-    .from('attendances')
-    .insert({
-      session_id: session.id,
-      student_id: user.id,
-      ip_address: ipAddress
-    })
+  const { error: insertError } = await supabase.from('attendances').insert({
+    session_id: session.id,
+    student_id: user.id,
+    ip_address: ipAddress,
+  })
 
   if (insertError) {
     if (insertError.code === '23505') {
-      return { success: false, error: `Ya registraste asistencia para ${subject?.name || 'esta materia'} hoy.` }
+      return {
+        success: false,
+        error: `Ya registraste asistencia para ${subject?.name || 'esta materia'} hoy.`,
+      }
     }
     return { success: false, error: 'Error del servidor. Intenta nuevamente.' }
   }
 
   const registeredAt = new Date()
-  const timeStr = registeredAt.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true })
+  const timeStr = registeredAt.toLocaleTimeString('es-CO', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  })
   const subjectName = subject?.name || 'Materia'
   const subjectCode = subject?.code || ''
 
   if (!isEnrolled) {
-    return { success: true, isGuest: true, message: `Registrado como invitado en ${subjectName} (${subjectCode}) a las ${timeStr}` }
+    return {
+      success: true,
+      isGuest: true,
+      message: `Registrado como invitado en ${subjectName} (${subjectCode}) a las ${timeStr}`,
+    }
   }
 
-  return { success: true, message: `✓ ${subjectName} · ${subjectCode} — ${timeStr}`, subjectName, subjectCode, time: timeStr }
+  return {
+    success: true,
+    message: `✓ ${subjectName} · ${subjectCode} — ${timeStr}`,
+    subjectName,
+    subjectCode,
+    time: timeStr,
+  }
 }

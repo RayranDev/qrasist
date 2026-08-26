@@ -3,9 +3,15 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
+interface SessionSubjectRow {
+  subject: { professor_id: string }
+}
+
 export async function deleteSession(sessionId: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) return { success: false, error: 'No autorizado' }
 
@@ -14,15 +20,12 @@ export async function deleteSession(sessionId: string) {
     .select('subject:subjects(professor_id)')
     .eq('id', sessionId)
     .single()
-  
-  if (!session || (session.subject as any).professor_id !== user.id) {
+
+  if (!session || (session as unknown as SessionSubjectRow).subject.professor_id !== user.id) {
     return { success: false, error: 'No tienes permiso para borrar esta sesión.' }
   }
 
-  const { error } = await supabase
-    .from('sessions')
-    .update({ is_active: false })
-    .eq('id', sessionId)
+  const { error } = await supabase.from('sessions').update({ is_active: false }).eq('id', sessionId)
 
   if (error) return { success: false, error: 'Error al archivar la sesión.' }
 
@@ -32,7 +35,9 @@ export async function deleteSession(sessionId: string) {
 
 export async function reactivateSession(sessionId: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) return { success: false, error: 'No autorizado' }
 
@@ -42,14 +47,11 @@ export async function reactivateSession(sessionId: string) {
     .eq('id', sessionId)
     .single()
 
-  if (!session || (session.subject as any).professor_id !== user.id) {
+  if (!session || (session as unknown as SessionSubjectRow).subject.professor_id !== user.id) {
     return { success: false, error: 'No tienes permiso para reactivar esta sesión.' }
   }
 
-  const { error } = await supabase
-    .from('sessions')
-    .update({ is_active: true })
-    .eq('id', sessionId)
+  const { error } = await supabase.from('sessions').update({ is_active: true }).eq('id', sessionId)
 
   if (error) return { success: false, error: 'Error al reactivar la sesión.' }
 

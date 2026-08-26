@@ -18,7 +18,9 @@ export default function NavigationProgress() {
     setVisible(true)
     timerRef.current = setTimeout(() => setVisible(false), 800)
 
-    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
   }, [pathname])
 
   if (!visible) return null
@@ -30,7 +32,6 @@ export default function NavigationProgress() {
 
       {/* Card flotante pequeña */}
       <div className="relative flex flex-col items-center gap-3 bg-white/90 rounded-2xl px-7 py-6 shadow-lg border border-gray-100">
-
         {/* Icono QR con línea de escaneo */}
         <div className="relative w-14 h-14 flex items-center justify-center">
           {/* SVG del icono QR (mismo que login) */}
@@ -52,7 +53,8 @@ export default function NavigationProgress() {
           <div
             className="absolute left-0 right-0 h-0.5 rounded-full"
             style={{
-              background: 'linear-gradient(90deg, transparent 0%, #10b981 30%, #34d399 50%, #10b981 70%, transparent 100%)',
+              background:
+                'linear-gradient(90deg, transparent 0%, #10b981 30%, #34d399 50%, #10b981 70%, transparent 100%)',
               boxShadow: '0 0 6px 1px rgba(52,211,153,0.6)',
               animation: 'qr-scan 0.8s ease-in-out both',
             }}
@@ -60,9 +62,7 @@ export default function NavigationProgress() {
         </div>
 
         {/* Texto */}
-        <p className="text-xs font-bold text-gray-500 tracking-widest uppercase">
-          QR‑Asist
-        </p>
+        <p className="text-xs font-bold text-gray-500 tracking-widest uppercase">QR‑Asist</p>
       </div>
     </div>
   )

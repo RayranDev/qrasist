@@ -2,15 +2,18 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
-async function checkAdmin(supabase: any, userId: string) {
+async function checkAdmin(supabase: SupabaseClient, userId: string) {
   const { data } = await supabase.from('profiles').select('role').eq('id', userId).single()
   return data?.role === 'ADMIN'
 }
 
 export async function createSubject(formData: FormData) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user || !(await checkAdmin(supabase, user.id))) {
     return { success: false, error: 'No autorizado' }
@@ -25,11 +28,12 @@ export async function createSubject(formData: FormData) {
   const { error } = await supabase.from('subjects').insert({
     name,
     code,
-    professor_id: professor_id || null
+    professor_id: professor_id || null,
   })
 
   if (error) {
-    if (error.code === '23505') return { success: false, error: 'Ya existe una materia con este código' }
+    if (error.code === '23505')
+      return { success: false, error: 'Ya existe una materia con este código' }
     return { success: false, error: 'Error al crear la materia' }
   }
 
@@ -39,16 +43,15 @@ export async function createSubject(formData: FormData) {
 
 export async function deleteSubject(subjectId: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user || !(await checkAdmin(supabase, user.id))) {
     return { success: false, error: 'No autorizado' }
   }
 
-  const { error } = await supabase
-    .from('subjects')
-    .update({ is_active: false })
-    .eq('id', subjectId)
+  const { error } = await supabase.from('subjects').update({ is_active: false }).eq('id', subjectId)
 
   if (error) return { success: false, error: 'Error al desactivar la materia' }
 
@@ -59,16 +62,15 @@ export async function deleteSubject(subjectId: string) {
 
 export async function reactivateSubject(subjectId: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user || !(await checkAdmin(supabase, user.id))) {
     return { success: false, error: 'No autorizado' }
   }
 
-  const { error } = await supabase
-    .from('subjects')
-    .update({ is_active: true })
-    .eq('id', subjectId)
+  const { error } = await supabase.from('subjects').update({ is_active: true }).eq('id', subjectId)
 
   if (error) return { success: false, error: 'Error al reactivar la materia' }
 
@@ -77,9 +79,14 @@ export async function reactivateSubject(subjectId: string) {
   return { success: true }
 }
 
-export async function updateSubject(subjectId: string, data: { name: string, code: string, professor_id: string | null }) {
+export async function updateSubject(
+  subjectId: string,
+  data: { name: string; code: string; professor_id: string | null }
+) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user || !(await checkAdmin(supabase, user.id))) {
     return { success: false, error: 'No autorizado' }
@@ -87,14 +94,18 @@ export async function updateSubject(subjectId: string, data: { name: string, cod
 
   if (!data.name || !data.code) return { success: false, error: 'Nombre y código son obligatorios' }
 
-  const { error } = await supabase.from('subjects').update({
-    name: data.name,
-    code: data.code,
-    professor_id: data.professor_id || null
-  }).eq('id', subjectId)
+  const { error } = await supabase
+    .from('subjects')
+    .update({
+      name: data.name,
+      code: data.code,
+      professor_id: data.professor_id || null,
+    })
+    .eq('id', subjectId)
 
   if (error) {
-    if (error.code === '23505') return { success: false, error: 'Ya existe una materia con este código' }
+    if (error.code === '23505')
+      return { success: false, error: 'Ya existe una materia con este código' }
     return { success: false, error: 'Error al actualizar la materia' }
   }
 
