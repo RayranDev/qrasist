@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import {
   createCareer,
   setCareerActive,
@@ -112,6 +113,12 @@ export function CareerList({ careers }: { careers: Career[] }) {
                     Archivada
                   </span>
                 )}
+                <Link
+                  href={`/admin/academic/${c.id}/pensum`}
+                  className="px-3 py-1.5 text-xs font-bold rounded-lg transition bg-sky-50 text-sky-700 hover:bg-sky-100"
+                >
+                  Ver Pénsum
+                </Link>
                 <button
                   disabled={loadingId === c.id}
                   onClick={() => handleToggle(c)}

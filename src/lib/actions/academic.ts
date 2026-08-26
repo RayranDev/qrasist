@@ -141,3 +141,59 @@ export async function setPeriodActive(periodId: string, isActive: boolean) {
   revalidatePath(ACADEMIC_PATH)
   return { success: true }
 }
+
+// ------------------------------------------------------------
+// Pénsum: materia <-> carrera <-> nivel
+// ------------------------------------------------------------
+
+export async function assignSubjectToCareer(
+  subjectId: string,
+  careerId: string,
+  level: number | null
+) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user || !(await checkAdmin(supabase, user.id))) {
+    return { success: false, error: 'No autorizado' }
+  }
+
+  if (level !== null && (level < 1 || level > 20)) {
+    return { success: false, error: 'El nivel debe estar entre 1 y 20' }
+  }
+
+  const { error } = await supabase
+    .from('subject_careers')
+    .upsert(
+      { subject_id: subjectId, career_id: careerId, level, is_active: true },
+      { onConflict: 'subject_id,career_id' }
+    )
+
+  if (error) return { success: false, error: 'Error al asignar la materia al pénsum' }
+
+  revalidatePath(`${ACADEMIC_PATH}/${careerId}/pensum`)
+  return { success: true }
+}
+
+export async function removeSubjectFromCareer(subjectCareerId: string, careerId: string) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user || !(await checkAdmin(supabase, user.id))) {
+    return { success: false, error: 'No autorizado' }
+  }
+
+  const { error } = await supabase
+    .from('subject_careers')
+    .update({ is_active: false })
+    .eq('id', subjectCareerId)
+
+  if (error) return { success: false, error: 'Error al quitar la materia del pénsum' }
+
+  revalidatePath(`${ACADEMIC_PATH}/${careerId}/pensum`)
+  return { success: true }
+}
