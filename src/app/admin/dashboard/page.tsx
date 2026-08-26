@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import MobileWarningBanner from '@/components/MobileWarningBanner'
 import AdminHeader from '@/components/admin/AdminHeader'
+import { Crown, Presentation, GraduationCap, BookOpen, CalendarDays } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -116,35 +117,35 @@ export default async function AdminDashboardPage() {
       label: 'Administradores',
       value: totalAdmins ?? 0,
       color: 'bg-purple-50 text-purple-700',
-      icon: '👑',
+      icon: Crown,
       href: '/admin/users?role=ADMIN',
     },
     {
       label: 'Docentes',
       value: totalProfessors ?? 0,
       color: 'bg-amber-50 text-amber-700',
-      icon: '👨‍🏫',
+      icon: Presentation,
       href: '/admin/users?role=PROFESSOR',
     },
     {
       label: 'Estudiantes',
       value: totalStudents ?? 0,
       color: 'bg-emerald-50 text-emerald-700',
-      icon: '🎓',
+      icon: GraduationCap,
       href: '/admin/users?role=STUDENT',
     },
     {
       label: 'Materias',
       value: totalSubjects ?? 0,
       color: 'bg-sky-50 text-sky-700',
-      icon: '📚',
+      icon: BookOpen,
       href: '/admin/subjects',
     },
     {
       label: 'Clases hoy',
       value: sessionsToday ?? 0,
       color: 'bg-rose-50 text-rose-700',
-      icon: '📅',
+      icon: CalendarDays,
       href: null,
     },
   ]
@@ -166,13 +167,13 @@ export default async function AdminDashboardPage() {
             {statCards.map((card) => {
               const content = (
                 <>
-                  <span className="text-2xl">{card.icon}</span>
-                  <p className="text-3xl font-black text-gray-900">{card.value}</p>
-                  <p
-                    className={`text-xs font-bold px-2 py-0.5 rounded-md self-start ${card.color}`}
+                  <div
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center ${card.color}`}
                   >
-                    {card.label}
-                  </p>
+                    <card.icon className="w-5 h-5" strokeWidth={2} />
+                  </div>
+                  <p className="text-3xl font-black text-gray-900">{card.value}</p>
+                  <p className="text-xs font-bold text-gray-500 self-start">{card.label}</p>
                 </>
               )
               const className =
@@ -251,8 +252,8 @@ export default async function AdminDashboardPage() {
                       className="flex items-center justify-between px-6 py-3.5 hover:bg-gray-50/50 transition"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-700 text-xs font-black flex items-center justify-center shrink-0">
-                          📚
+                        <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-700 flex items-center justify-center shrink-0">
+                          <BookOpen className="w-4 h-4" strokeWidth={2} />
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-gray-800 truncate">{s.name}</p>

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { format } from 'date-fns'
 import { useToast } from '@/components/toast/ToastProvider'
 import { es } from 'date-fns/locale'
+import { Download, Archive, Users, ChevronRight, BookOpen } from 'lucide-react'
 
 interface Student {
   name: string
@@ -159,14 +160,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
             onClick={exportToExcel}
             className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold text-sm rounded-xl transition"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-              />
-            </svg>
+            <Download className="w-4 h-4" strokeWidth={2} />
             Exportar Excel
           </button>
         </div>
@@ -232,19 +226,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
             <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full animate-in zoom-in-95 duration-200">
                 <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4">
-                  <svg
-                    className="w-6 h-6 text-amber-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
-                    />
-                  </svg>
+                  <Archive className="w-6 h-6 text-amber-500" strokeWidth={2} />
                 </div>
                 <h3 className="text-lg font-bold text-gray-900 text-center mb-2">
                   Archivar sesión
@@ -296,14 +278,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
                 )}
               </div>
               <p className="text-sm font-medium text-gray-500 mt-1 flex items-center gap-1.5">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                  />
-                </svg>
+                <Users className="w-4 h-4" strokeWidth={2} />
                 {session.attendances?.length || 0} estudiantes
               </p>
             </div>
@@ -327,27 +302,13 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
                     className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
                     title="Archivar sesión"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
-                      />
-                    </svg>
+                    <Archive className="w-5 h-5" strokeWidth={2} />
                   </button>
                   <div
                     className="text-gray-300 group-hover:text-emerald-600 transition cursor-pointer"
                     onClick={() => setSelectedSession(session)}
                   >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
+                    <ChevronRight className="w-6 h-6" strokeWidth={2} />
                   </div>
                 </>
               )}
@@ -430,14 +391,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
                   <div
                     className={`w-12 h-12 rounded-xl flex items-center justify-center ${subActive ? 'bg-emerald-50 text-emerald-600 group-hover:scale-110 transition-transform' : 'bg-amber-50 text-amber-500'}`}
                   >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                      />
-                    </svg>
+                    <BookOpen className="w-6 h-6" strokeWidth={2} />
                   </div>
                   {!subActive && (
                     <span className="text-xs font-bold px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">
@@ -462,15 +416,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
                 <span
                   className={`opacity-0 group-hover:opacity-100 transition flex items-center gap-1 ${subActive ? 'text-emerald-600' : 'text-amber-500'}`}
                 >
-                  Ver clases{' '}
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
+                  Ver clases <ChevronRight className="w-4 h-4" strokeWidth={2} />
                 </span>
               </div>
             </div>

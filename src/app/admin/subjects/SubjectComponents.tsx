@@ -10,6 +10,7 @@ import {
 import { assignSubjectToCareer, removeSubjectFromCareer } from '@/lib/actions/academic'
 import { useToast } from '@/components/toast/ToastProvider'
 import ConfirmModal from '@/components/ConfirmModal'
+import { Plus, Pencil, Archive } from 'lucide-react'
 
 const inputClass =
   'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all shadow-sm'
@@ -77,14 +78,7 @@ export function CreateSubjectForm({
     >
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-            />
-          </svg>
+          <Plus className="w-5 h-5" strokeWidth={2} />
         </div>
         <h3 className="text-xl font-bold text-gray-900">Crear Nueva Materia</h3>
       </div>
@@ -301,6 +295,7 @@ export function SubjectActionButtons({
           confirmLabel="Archivar"
           loadingLabel="Archivando..."
           loading={loading}
+          icon={Archive}
           onConfirm={handleDeactivate}
           onCancel={() => setShowDeactivateConfirm(false)}
         />
@@ -313,14 +308,7 @@ export function SubjectActionButtons({
             className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
             title="Editar"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-              />
-            </svg>
+            <Pencil className="w-5 h-5" strokeWidth={2} />
           </button>
           <button
             onClick={() => setShowDeactivateConfirm(true)}
@@ -328,14 +316,7 @@ export function SubjectActionButtons({
             className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
             title="Archivar materia"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
-              />
-            </svg>
+            <Archive className="w-5 h-5" strokeWidth={2} />
           </button>
         </>
       ) : (

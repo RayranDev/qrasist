@@ -137,7 +137,7 @@ export async function registerAttendance(qrToken: string) {
 
   return {
     success: true,
-    message: `✓ ${subjectName} · ${subjectCode} — ${timeStr}`,
+    message: `${subjectName} · ${subjectCode} — ${timeStr}`,
     subjectName,
     subjectCode,
     time: timeStr,

@@ -1,11 +1,14 @@
 'use client'
 
+import { TriangleAlert, type LucideIcon } from 'lucide-react'
+
 export default function ConfirmModal({
   title,
   message,
   confirmLabel = 'Confirmar',
   loadingLabel = 'Procesando...',
   loading = false,
+  icon: Icon = TriangleAlert,
   onConfirm,
   onCancel,
 }: {
@@ -14,6 +17,7 @@ export default function ConfirmModal({
   confirmLabel?: string
   loadingLabel?: string
   loading?: boolean
+  icon?: LucideIcon
   onConfirm: () => void
   onCancel: () => void
 }) {
@@ -21,19 +25,7 @@ export default function ConfirmModal({
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full animate-in zoom-in-95 duration-200">
         <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4">
-          <svg
-            className="w-6 h-6 text-amber-500"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
-            />
-          </svg>
+          <Icon className="w-6 h-6 text-amber-500" strokeWidth={2} />
         </div>
         <h3 className="text-lg font-bold text-gray-900 text-center mb-2">{title}</h3>
         <p className="text-sm text-gray-500 text-center mb-6">{message}</p>

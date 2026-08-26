@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import LocalTime from '@/components/LocalTime'
+import { Check, Clock } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,15 +73,8 @@ export default async function StudentHistoryPage() {
                   key={record.id}
                   className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4"
                 >
-                  <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500 flex-shrink-0">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
+                  <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500 shrink-0">
+                    <Check className="w-6 h-6" strokeWidth={2} />
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900">{record.session?.subject?.name}</h3>
@@ -97,14 +91,7 @@ export default async function StudentHistoryPage() {
           ) : (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
               <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
-                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
+                <Clock className="w-8 h-8" strokeWidth={2} />
               </div>
               <p className="text-gray-500 font-medium">Aún no tienes asistencias registradas</p>
             </div>

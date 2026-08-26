@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { usePathname } from 'next/navigation'
+import { QrCode } from 'lucide-react'
 
 export default function NavigationProgress() {
   const pathname = usePathname()
@@ -34,20 +35,8 @@ export default function NavigationProgress() {
       <div className="relative flex flex-col items-center gap-3 bg-white/90 rounded-2xl px-7 py-6 shadow-lg border border-gray-100">
         {/* Icono QR con línea de escaneo */}
         <div className="relative w-14 h-14 flex items-center justify-center">
-          {/* SVG del icono QR (mismo que login) */}
-          <svg
-            className="w-12 h-12 text-gray-800"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
-            />
-          </svg>
+          {/* Icono QR (mismo que login) */}
+          <QrCode className="w-12 h-12 text-gray-800" strokeWidth={1.5} />
 
           {/* Línea de escaneo sobre el ícono */}
           <div

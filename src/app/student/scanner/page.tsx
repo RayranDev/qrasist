@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import QRScanner from '@/components/qr/QRScanner'
 import LocalTime from '@/components/LocalTime'
 import JoinSubjectForm from '@/components/JoinSubjectForm'
+import { Check } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -103,15 +104,7 @@ export default async function StudentScannerPage() {
                   className="bg-white rounded-xl border border-gray-100 px-4 py-3 flex items-center gap-3 shadow-sm"
                 >
                   <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
-                    <svg
-                      className="w-4 h-4 text-emerald-500"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2.5}
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
+                    <Check className="w-4 h-4 text-emerald-500" strokeWidth={2.5} />
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-gray-900 truncate">
