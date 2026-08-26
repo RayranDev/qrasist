@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# exportaciones locales con datos de estudiantes (CSV de asistencia,
+# capturas de QR de sesión) -- nunca deben terminar en el repo
+asistencia_*.csv
+qrcode_*.png
+
+# artefactos de plugins locales
+.atl/

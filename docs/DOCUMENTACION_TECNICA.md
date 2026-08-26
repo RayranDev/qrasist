@@ -444,15 +444,17 @@ npm start
 
 ## 13. Migraciones SQL
 
-Ejecutar en orden en el SQL Editor de Supabase:
+Todas viven en `supabase/migrations/`, numeradas en el orden real en que se ejecutaron contra la base. Ejecutar en ese orden en el SQL Editor de Supabase:
 
 | Archivo | Descripción |
 |---------|-------------|
-| `RESET_DATABASE.sql` | Reconstruye la BD completa desde cero (solo desarrollo) |
-| `UPDATE_SCHEMA.sql` | Agrega `student_code` a profiles |
-| `SOFT_DELETE_MIGRATION.sql` | Agrega `is_active` a profiles, subjects, sessions |
-| `ADD_EMAIL_MIGRATION.sql` | Agrega `email` a profiles y actualiza trigger |
-| `SETUP_INICIAL.sql` | Limpia datos de prueba, crea materias y constraint de dominio |
+| `001_reset_database.sql` | Reconstruye la BD completa desde cero (solo desarrollo) |
+| `002_update_schema.sql` | Agrega `student_code` a profiles |
+| `003_soft_delete.sql` | Agrega `is_active` a profiles, subjects, sessions |
+| `004_add_email.sql` | Agrega `email` a profiles y actualiza trigger |
+| `005_setup_inicial.sql` | Limpia datos de prueba, crea materias y constraint de dominio |
+| `006_rls_policies.sql` | Habilita Row Level Security en las 5 tablas con políticas por rol |
+| `007_attendance_dedup.sql` | Constraint real de "una asistencia por materia por día" (índice único) |
 
 ---
 

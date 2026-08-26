@@ -1,5 +1,5 @@
 {
-  "name": "temp-app",
+  "name": "qr-asist",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -13,8 +13,7 @@
     "@supabase/supabase-js": "^2.106.0",
     "date-fns": "^4.2.1",
     "html5-qrcode": "^2.3.8",
-    "lucide-react": "^1.16.0",
-    "next": "16.2.6",
+    "next": "^16.3.3",
     "qrcode.react": "^4.2.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"

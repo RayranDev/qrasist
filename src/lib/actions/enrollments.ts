@@ -13,6 +13,11 @@ export async function addEnrollment(subjectId: string, studentId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user || !(await checkAdmin(supabase, user.id))) return { success: false, error: 'No autorizado' }
 
+  const { data: studentProfile } = await supabase.from('profiles').select('role').eq('id', studentId).single()
+  if (studentProfile?.role !== 'STUDENT') {
+    return { success: false, error: 'El usuario seleccionado no es un estudiante.' }
+  }
+
   const { error } = await supabase.from('enrollments').insert({ subject_id: subjectId, student_id: studentId })
   if (error) {
     if (error.code === '23505') return { success: false, error: 'El estudiante ya está inscrito.' }
