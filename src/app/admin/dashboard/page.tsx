@@ -116,25 +116,35 @@ export default async function AdminDashboardPage() {
       value: totalAdmins ?? 0,
       color: 'bg-purple-50 text-purple-700',
       icon: '👑',
+      href: '/admin/users?role=ADMIN',
     },
     {
       label: 'Docentes',
       value: totalProfessors ?? 0,
       color: 'bg-amber-50 text-amber-700',
       icon: '👨‍🏫',
+      href: '/admin/users?role=PROFESSOR',
     },
     {
       label: 'Estudiantes',
       value: totalStudents ?? 0,
       color: 'bg-emerald-50 text-emerald-700',
       icon: '🎓',
+      href: '/admin/users?role=STUDENT',
     },
-    { label: 'Materias', value: totalSubjects ?? 0, color: 'bg-sky-50 text-sky-700', icon: '📚' },
+    {
+      label: 'Materias',
+      value: totalSubjects ?? 0,
+      color: 'bg-sky-50 text-sky-700',
+      icon: '📚',
+      href: '/admin/subjects',
+    },
     {
       label: 'Clases hoy',
       value: sessionsToday ?? 0,
       color: 'bg-rose-50 text-rose-700',
       icon: '📅',
+      href: null,
     },
   ]
 
@@ -175,18 +185,34 @@ export default async function AdminDashboardPage() {
 
           {/* Stat cards */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-            {statCards.map((card) => (
-              <div
-                key={card.label}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col gap-2"
-              >
-                <span className="text-2xl">{card.icon}</span>
-                <p className="text-3xl font-black text-gray-900">{card.value}</p>
-                <p className={`text-xs font-bold px-2 py-0.5 rounded-md self-start ${card.color}`}>
-                  {card.label}
-                </p>
-              </div>
-            ))}
+            {statCards.map((card) => {
+              const content = (
+                <>
+                  <span className="text-2xl">{card.icon}</span>
+                  <p className="text-3xl font-black text-gray-900">{card.value}</p>
+                  <p
+                    className={`text-xs font-bold px-2 py-0.5 rounded-md self-start ${card.color}`}
+                  >
+                    {card.label}
+                  </p>
+                </>
+              )
+              const className =
+                'bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col gap-2'
+              return card.href ? (
+                <Link
+                  key={card.label}
+                  href={card.href}
+                  className={`${className} transition hover:border-gray-200 hover:shadow-md`}
+                >
+                  {content}
+                </Link>
+              ) : (
+                <div key={card.label} className={className}>
+                  {content}
+                </div>
+              )
+            })}
           </div>
 
           {/* Consolidados */}
@@ -202,8 +228,9 @@ export default async function AdminDashboardPage() {
               <div className="divide-y divide-gray-50">
                 {professorStats.length > 0 ? (
                   professorStats.map((p) => (
-                    <div
+                    <Link
                       key={p.id}
+                      href="/admin/users?role=PROFESSOR"
                       className="flex items-center justify-between px-6 py-3.5 hover:bg-gray-50/50 transition"
                     >
                       <div className="flex items-center gap-3">
@@ -219,7 +246,7 @@ export default async function AdminDashboardPage() {
                       >
                         {p.subjectCount}
                       </span>
-                    </div>
+                    </Link>
                   ))
                 ) : (
                   <p className="px-6 py-6 text-sm text-gray-400 italic text-center">
@@ -240,8 +267,9 @@ export default async function AdminDashboardPage() {
               <div className="divide-y divide-gray-50">
                 {subjectStats.length > 0 ? (
                   subjectStats.map((s) => (
-                    <div
+                    <Link
                       key={s.id}
+                      href={`/admin/subjects/${s.id}/enrollments`}
                       className="flex items-center justify-between px-6 py-3.5 hover:bg-gray-50/50 transition"
                     >
                       <div className="flex items-center gap-3 min-w-0">
@@ -258,7 +286,7 @@ export default async function AdminDashboardPage() {
                       >
                         {s.studentCount}
                       </span>
-                    </div>
+                    </Link>
                   ))
                 ) : (
                   <p className="px-6 py-6 text-sm text-gray-400 italic text-center">
@@ -279,8 +307,9 @@ export default async function AdminDashboardPage() {
               <div className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
                 {studentStats.length > 0 ? (
                   studentStats.map((s) => (
-                    <div
+                    <Link
                       key={s.id}
+                      href="/admin/users?role=STUDENT"
                       className="flex items-center justify-between px-6 py-3.5 hover:bg-gray-50/50 transition"
                     >
                       <div className="flex items-center gap-3 min-w-0">
@@ -297,7 +326,7 @@ export default async function AdminDashboardPage() {
                       >
                         {s.subjectCount}
                       </span>
-                    </div>
+                    </Link>
                   ))
                 ) : (
                   <p className="px-6 py-6 text-sm text-gray-400 italic text-center">
