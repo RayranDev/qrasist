@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import QRScanner from '@/components/qr/QRScanner'
 import LocalTime from '@/components/LocalTime'
+import JoinSubjectForm from '@/components/JoinSubjectForm'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,6 +75,11 @@ export default async function StudentScannerPage() {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
             <QRScanner />
           </div>
+        </section>
+
+        {/* Solicitar inscripción por código */}
+        <section>
+          <JoinSubjectForm />
         </section>
 
         {/* Historial reciente */}

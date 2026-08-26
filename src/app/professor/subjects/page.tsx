@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import SessionButton from './SessionButton'
 import Link from 'next/link'
 import ProfileModal from './ProfileModal'
+import EnrollmentCodeSection from './EnrollmentCodeSection'
 
 export default async function ProfessorSubjectsPage() {
   const supabase = await createClient()
@@ -20,7 +21,7 @@ export default async function ProfessorSubjectsPage() {
 
   const { data: subjects } = await supabase
     .from('subjects')
-    .select('*, enrollments(student_id)')
+    .select('*, enrollments(student_id), enrollment_requests(id, status)')
     .eq('professor_id', user.id)
     .eq('is_active', true)
 
@@ -63,6 +64,10 @@ export default async function ProfessorSubjectsPage() {
               {subjects.map((sub) => {
                 const studentCount =
                   (sub.enrollments as { student_id: string }[] | null)?.length ?? 0
+                const pendingCount =
+                  (sub.enrollment_requests as { id: string; status: string }[] | null)?.filter(
+                    (r) => r.status === 'pending'
+                  ).length ?? 0
                 return (
                   <div
                     key={sub.id}
@@ -91,6 +96,11 @@ export default async function ProfessorSubjectsPage() {
                         estudiante{studentCount !== 1 ? 's' : ''} inscritos
                       </p>
                     </div>
+                    <EnrollmentCodeSection
+                      subjectId={sub.id}
+                      code={sub.enrollment_code}
+                      pendingCount={pendingCount}
+                    />
                     <SessionButton subjectId={sub.id} />
                   </div>
                 )
