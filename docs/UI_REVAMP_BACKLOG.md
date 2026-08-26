@@ -17,12 +17,13 @@ Cada item se marca al completarse, con el commit que lo resolvió.
 - [x] ✅ Validación de fechas de período (inicio < fin) — `50a08d9`
 - [x] ✅ Exponer y editar período/carrera/nivel desde Materias — `df44fd3`
 
-## Sprint 1: Sistema de iconos
-- [ ] ⬜ Instalar `lucide-react`
-- [ ] ⬜ Reemplazar iconos emoji del dashboard (👑👨‍🏫🎓📚📅) por iconos Lucide
-- [ ] ⬜ Reemplazar glifos de toast (✓ ✕ ℹ) por iconos Lucide
-- [ ] ⬜ Reemplazar emoji de estado vacío (📚 "Aún no tienes materias") en vista de profesor
-- [ ] ⬜ Reemplazar los ~36 `<svg>` copiados a mano (editar, archivar, cerrar, etc.) en los 16 archivos que los usan por componentes Lucide
+## Sprint 1: Sistema de iconos (completado)
+- [x] ✅ Instalar `lucide-react` — `f8aa039`
+- [x] ✅ Reemplazar iconos emoji del dashboard (👑👨‍🏫🎓📚📅) por iconos Lucide — `f8aa039`
+- [x] ✅ Reemplazar glifos de toast (✓ ✕ ℹ) por iconos Lucide — `f8aa039`
+- [x] ✅ Reemplazar emoji de estado vacío (📚 "Aún no tienes materias") en vista de profesor — `f8aa039`
+- [x] ✅ Reemplazar los ~36 `<svg>` copiados a mano (editar, archivar, cerrar, etc.) en los 19 archivos que los usan por componentes Lucide — `f8aa039`
+- [x] ✅ `ConfirmModal` gana prop `icon` opcional (default `TriangleAlert`) al ser genérico y no solo para archivar — `f8aa039`
 
 ## Sprint 2: Consistencia de header/nav en Profesor y Estudiante
 - [ ] ⬜ Auditar headers actuales de `/professor/subjects`, `/professor/history`, `/professor/session/[id]`
