@@ -8,7 +8,14 @@ import {
   reactivateUser,
   getStudentAttendanceHistory,
 } from '@/lib/actions/admin'
+import { setStudentCareer } from '@/lib/actions/academic'
 import { useToast } from '@/components/toast/ToastProvider'
+
+interface Career {
+  id: string
+  name: string
+  code: string
+}
 
 interface AttendanceRecord {
   id: string
@@ -225,6 +232,107 @@ export function StudentHistoryModal({
             {records.length} asistencia{records.length !== 1 ? 's' : ''} registrada
             {records.length !== 1 ? 's' : ''}
           </p>
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function StudentCareersModal({
+  studentId,
+  studentName,
+  careers,
+  initialCareerIds,
+  onClose,
+}: {
+  studentId: string
+  studentName: string
+  careers: Career[]
+  initialCareerIds: string[]
+  onClose: () => void
+}) {
+  const [checked, setChecked] = useState<Set<string>>(new Set(initialCareerIds))
+  const [loadingId, setLoadingId] = useState<string | null>(null)
+  const showToast = useToast()
+
+  const handleToggle = async (career: Career) => {
+    const isChecked = checked.has(career.id)
+    setLoadingId(career.id)
+    const result = await setStudentCareer(studentId, career.id, !isChecked)
+    if (result.success) {
+      setChecked((prev) => {
+        const next = new Set(prev)
+        if (isChecked) next.delete(career.id)
+        else next.add(career.id)
+        return next
+      })
+      showToast(
+        `${studentName} ${isChecked ? 'removido de' : 'agregado a'} ${career.name}.`,
+        'success'
+      )
+    } else {
+      showToast(result.error || 'No se pudo actualizar la carrera.', 'error')
+    }
+    setLoadingId(null)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200">
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">Carreras del Estudiante</h3>
+            <p className="text-sm text-gray-500 mt-0.5">{studentName}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 space-y-2">
+          {careers.length === 0 ? (
+            <p className="text-center py-10 text-gray-400 italic text-sm">
+              No hay carreras registradas. Creá una en Carreras y Períodos.
+            </p>
+          ) : (
+            careers.map((career) => (
+              <label
+                key={career.id}
+                className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition"
+              >
+                <div>
+                  <p className="font-semibold text-gray-900 text-sm">{career.name}</p>
+                  <p className="text-xs text-gray-400 font-mono">{career.code}</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={checked.has(career.id)}
+                  disabled={loadingId === career.id}
+                  onChange={() => handleToggle(career)}
+                  className="w-5 h-5 accent-emerald-600 cursor-pointer"
+                />
+              </label>
+            ))
+          )}
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end">
           <button
             onClick={onClose}
             className="px-4 py-1.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition"

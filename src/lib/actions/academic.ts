@@ -197,3 +197,30 @@ export async function removeSubjectFromCareer(subjectCareerId: string, careerId:
   revalidatePath(`${ACADEMIC_PATH}/${careerId}/pensum`)
   return { success: true }
 }
+
+// ------------------------------------------------------------
+// Estudiante <-> carrera
+// ------------------------------------------------------------
+
+export async function setStudentCareer(studentId: string, careerId: string, enabled: boolean) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user || !(await checkAdmin(supabase, user.id))) {
+    return { success: false, error: 'No autorizado' }
+  }
+
+  const { error } = await supabase
+    .from('student_careers')
+    .upsert(
+      { student_id: studentId, career_id: careerId, is_active: enabled },
+      { onConflict: 'student_id,career_id' }
+    )
+
+  if (error) return { success: false, error: 'Error al actualizar las carreras del estudiante' }
+
+  revalidatePath('/admin/users')
+  return { success: true }
+}

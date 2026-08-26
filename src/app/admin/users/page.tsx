@@ -52,6 +52,17 @@ export default async function AdminUsersPage({
     .select('*', { count: 'exact', head: true })
     .eq('is_active', false)
 
+  const { data: careers } = await supabase
+    .from('careers')
+    .select('id, name, code')
+    .eq('is_active', true)
+    .order('name')
+
+  const { data: studentCareers } = await supabase
+    .from('student_careers')
+    .select('student_id, career_id')
+    .eq('is_active', true)
+
   const totalPages = Math.max(1, Math.ceil((totalCount || 0) / PAGE_SIZE))
 
   return (
@@ -100,6 +111,8 @@ export default async function AdminUsersPage({
             currentPage={currentPage}
             totalPages={totalPages}
             totalCount={totalCount || 0}
+            careers={careers || []}
+            studentCareers={studentCareers || []}
           />
         </div>
       </div>

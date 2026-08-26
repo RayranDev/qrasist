@@ -4,7 +4,12 @@ import { useState } from 'react'
 import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
 import RoleSelect from './RoleSelect'
-import { CreateUserForm, ActionButtons, StudentHistoryModal } from './UserComponents'
+import {
+  CreateUserForm,
+  ActionButtons,
+  StudentHistoryModal,
+  StudentCareersModal,
+} from './UserComponents'
 
 type FilterRole = 'ALL' | 'ADMIN' | 'PROFESSOR' | 'STUDENT'
 type FilterStatus = 'active' | 'inactive'
@@ -16,6 +21,17 @@ interface Profile {
   role: 'ADMIN' | 'PROFESSOR' | 'STUDENT'
   student_code: string | null
   is_active: boolean | null
+}
+
+interface Career {
+  id: string
+  name: string
+  code: string
+}
+
+interface StudentCareerLink {
+  student_id: string
+  career_id: string
 }
 
 function buildHref(role: FilterRole, status: FilterStatus, page: number) {
@@ -36,6 +52,8 @@ export default function AdminUserList({
   currentPage,
   totalPages,
   totalCount,
+  careers,
+  studentCareers,
 }: {
   users: Profile[]
   currentUser: User
@@ -45,8 +63,11 @@ export default function AdminUserList({
   currentPage: number
   totalPages: number
   totalCount: number
+  careers: Career[]
+  studentCareers: StudentCareerLink[]
 }) {
   const [historyUser, setHistoryUser] = useState<{ id: string; name: string } | null>(null)
+  const [careersUser, setCareersUser] = useState<{ id: string; name: string } | null>(null)
 
   return (
     <>
@@ -57,6 +78,18 @@ export default function AdminUserList({
           userId={historyUser.id}
           studentName={historyUser.name}
           onClose={() => setHistoryUser(null)}
+        />
+      )}
+
+      {careersUser && (
+        <StudentCareersModal
+          studentId={careersUser.id}
+          studentName={careersUser.name}
+          careers={careers}
+          initialCareerIds={studentCareers
+            .filter((sc) => sc.student_id === careersUser.id)
+            .map((sc) => sc.career_id)}
+          onClose={() => setCareersUser(null)}
         />
       )}
 
@@ -169,25 +202,52 @@ export default function AdminUserList({
                   <td className="px-6 py-4">
                     <div className="flex justify-end items-center gap-2">
                       {profile.role === 'STUDENT' && profile.is_active !== false && (
-                        <button
-                          onClick={() => setHistoryUser({ id: profile.id, name: profile.name })}
-                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                          title="Ver historial de asistencias"
-                        >
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
+                        <>
+                          <button
+                            onClick={() => setHistoryUser({ id: profile.id, name: profile.name })}
+                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                            title="Ver historial de asistencias"
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
-                            />
-                          </svg>
-                        </button>
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                              />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => setCareersUser({ id: profile.id, name: profile.name })}
+                            className="p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition"
+                            title="Carreras del estudiante"
+                          >
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M12 14l9-5-9-5-9 5 9 5z"
+                              />
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"
+                              />
+                            </svg>
+                          </button>
+                        </>
                       )}
                       {currentUser.id !== profile.id && (
                         <ActionButtons
