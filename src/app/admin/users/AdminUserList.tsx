@@ -13,6 +13,7 @@ import {
 } from './UserComponents'
 import { ClipboardList, GraduationCap } from 'lucide-react'
 import UserSearchBar from './UserSearchBar'
+import FilterPanel, { FilterField } from '@/components/FilterPanel'
 
 type FilterRole = 'ALL' | 'ADMIN' | 'PROFESSOR' | 'STUDENT'
 type FilterStatus = 'active' | 'inactive'
@@ -132,49 +133,76 @@ export default function AdminUserList({
         />
       )}
 
-      <UserSearchBar
-        careers={careers}
-        initialQuery={searchQuery}
-        careerFilter={careerFilter}
-        roleFilter={roleFilter}
-        statusFilter={statusFilter}
-      />
+      <FilterPanel>
+        <UserSearchBar
+          careers={careers}
+          initialQuery={searchQuery}
+          careerFilter={careerFilter}
+          roleFilter={roleFilter}
+          statusFilter={statusFilter}
+        />
 
-      {/* Filtros de rol */}
-      <div className="flex flex-wrap gap-2 mb-3">
-        {(['ALL', 'ADMIN', 'PROFESSOR', 'STUDENT'] as FilterRole[]).map((r) => {
-          const labels: Record<FilterRole, string> = {
-            ALL: 'Todos',
-            ADMIN: 'Administradores',
-            PROFESSOR: 'Docentes',
-            STUDENT: 'Estudiantes',
-          }
-          const active: Record<FilterRole, string> = {
-            ALL: 'bg-emerald-600 text-white shadow-md',
-            ADMIN: 'bg-purple-600 text-white shadow-md',
-            PROFESSOR: 'bg-amber-600 text-white shadow-md',
-            STUDENT: 'bg-emerald-600 text-white shadow-md',
-          }
-          const hover: Record<FilterRole, string> = {
-            ALL: 'hover:bg-gray-50',
-            ADMIN: 'hover:bg-purple-50',
-            PROFESSOR: 'hover:bg-amber-50',
-            STUDENT: 'hover:bg-emerald-50',
-          }
-          return (
+        <FilterField label="Rol">
+          <div className="flex flex-wrap gap-2">
+            {(['ALL', 'ADMIN', 'PROFESSOR', 'STUDENT'] as FilterRole[]).map((r) => {
+              const labels: Record<FilterRole, string> = {
+                ALL: 'Todos',
+                ADMIN: 'Administradores',
+                PROFESSOR: 'Docentes',
+                STUDENT: 'Estudiantes',
+              }
+              const active: Record<FilterRole, string> = {
+                ALL: 'bg-emerald-600 text-white shadow-md',
+                ADMIN: 'bg-purple-600 text-white shadow-md',
+                PROFESSOR: 'bg-amber-600 text-white shadow-md',
+                STUDENT: 'bg-emerald-600 text-white shadow-md',
+              }
+              const hover: Record<FilterRole, string> = {
+                ALL: 'hover:bg-gray-50',
+                ADMIN: 'hover:bg-purple-50',
+                PROFESSOR: 'hover:bg-amber-50',
+                STUDENT: 'hover:bg-emerald-50',
+              }
+              return (
+                <Link
+                  key={r}
+                  href={buildHref(r, statusFilter, 1, careerFilter, searchQuery)}
+                  className={`px-4 py-2 rounded-xl text-sm font-bold transition ${roleFilter === r ? active[r] : `bg-white text-gray-600 border border-gray-200 ${hover[r]}`}`}
+                >
+                  {labels[r]}
+                </Link>
+              )
+            })}
+          </div>
+        </FilterField>
+
+        <FilterField label="Estado">
+          <div className="flex gap-2">
             <Link
-              key={r}
-              href={buildHref(r, statusFilter, 1, careerFilter, searchQuery)}
-              className={`px-4 py-2 rounded-xl text-sm font-bold transition ${roleFilter === r ? active[r] : `bg-white text-gray-600 border border-gray-200 ${hover[r]}`}`}
+              href={buildHref(roleFilter, 'active', 1, careerFilter, searchQuery)}
+              className={`px-4 py-1.5 rounded-xl text-xs font-bold transition ${statusFilter === 'active' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}
             >
-              {labels[r]}
+              Activos
             </Link>
-          )
-        })}
-      </div>
+            <Link
+              href={buildHref(roleFilter, 'inactive', 1, careerFilter, searchQuery)}
+              className={`px-4 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${statusFilter === 'inactive' ? 'bg-amber-500 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-amber-50'}`}
+            >
+              Inactivos
+              {inactiveCount > 0 && (
+                <span
+                  className={`text-xs rounded-full px-1.5 py-0.5 font-black ${statusFilter === 'inactive' ? 'bg-white/20' : 'bg-amber-100 text-amber-700'}`}
+                >
+                  {inactiveCount}
+                </span>
+              )}
+            </Link>
+          </div>
+        </FilterField>
+      </FilterPanel>
 
       {careerFilter && careerFilterName && (
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-4">
           <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg flex items-center gap-2">
             Carrera: {careerFilterName}
             <Link
@@ -187,29 +215,6 @@ export default function AdminUserList({
           </span>
         </div>
       )}
-
-      {/* Toggle activos / inactivos */}
-      <div className="flex gap-2 mb-6">
-        <Link
-          href={buildHref(roleFilter, 'active', 1, careerFilter, searchQuery)}
-          className={`px-4 py-1.5 rounded-xl text-xs font-bold transition ${statusFilter === 'active' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}
-        >
-          Activos
-        </Link>
-        <Link
-          href={buildHref(roleFilter, 'inactive', 1, careerFilter, searchQuery)}
-          className={`px-4 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${statusFilter === 'inactive' ? 'bg-amber-500 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-amber-50'}`}
-        >
-          Inactivos
-          {inactiveCount > 0 && (
-            <span
-              className={`text-xs rounded-full px-1.5 py-0.5 font-black ${statusFilter === 'inactive' ? 'bg-white/20' : 'bg-amber-100 text-amber-700'}`}
-            >
-              {inactiveCount}
-            </span>
-          )}
-        </Link>
-      </div>
 
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-x-auto">
         <table className="w-full text-left min-w-160">

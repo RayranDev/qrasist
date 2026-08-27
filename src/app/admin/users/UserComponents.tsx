@@ -11,6 +11,7 @@ import {
 import { setStudentCareer, setProfessorCareer } from '@/lib/actions/academic'
 import { useToast } from '@/components/toast/ToastProvider'
 import BulkImportButton from '@/components/admin/BulkImportButton'
+import CreateFormToggle from '@/components/CreateFormToggle'
 import { Eye, EyeOff, Ban, X, Check, UserPlus, Pencil } from 'lucide-react'
 
 interface Career {
@@ -372,6 +373,7 @@ export function ProfessorCareersModal({
 }
 
 export function CreateUserForm() {
+  const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [role, setRole] = useState<'STUDENT' | 'PROFESSOR' | 'ADMIN'>('STUDENT')
   const [showPassword, setShowPassword] = useState(false)
@@ -391,6 +393,7 @@ export function CreateUserForm() {
         ;(e.target as HTMLFormElement).reset()
         setRole('STUDENT')
         setShowPassword(false)
+        setOpen(false)
         showToast(`Usuario "${firstName} ${lastName}" creado.`, 'success')
       } else {
         showToast(result.error || 'No se pudo crear el usuario.', 'error')
@@ -406,10 +409,23 @@ export function CreateUserForm() {
   const inputClass =
     'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all shadow-sm'
 
+  if (!open) {
+    return (
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <CreateFormToggle
+          label="Agregar Nuevo Usuario"
+          icon={UserPlus}
+          onClick={() => setOpen(true)}
+        />
+        <BulkImportButton types={['STUDENT', 'PROFESSOR']} />
+      </div>
+    )
+  }
+
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100 mb-8"
+      className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100 mb-6"
     >
       <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
         <div className="flex items-center gap-3">
@@ -418,7 +434,16 @@ export function CreateUserForm() {
           </div>
           <h3 className="text-xl font-bold text-gray-900">Agregar Nuevo Usuario</h3>
         </div>
-        <BulkImportButton types={['STUDENT', 'PROFESSOR']} />
+        <div className="flex items-center gap-3">
+          <BulkImportButton types={['STUDENT', 'PROFESSOR']} />
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="text-xs font-bold text-gray-400 hover:text-gray-600 transition"
+          >
+            Cancelar
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-5 items-end">

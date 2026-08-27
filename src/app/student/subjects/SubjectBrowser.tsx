@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { requestEnrollmentBySubjectId } from '@/lib/actions/enrollmentRequests'
 import { useToast } from '@/components/toast/ToastProvider'
+import FilterPanel, { FilterField } from '@/components/FilterPanel'
 import { Send, Check, Clock, X } from 'lucide-react'
 
 interface Career {
@@ -62,41 +63,49 @@ export default function SubjectBrowser({
     setRequestingId(null)
   }
 
+  const showFilters = careers.length > 1 || availableLevels.length > 0
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex gap-3">
-        {careers.length > 1 && (
-          <select
-            value={careerFilter}
-            onChange={(e) => {
-              setCareerFilter(e.target.value)
-              setLevelFilter('')
-            }}
-            className={`${selectClass} flex-1`}
-          >
-            <option value="">Todas mis carreras</option>
-            {careers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        )}
-        {availableLevels.length > 0 && (
-          <select
-            value={levelFilter}
-            onChange={(e) => setLevelFilter(e.target.value)}
-            className={`${selectClass} flex-1`}
-          >
-            <option value="">Todos los semestres</option>
-            {availableLevels.map((lvl) => (
-              <option key={lvl} value={lvl}>
-                Semestre {lvl}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
+      {showFilters && (
+        <FilterPanel>
+          {careers.length > 1 && (
+            <FilterField label="Carrera">
+              <select
+                value={careerFilter}
+                onChange={(e) => {
+                  setCareerFilter(e.target.value)
+                  setLevelFilter('')
+                }}
+                className={selectClass}
+              >
+                <option value="">Todas</option>
+                {careers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </FilterField>
+          )}
+          {availableLevels.length > 0 && (
+            <FilterField label="Semestre">
+              <select
+                value={levelFilter}
+                onChange={(e) => setLevelFilter(e.target.value)}
+                className={selectClass}
+              >
+                <option value="">Todos</option>
+                {availableLevels.map((lvl) => (
+                  <option key={lvl} value={lvl}>
+                    Semestre {lvl}
+                  </option>
+                ))}
+              </select>
+            </FilterField>
+          )}
+        </FilterPanel>
+      )}
 
       {visible.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center">

@@ -14,6 +14,7 @@ import {
 } from '@/lib/actions/academic'
 import { useToast } from '@/components/toast/ToastProvider'
 import ConfirmModal from '@/components/ConfirmModal'
+import CreateFormToggle from '@/components/CreateFormToggle'
 import { Pencil, Trash2 } from 'lucide-react'
 
 const inputClass =
@@ -35,6 +36,7 @@ interface Period {
 }
 
 export function CreateCareerForm() {
+  const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const showToast = useToast()
 
@@ -46,6 +48,7 @@ export function CreateCareerForm() {
     const result = await createCareer(formData)
     if (result.success) {
       ;(e.target as HTMLFormElement).reset()
+      setOpen(false)
       showToast(`Carrera "${name}" creada.`, 'success')
     } else {
       showToast(result.error || 'No se pudo crear la carrera.', 'error')
@@ -53,12 +56,25 @@ export function CreateCareerForm() {
     setLoading(false)
   }
 
+  if (!open) {
+    return <CreateFormToggle label="Nueva Carrera" onClick={() => setOpen(true)} />
+  }
+
   return (
     <form
       onSubmit={handleSubmit}
       className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mb-6"
     >
-      <h3 className="text-lg font-bold text-gray-900 mb-4">Nueva Carrera</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-bold text-gray-900">Nueva Carrera</h3>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="text-xs font-bold text-gray-400 hover:text-gray-600 transition"
+        >
+          Cancelar
+        </button>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
         <div className="sm:col-span-2">
           <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">
@@ -265,6 +281,7 @@ export function CareerList({ careers }: { careers: Career[] }) {
 }
 
 export function CreatePeriodForm() {
+  const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const showToast = useToast()
 
@@ -283,6 +300,7 @@ export function CreatePeriodForm() {
     const result = await createPeriod(formData)
     if (result.success) {
       ;(e.target as HTMLFormElement).reset()
+      setOpen(false)
       showToast(`Período "${name}" creado.`, 'success')
     } else {
       showToast(result.error || 'No se pudo crear el período.', 'error')
@@ -290,12 +308,25 @@ export function CreatePeriodForm() {
     setLoading(false)
   }
 
+  if (!open) {
+    return <CreateFormToggle label="Nuevo Período Académico" onClick={() => setOpen(true)} />
+  }
+
   return (
     <form
       onSubmit={handleSubmit}
       className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mb-6"
     >
-      <h3 className="text-lg font-bold text-gray-900 mb-4">Nuevo Período Académico</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-bold text-gray-900">Nuevo Período Académico</h3>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="text-xs font-bold text-gray-400 hover:text-gray-600 transition"
+        >
+          Cancelar
+        </button>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
         <div>
           <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">

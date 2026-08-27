@@ -10,6 +10,7 @@ import {
 import { assignSubjectToCareer, removeSubjectFromCareer } from '@/lib/actions/academic'
 import { useToast } from '@/components/toast/ToastProvider'
 import ConfirmModal from '@/components/ConfirmModal'
+import CreateFormToggle from '@/components/CreateFormToggle'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 
 const inputClass =
@@ -48,6 +49,7 @@ interface Subject {
 }
 
 export function CreateSubjectForm({ periods }: { periods: Period[] }) {
+  const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const showToast = useToast()
 
@@ -59,6 +61,7 @@ export function CreateSubjectForm({ periods }: { periods: Period[] }) {
     const result = await createSubject(formData)
     if (result.success) {
       ;(e.target as HTMLFormElement).reset()
+      setOpen(false)
       showToast(`Materia "${name}" creada.`, 'success')
     } else {
       showToast(result.error || 'No se pudo crear la materia.', 'error')
@@ -66,16 +69,29 @@ export function CreateSubjectForm({ periods }: { periods: Period[] }) {
     setLoading(false)
   }
 
+  if (!open) {
+    return <CreateFormToggle label="Crear Nueva Materia" onClick={() => setOpen(true)} />
+  }
+
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100 mb-8"
+      className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100 mb-6"
     >
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
-          <Plus className="w-5 h-5" strokeWidth={2} />
+      <div className="flex items-center justify-between gap-3 mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+            <Plus className="w-5 h-5" strokeWidth={2} />
+          </div>
+          <h3 className="text-xl font-bold text-gray-900">Crear Nueva Materia</h3>
         </div>
-        <h3 className="text-xl font-bold text-gray-900">Crear Nueva Materia</h3>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="text-xs font-bold text-gray-400 hover:text-gray-600 transition"
+        >
+          Cancelar
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-5 items-end">

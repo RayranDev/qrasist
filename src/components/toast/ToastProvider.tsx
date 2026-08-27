@@ -50,9 +50,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
+      {/*
+        Arriba, no abajo: un formulario de "crear" siempre deja el
+        item nuevo justo debajo, cerca del borde inferior visible en
+        un celular -- un toast fijo abajo lo tapaba (bug reportado).
+        Además vive en el layout raíz, así que sigue montado al
+        cambiar de pestaña con navegación cliente; si tapaba algo
+        abajo en una pantalla corta, tapaba TODO el contenido nuevo.
+      */}
       <div
         aria-live="polite"
-        className="pointer-events-none fixed bottom-4 right-4 z-[100] flex w-full max-w-sm flex-col gap-2 px-4 sm:px-0"
+        className="pointer-events-none fixed top-4 inset-x-4 sm:inset-x-auto sm:right-4 sm:left-auto z-100 flex flex-col gap-2 sm:w-full sm:max-w-sm"
       >
         {toasts.map((t) => {
           const Icon = ICONS[t.type]
@@ -60,7 +68,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <div
               key={t.id}
               role="status"
-              className={`animate-in fade-in slide-in-from-bottom-2 pointer-events-auto flex items-start gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-lg duration-300 ${STYLES[t.type]}`}
+              className={`animate-in fade-in slide-in-from-top-2 pointer-events-auto flex items-start gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-lg duration-300 ${STYLES[t.type]}`}
             >
               <Icon className="w-5 h-5 mt-0.5 shrink-0" strokeWidth={2} />
               <span className="flex-1">{t.message}</span>

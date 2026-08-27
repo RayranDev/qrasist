@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import FilterPanel, { FilterField } from '@/components/FilterPanel'
 
 interface Career {
   id: string
@@ -56,71 +57,79 @@ export default function SubjectFilters({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3 mb-5 pb-5 border-b border-gray-50">
-      <select
-        value={careerFilter || ''}
-        onChange={(e) => navigate({ career: e.target.value || undefined, level: undefined })}
-        className={selectClass}
-      >
-        <option value="">Todas las carreras</option>
-        {careers.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-      </select>
-
-      {careerFilter && availableLevels.length > 0 && (
+    <FilterPanel>
+      <FilterField label="Carrera">
         <select
-          value={levelFilter || ''}
-          onChange={(e) => navigate({ level: e.target.value || undefined })}
+          value={careerFilter || ''}
+          onChange={(e) => navigate({ career: e.target.value || undefined, level: undefined })}
           className={selectClass}
         >
-          <option value="">Todos los semestres</option>
-          {availableLevels.map((lvl) => (
-            <option key={lvl} value={lvl}>
-              Semestre {lvl}
+          <option value="">Todas</option>
+          {careers.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
             </option>
           ))}
         </select>
+      </FilterField>
+
+      {careerFilter && availableLevels.length > 0 && (
+        <FilterField label="Semestre">
+          <select
+            value={levelFilter || ''}
+            onChange={(e) => navigate({ level: e.target.value || undefined })}
+            className={selectClass}
+          >
+            <option value="">Todos</option>
+            {availableLevels.map((lvl) => (
+              <option key={lvl} value={lvl}>
+                Semestre {lvl}
+              </option>
+            ))}
+          </select>
+        </FilterField>
       )}
 
-      <select
-        value={professorFilter || ''}
-        onChange={(e) => navigate({ professor: e.target.value || undefined })}
-        className={selectClass}
-      >
-        <option value="">Todos los profesores</option>
-        <option value="unassigned">Sin asignar</option>
-        {professors.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name}
-          </option>
-        ))}
-      </select>
+      <FilterField label="Profesor">
+        <select
+          value={professorFilter || ''}
+          onChange={(e) => navigate({ professor: e.target.value || undefined })}
+          className={selectClass}
+        >
+          <option value="">Todos</option>
+          <option value="unassigned">Sin asignar</option>
+          {professors.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </FilterField>
 
-      <div className="flex gap-2 ml-auto">
-        <Link
-          href={buildStatusHref('active', careerFilter, levelFilter, professorFilter)}
-          className={`px-4 py-1.5 rounded-xl text-xs font-bold transition ${statusFilter === 'active' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}
-        >
-          Activas
-        </Link>
-        <Link
-          href={buildStatusHref('inactive', careerFilter, levelFilter, professorFilter)}
-          className={`px-4 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${statusFilter === 'inactive' ? 'bg-amber-500 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-amber-50'}`}
-        >
-          Archivadas
-          {inactiveCount > 0 && (
-            <span
-              className={`text-xs rounded-full px-1.5 py-0.5 font-black ${statusFilter === 'inactive' ? 'bg-white/20' : 'bg-amber-100 text-amber-700'}`}
-            >
-              {inactiveCount}
-            </span>
-          )}
-        </Link>
-      </div>
-    </div>
+      <FilterField label="Estado">
+        <div className="flex gap-2">
+          <Link
+            href={buildStatusHref('active', careerFilter, levelFilter, professorFilter)}
+            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition ${statusFilter === 'active' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}
+          >
+            Activas
+          </Link>
+          <Link
+            href={buildStatusHref('inactive', careerFilter, levelFilter, professorFilter)}
+            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${statusFilter === 'inactive' ? 'bg-amber-500 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-amber-50'}`}
+          >
+            Archivadas
+            {inactiveCount > 0 && (
+              <span
+                className={`text-xs rounded-full px-1.5 py-0.5 font-black ${statusFilter === 'inactive' ? 'bg-white/20' : 'bg-amber-100 text-amber-700'}`}
+              >
+                {inactiveCount}
+              </span>
+            )}
+          </Link>
+        </div>
+      </FilterField>
+    </FilterPanel>
   )
 }
 
