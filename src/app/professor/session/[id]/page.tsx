@@ -25,12 +25,19 @@ export default async function ProfessorSessionPage({
   // Fetch session details
   const { data: session } = await supabase
     .from('sessions')
-    .select('*, subject:subjects(name)')
+    .select('*, subject:subjects(name, professor_id)')
     .eq('id', sessionId)
     .single()
 
   if (!session) {
     return <div className="p-8 text-center">Sesión no encontrada</div>
+  }
+
+  // Solo el profesor dueño de la materia puede ver el QR en vivo de
+  // su sesion -- antes cualquier usuario autenticado que conociera
+  // el id de la sesion podia entrar a esta pagina.
+  if (session.subject?.professor_id !== user.id) {
+    redirect('/professor/subjects')
   }
 
   return (
@@ -47,7 +54,11 @@ export default async function ProfessorSessionPage({
             </div>
           </header>
 
-          <QRDisplay qrToken={session.qr_token} expiresAt={session.expires_at} />
+          <QRDisplay
+            sessionId={session.id}
+            qrToken={session.qr_token}
+            expiresAt={session.expires_at}
+          />
         </div>
       </div>
     </div>

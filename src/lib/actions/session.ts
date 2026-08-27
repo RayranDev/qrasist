@@ -55,3 +55,50 @@ export async function createSession(subjectId: string, durationMinutes: number =
 
   return { success: true, sessionId: newSession.id }
 }
+
+// Antifraude: rota el QR cada ~20s (ver QRDisplay) para que una foto
+// compartida por WhatsApp quede inutil casi al instante, en vez de
+// seguir siendo valida los 15 minutos completos de la sesion. El
+// token anterior queda guardado un ciclo (previous_qr_token) para no
+// rechazar un escaneo que llego justo en el borde de la rotacion --
+// ver el .or() en registerAttendance().
+export async function refreshSessionQrToken(sessionId: string) {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'No estás autenticado.' }
+
+  const { data: session } = await supabase
+    .from('sessions')
+    .select('id, qr_token, expires_at, is_active, subject_id')
+    .eq('id', sessionId)
+    .single()
+  if (!session) return { success: false, error: 'Sesión no encontrada.' }
+
+  const { data: subject } = await supabase
+    .from('subjects')
+    .select('id')
+    .eq('id', session.subject_id)
+    .eq('professor_id', user.id)
+    .single()
+  if (!subject) return { success: false, error: 'Acceso denegado.' }
+
+  if (session.is_active === false) {
+    return { success: false, error: 'Esta sesión ha sido archivada.' }
+  }
+  if (new Date(session.expires_at) < new Date()) {
+    return { success: false, error: 'Esta sesión ya expiró.' }
+  }
+
+  const newToken = crypto.randomUUID()
+  const { error: updateError } = await supabase
+    .from('sessions')
+    .update({ qr_token: newToken, previous_qr_token: session.qr_token })
+    .eq('id', sessionId)
+
+  if (updateError) return { success: false, error: 'No se pudo renovar el código.' }
+
+  return { success: true, qrToken: newToken }
+}

@@ -1,17 +1,26 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { CircleAlert } from 'lucide-react'
+import { refreshSessionQrToken } from '@/lib/actions/session'
 
 interface QRDisplayProps {
+  sessionId: string
   qrToken: string
   expiresAt: string
 }
 
-export default function QRDisplay({ qrToken, expiresAt }: QRDisplayProps) {
+// Cada cuanto se rota el token -- corto a proposito: una foto del QR
+// compartida por WhatsApp queda inutil casi al instante en vez de
+// seguir siendo valida los 15 minutos completos de la sesion.
+const ROTATION_SECONDS = 20
+
+export default function QRDisplay({ sessionId, qrToken, expiresAt }: QRDisplayProps) {
+  const [currentToken, setCurrentToken] = useState(qrToken)
   const [timeLeft, setTimeLeft] = useState('')
   const [isExpired, setIsExpired] = useState(false)
+  const isExpiredRef = useRef(false)
 
   useEffect(() => {
     const target = new Date(expiresAt).getTime()
@@ -24,6 +33,7 @@ export default function QRDisplay({ qrToken, expiresAt }: QRDisplayProps) {
         clearInterval(interval)
         setTimeLeft('00:00')
         setIsExpired(true)
+        isExpiredRef.current = true
       } else {
         const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60))
         const seconds = Math.floor((distance % (1000 * 60)) / 1000)
@@ -33,6 +43,22 @@ export default function QRDisplay({ qrToken, expiresAt }: QRDisplayProps) {
 
     return () => clearInterval(interval)
   }, [expiresAt])
+
+  useEffect(() => {
+    const rotate = async () => {
+      if (isExpiredRef.current) return
+      const result = await refreshSessionQrToken(sessionId)
+      if (result.success && result.qrToken) {
+        setCurrentToken(result.qrToken)
+      }
+      // Si falla (ej. la sesion ya expiro entre tanto), simplemente
+      // no se actualiza el token -- el chequeo de expiresAt de arriba
+      // ya se encarga de mostrar la pantalla de "QR Expirado".
+    }
+
+    const interval = setInterval(rotate, ROTATION_SECONDS * 1000)
+    return () => clearInterval(interval)
+  }, [sessionId])
 
   return (
     <div className="flex flex-col items-center justify-center p-8 bg-white rounded-3xl shadow-sm border border-gray-100 max-w-sm mx-auto">
@@ -58,7 +84,7 @@ export default function QRDisplay({ qrToken, expiresAt }: QRDisplayProps) {
 
           <div className="p-4 bg-white border-2 border-emerald-50 rounded-2xl">
             <QRCodeSVG
-              value={qrToken}
+              value={currentToken}
               size={240}
               level="H"
               includeMargin={true}
@@ -68,6 +94,9 @@ export default function QRDisplay({ qrToken, expiresAt }: QRDisplayProps) {
 
           <p className="mt-8 text-gray-500 text-sm text-center">
             Pide a tus estudiantes que escaneen este código desde su aplicación móvil.
+          </p>
+          <p className="mt-1 text-gray-400 text-xs text-center">
+            El código se renueva cada {ROTATION_SECONDS} segundos por seguridad.
           </p>
         </>
       )}

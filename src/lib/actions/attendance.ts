@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { headers } from 'next/headers'
 
 export async function registerAttendance(qrToken: string) {
@@ -17,11 +18,30 @@ export async function registerAttendance(qrToken: string) {
   } = await supabase.auth.getUser()
   if (authError || !user) return { success: false, error: 'No estás autenticado.' }
 
-  // 2. Buscar la sesión por el token QR
-  const { data: session, error: sessionError } = await supabase
+  // Validar formato UUID antes de usarlo en el filtro .or() de
+  // PostgREST -- evita tanto un error crudo de Postgres por UUID
+  // malformado como cualquier caracter con significado especial en
+  // esa sintaxis (coma, parentesis) si esta accion se llama
+  // directamente sin pasar por la validacion del cliente.
+  const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
+  if (!uuidRegex.test(qrToken)) {
+    return { success: false, error: 'Código QR inválido. Formato no reconocido.' }
+  }
+
+  // 2. Buscar la sesión por el token QR. Se usa el cliente de
+  // servicio (sin RLS) a proposito: esto es una validacion de
+  // secreto ("¿este token corresponde a una sesion real?"), no una
+  // consulta de "que filas puede ver este usuario" -- un invitado
+  // que escanea por primera vez todavia no esta inscrito ni tiene
+  // asistencia previa, asi que no calificaria bajo ninguna regla de
+  // RLS. Se acepta el token actual o el inmediatamente anterior
+  // (rotacion cada ~20s, ver refreshSessionQrToken) para no rechazar
+  // un escaneo que llego justo en el borde de la rotacion.
+  const admin = getSupabaseAdmin()
+  const { data: session, error: sessionError } = await admin
     .from('sessions')
     .select('*')
-    .eq('qr_token', qrToken)
+    .or(`qr_token.eq.${qrToken},previous_qr_token.eq.${qrToken}`)
     .single()
 
   if (sessionError || !session) {
