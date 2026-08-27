@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { redirect } from 'next/navigation'
 import { normalizeName } from '@/lib/utils/normalizeText'
 
@@ -10,7 +11,7 @@ export async function login(formData: FormData) {
 
   const supabase = await createClient()
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   })
@@ -18,6 +19,22 @@ export async function login(formData: FormData) {
   if (error) {
     // Si la contraseña es incorrecta, redirigimos con un flag de error (puedes mostrar un toast luego)
     redirect('/login?error=Credenciales+incorrectas')
+  }
+
+  // Antifraude: una sola sesion activa por cuenta. Al loguearse en
+  // un dispositivo nuevo, se cierran todas las demas sesiones de
+  // esta cuenta -- si dos personas comparten credenciales, la
+  // segunda saca a la primera en vez de poder registrar asistencia
+  // "como ella" desde otro dispositivo al mismo tiempo. No falla el
+  // login si esto no se puede hacer (ej. admin key no disponible),
+  // solo se omite el cierre de otras sesiones.
+  if (data.session) {
+    try {
+      const admin = getSupabaseAdmin()
+      await admin.auth.admin.signOut(data.session.access_token, 'others')
+    } catch {
+      // no bloquear el login por esto
+    }
   }
 
   // Una vez autenticado, redirigimos a una ruta central que evalúe el rol
