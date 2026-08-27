@@ -4,7 +4,12 @@ import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { headers } from 'next/headers'
 
-export async function registerAttendance(qrToken: string) {
+interface Coords {
+  latitude: number
+  longitude: number
+}
+
+export async function registerAttendance(qrToken: string, coords?: Coords) {
   const supabase = await createClient()
 
   // Capturar la IP real (Next.js headers)
@@ -121,11 +126,14 @@ export async function registerAttendance(qrToken: string) {
     }
   }
 
-  // 8. Intentar registrar la asistencia
+  // 8. Intentar registrar la asistencia. La ubicacion es opcional
+  // y solo para auditoria (ver migracion 017) -- nunca bloquea.
   const { error: insertError } = await supabase.from('attendances').insert({
     session_id: session.id,
     student_id: user.id,
     ip_address: ipAddress,
+    latitude: coords?.latitude ?? null,
+    longitude: coords?.longitude ?? null,
   })
 
   if (insertError) {

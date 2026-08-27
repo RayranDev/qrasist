@@ -33,11 +33,15 @@ export default async function ProfessorHistoryPage() {
         date,
         duration_minutes,
         is_active,
+        latitude,
+        longitude,
         attendances (
           id,
           scanned_at,
           student_id,
           ip_address,
+          latitude,
+          longitude,
           student:profiles (
             name,
             student_code

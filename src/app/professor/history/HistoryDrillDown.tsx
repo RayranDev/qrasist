@@ -16,7 +16,26 @@ interface Attendance {
   scanned_at: string
   student_id: string
   ip_address: string | null
+  latitude: number | null
+  longitude: number | null
   student: Student | null
+}
+
+// Distancia en metros entre dos puntos GPS (formula de Haversine).
+// Umbral generoso a proposito -- el GPS en interiores puede errar
+// bastante, y esto es una señal para que el profesor revise, no un
+// bloqueo automatico.
+const SUSPICIOUS_DISTANCE_METERS = 300
+
+function distanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000
+  const toRad = (deg: number) => (deg * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLon = toRad(lon2 - lon1)
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
 // IP mas frecuente entre las asistencias de una sesion -- no es
@@ -49,6 +68,8 @@ interface Session {
   date: string
   duration_minutes: number | null
   is_active: boolean
+  latitude: number | null
+  longitude: number | null
   attendances: Attendance[]
 }
 
@@ -135,6 +156,9 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
               <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">
                 IP
               </th>
+              <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">
+                Ubicación
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -146,6 +170,20 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
                   att.ip_address !== null &&
                   att.ip_address !== 'unknown' &&
                   att.ip_address !== groupIp
+                const hasBothCoords =
+                  selectedSession.latitude !== null &&
+                  selectedSession.longitude !== null &&
+                  att.latitude !== null &&
+                  att.longitude !== null
+                const distance = hasBothCoords
+                  ? distanceMeters(
+                      selectedSession.latitude as number,
+                      selectedSession.longitude as number,
+                      att.latitude as number,
+                      att.longitude as number
+                    )
+                  : null
+                const isFarAway = distance !== null && distance > SUSPICIOUS_DISTANCE_METERS
                 return (
                   <tr key={att.id} className="hover:bg-gray-50/50 transition">
                     <td className="px-6 py-4 font-bold text-gray-900 flex items-center gap-2.5">
@@ -177,12 +215,30 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
                         )}
                       </div>
                     </td>
+                    <td className="px-6 py-4">
+                      {distance !== null ? (
+                        isFarAway ? (
+                          <span
+                            title="La ubicación del estudiante al escanear está lejos de donde el profesor generó el código. El GPS puede fallar en interiores, así que esto es solo una señal para revisar."
+                            className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md"
+                          >
+                            <TriangleAlert className="w-3 h-3" strokeWidth={2.5} />
+                            {'>'}
+                            {SUSPICIOUS_DISTANCE_METERS}m
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">cerca</span>
+                        )
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
+                    </td>
                   </tr>
                 )
               })
             ) : (
               <tr>
-                <td colSpan={5} className="px-6 py-8 text-center text-gray-500 italic">
+                <td colSpan={6} className="px-6 py-8 text-center text-gray-500 italic">
                   {emptyMessage}
                 </td>
               </tr>

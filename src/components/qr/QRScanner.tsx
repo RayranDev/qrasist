@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Html5Qrcode } from 'html5-qrcode'
 import { registerAttendance } from '@/lib/actions/attendance'
+import { getBestEffortLocation } from '@/lib/utils/geolocation'
 import { Check, TriangleAlert, CircleX } from 'lucide-react'
 
 export default function QRScanner() {
@@ -39,7 +40,8 @@ export default function QRScanner() {
             }
 
             try {
-              const result = await registerAttendance(decodedText)
+              const coords = await getBestEffortLocation()
+              const result = await registerAttendance(decodedText, coords || undefined)
               if (result.success) {
                 if (result.isGuest) {
                   setStatus('guest')

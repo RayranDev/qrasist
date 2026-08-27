@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSession } from '@/lib/actions/session'
 import { useToast } from '@/components/toast/ToastProvider'
+import { getBestEffortLocation } from '@/lib/utils/geolocation'
 
 export default function SessionButton({ subjectId }: { subjectId: string }) {
   const [loading, setLoading] = useState(false)
@@ -12,7 +13,8 @@ export default function SessionButton({ subjectId }: { subjectId: string }) {
 
   const handleCreate = async () => {
     setLoading(true)
-    const res = await createSession(subjectId)
+    const coords = await getBestEffortLocation()
+    const res = await createSession(subjectId, 15, coords || undefined)
     if (res.success) {
       router.push(`/professor/session/${res.sessionId}`)
     } else {

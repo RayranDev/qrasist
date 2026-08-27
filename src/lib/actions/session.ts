@@ -5,7 +5,16 @@ import { createClient } from '@/lib/supabase/server'
 const MIN_DURATION_MINUTES = 1
 const MAX_DURATION_MINUTES = 180
 
-export async function createSession(subjectId: string, durationMinutes: number = 15) {
+interface Coords {
+  latitude: number
+  longitude: number
+}
+
+export async function createSession(
+  subjectId: string,
+  durationMinutes: number = 15,
+  coords?: Coords
+) {
   if (
     !Number.isFinite(durationMinutes) ||
     durationMinutes < MIN_DURATION_MINUTES ||
@@ -39,12 +48,18 @@ export async function createSession(subjectId: string, durationMinutes: number =
   const expiresAt = new Date()
   expiresAt.setMinutes(expiresAt.getMinutes() + durationMinutes)
 
+  // Ubicacion del profesor al generar el QR -- a mejor esfuerzo,
+  // opcional (ver comentario en la migracion 017). Se usa como punto
+  // de referencia para marcar en la auditoria un escaneo que vino de
+  // muy lejos, nunca para bloquear.
   const { data: newSession, error } = await supabase
     .from('sessions')
     .insert({
       subject_id: subjectId,
       duration_minutes: durationMinutes,
       expires_at: expiresAt.toISOString(),
+      latitude: coords?.latitude ?? null,
+      longitude: coords?.longitude ?? null,
     })
     .select('id, qr_token, expires_at')
     .single()
