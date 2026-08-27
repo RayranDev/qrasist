@@ -66,6 +66,18 @@ Contexto: el QR de asistencia es, en el fondo, un secreto compartido — cualqui
 
 ---
 
+## Sprint 7: Minimizar pasos y borrado real (2026-08-27)
+
+- [x] ✅ Renombrado "Nivel" → "Semestre" en todo el texto de cara al usuario (no se tocó la columna `level` ni el query param) — `c743f56`
+- [x] ✅ Carreras/períodos/materias ahora son editables y se borran de verdad cuando no tienen datos dependientes; si los tienen, se archivan en su lugar en vez de romper el historial (soft-delete queda exclusivo de usuarios) — `fe60e77`
+- [x] ✅ El estudiante elige su carrera en el registro — sin eso no puede inscribirse a nada (regla ya existente de `enrollmentGuards.ts`) — `28cd00b`
+- [x] ✅ Auto-inscripción: el estudiante puede buscar materias de su propia carrera filtrando por semestre y pedir inscripción sin código (`/student/subjects`), reutilizando el mismo flujo de aprobación del profesor — `4b852ad`
+- [x] ✅ Rediseño de fondo del portal de estudiante: layout compartido con header minimal + barra de navegación inferior (Escanear/Materias/Historial), scanner QR como acción principal sin competencia visual, historial sin el ícono-círculo repetido por fila — `bbcdf69`
+
+**Decisión revertida de una ronda anterior:** en el Sprint 4 se había decidido que toda entidad académica nueva usara soft-delete. El usuario pidió revertir eso para carreras/períodos/materias — ahora es "editable + borrado real si no hay dependientes, archivar si los hay". Usuarios/profiles no cambia.
+
+---
+
 ## Backlog de producto (fuera de esta ronda de UI)
 
 Pendientes que el usuario dejó anotados el 2026-08-26, sin fecha ni prioridad definida todavía:
