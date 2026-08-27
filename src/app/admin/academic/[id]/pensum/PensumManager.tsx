@@ -78,7 +78,7 @@ export function AssignSubjectForm({
         </div>
         <div>
           <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">
-            Nivel
+            Semestre
           </label>
           <input
             required
@@ -141,7 +141,7 @@ export function PensumByLevel({ careerId, entries }: { careerId: string; entries
         >
           <div className="px-6 py-4 border-b border-gray-50 bg-gray-50/50">
             <h3 className="font-black text-gray-900">
-              {level === 0 ? 'Sin nivel asignado' : `Nivel ${level}`}
+              {level === 0 ? 'Sin semestre asignado' : `Semestre ${level}`}
             </h3>
           </div>
           <div className="divide-y divide-gray-50">

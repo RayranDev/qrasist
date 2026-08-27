@@ -76,10 +76,10 @@ export default function SubjectFilters({
           onChange={(e) => navigate({ level: e.target.value || undefined })}
           className={selectClass}
         >
-          <option value="">Todos los niveles</option>
+          <option value="">Todos los semestres</option>
           {availableLevels.map((lvl) => (
             <option key={lvl} value={lvl}>
-              Nivel {lvl}
+              Semestre {lvl}
             </option>
           ))}
         </select>

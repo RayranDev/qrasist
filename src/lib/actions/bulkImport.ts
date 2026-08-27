@@ -158,7 +158,7 @@ export async function bulkImportSubjects(formData: FormData): Promise<ActionResu
       const professorEmail = (row['Correo Profesor'] || '').trim()
       const periodName = (row['Período'] || '').trim()
       const careerName = (row['Carrera'] || '').trim()
-      const levelRaw = (row['Nivel'] || '').trim()
+      const levelRaw = (row['Semestre'] || '').trim()
 
       if (!name || !code) return { error: 'Nombre y Código son obligatorios.' }
       // Regla A: una materia solo admite profesor si ya pertenece
@@ -171,7 +171,7 @@ export async function bulkImportSubjects(formData: FormData): Promise<ActionResu
       if (levelRaw) {
         const n = Number(levelRaw)
         if (!Number.isInteger(n) || n < 1 || n > 20) {
-          return { error: 'Nivel debe ser un número entre 1 y 20.' }
+          return { error: 'Semestre debe ser un número entre 1 y 20.' }
         }
         level = n
       }
@@ -250,14 +250,12 @@ export async function bulkImportSubjects(formData: FormData): Promise<ActionResu
       }
 
       if (careerId) {
-        const { error: scError } = await supabase
-          .from('subject_careers')
-          .insert({
-            subject_id: subject.id,
-            career_id: careerId,
-            level: data.level,
-            is_active: true,
-          })
+        const { error: scError } = await supabase.from('subject_careers').insert({
+          subject_id: subject.id,
+          career_id: careerId,
+          level: data.level,
+          is_active: true,
+        })
         if (scError) {
           return { success: false, error: 'Materia creada, pero no se pudo vincular a la carrera.' }
         }
