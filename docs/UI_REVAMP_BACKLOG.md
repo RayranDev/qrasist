@@ -42,7 +42,26 @@ Cada item se marca al completarse, con el commit que lo resolvió.
 - [x] ✅ Pénsum por carrera muestra sus propias estadísticas (antes no tenía ninguna) — `003926f`
 - [x] ✅ Paginación y filtros (Carrera, Nivel, Profesor, Estado) en Materias — `1ef0beb`
 
-## Sprint 4: Pulido general (abierto)
+## Sprint 4: Escalabilidad de Usuarios (completado)
+- [x] ✅ Índices de búsqueda (`pg_trgm` + GIN) en `profiles.name` y `profiles.student_code` — `e9ce209`
+- [x] ✅ Buscador por nombre/código con debounce, pensado para el caso real de llamado de lista (verificar identidad rápido, evitar suplantación) — `e5c80f9`
+- [x] ✅ Filtro de carrera visible (antes solo alcanzable por URL desde el drill-down del dashboard) — `e5c80f9`
+- [x] ✅ Corregida una condición de carrera real: la navegación se arma solo a partir de props conocidas, nunca leyendo `window.location` — `e5c80f9`
+
+## Sprint 5: Antifraude en registro de asistencia (completado)
+Contexto: el QR de asistencia es, en el fondo, un secreto compartido — cualquier control tiene que asumir que alguien va a intentar hacerse pasar por otro o registrar asistencia sin estar presente. Se pensaron todos los vectores de fraude razonables (foto del QR compartida por WhatsApp, copiar el token como texto, credenciales compartidas entre dos personas, invocación directa del Server Action, complicidad del profesor) antes de elegir las medidas.
+
+- [x] ✅ Auditoría de IP: se muestra la IP ya capturada en cada asistencia (existía desde el inicio del proyecto, sin usarse) y se marca la que es *distinta* a la más común del grupo — no "misma IP = sospechoso", porque todo el salón comparte el WiFi institucional legítimamente — `2c88ae7`
+- [x] ✅ Una sola sesión activa por cuenta (`admin.signOut(token, 'others')` tras cada login) — cierra el vector de credenciales compartidas usadas simultáneamente desde dos dispositivos — `9e34f62`
+- [x] ✅ QR rotativo cada 20s con margen de gracia de una rotación (`previous_qr_token`) — una foto compartida por WhatsApp queda inútil casi al instante — `49dd79e`, `8f8dcee`
+- [x] ✅ Cerrada una exposición real encontrada en el camino: `sessions_select` dejaba leer/enumerar el `qr_token` de cualquier clase vía la API REST propia de PostgREST con la clave de cualquier estudiante autenticado — `49dd79e`
+- [x] ✅ Corregida una recursión infinita real entre `sessions_select` y `attendances_select` detectada durante la verificación (bloqueaba `createSession` para cualquier profesor) — `d459826`
+- [x] ✅ Verificación de propiedad agregada en `/professor/session/[id]` (cualquier profesor podía ver el QR en vivo de una materia ajena si conocía el id) — `8f8dcee`
+- [x] ✅ Geolocalización opcional y no bloqueante al generar el QR y al escanear, con umbral de 300m para marcar (no bloquear) un registro lejano — `596290e`, `5e4b513`
+
+**Decisión descartada, explicada al usuario:** "un solo login por IP" no funciona en este contexto — en un salón de clase todo el mundo comparte la IP pública del WiFi institucional (NAT), así que esa regla o no filtra nada o bloquea a estudiantes reales. Se reemplazó por sesión única por cuenta + QR rotativo + auditoría de IP distinta al grupo, que atacan la misma preocupación sin ese falso positivo.
+
+## Sprint 6: Pulido general (abierto)
 - [ ] ⬜ Ítems que vayan surgiendo durante la revisión general
 
 ---
