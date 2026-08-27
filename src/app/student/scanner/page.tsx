@@ -1,9 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import QRScanner from '@/components/qr/QRScanner'
 import LocalTime from '@/components/LocalTime'
 import JoinSubjectForm from '@/components/JoinSubjectForm'
-import { Check } from 'lucide-react'
+import { Check, BookOpen, ChevronRight } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,8 +79,23 @@ export default async function StudentScannerPage() {
           </div>
         </section>
 
-        {/* Solicitar inscripción por código */}
-        <section>
+        {/* Solicitar inscripción */}
+        <section className="flex flex-col gap-3">
+          <Link
+            href="/student/subjects"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center gap-3 hover:border-emerald-200 transition"
+          >
+            <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
+              <BookOpen className="w-5 h-5" strokeWidth={2} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-gray-900">Buscar mis materias</p>
+              <p className="text-xs text-gray-400">
+                Filtrá por carrera y semestre, y pedí inscripción sin código.
+              </p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" strokeWidth={2} />
+          </Link>
           <JoinSubjectForm />
         </section>
 

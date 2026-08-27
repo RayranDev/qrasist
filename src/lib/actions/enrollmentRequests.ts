@@ -53,57 +53,53 @@ export async function generateEnrollmentCode(subjectId: string) {
   return { success: false, error: 'No se pudo generar un código único. Intenta de nuevo.' }
 }
 
-export async function requestEnrollment(rawCode: string) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: 'No estás autenticado.' }
-
-  const code = rawCode.trim().toUpperCase()
-  if (!code) return { success: false, error: 'Ingresa un código.' }
-
-  const { data: subject, error: subjectError } = await supabase
-    .from('subjects')
-    .select('id, name, code, is_active')
-    .eq('enrollment_code', code)
-    .single()
-
-  if (subjectError || !subject) {
-    return { success: false, error: 'Código inválido. Verifica con tu docente.' }
-  }
+// Compartida entre el flujo por código y el flujo de "elegí tu
+// materia": ambos terminan pidiendo lo mismo, solo cambia cómo se
+// llega a la materia (código vs. selección directa en la lista de
+// su carrera).
+async function createEnrollmentRequest(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  subject: { id: string; name: string; code: string; is_active?: boolean }
+) {
   if (subject.is_active === false) {
-    return { success: false, error: 'Esta materia está archivada y no acepta solicitudes.' }
+    return {
+      success: false as const,
+      error: 'Esta materia está archivada y no acepta solicitudes.',
+    }
   }
 
   const { data: existingEnrollment } = await supabase
     .from('enrollments')
     .select('id')
     .eq('subject_id', subject.id)
-    .eq('student_id', user.id)
+    .eq('student_id', userId)
     .maybeSingle()
 
   if (existingEnrollment) {
-    return { success: false, error: `Ya estás inscrito en ${subject.name}.` }
+    return { success: false as const, error: `Ya estás inscrito en ${subject.name}.` }
   }
 
   const { data: existingRequest } = await supabase
     .from('enrollment_requests')
     .select('id, status')
     .eq('subject_id', subject.id)
-    .eq('student_id', user.id)
+    .eq('student_id', userId)
     .maybeSingle()
 
   if (existingRequest?.status === 'pending') {
-    return { success: false, error: `Ya tienes una solicitud pendiente para ${subject.name}.` }
+    return {
+      success: false as const,
+      error: `Ya tienes una solicitud pendiente para ${subject.name}.`,
+    }
   }
 
-  const check = await checkStudentEnrollable(supabase, subject.id, user.id)
-  if (!check.ok) return { success: false, error: check.error }
+  const check = await checkStudentEnrollable(supabase, subject.id, userId)
+  if (!check.ok) return { success: false as const, error: check.error }
 
   const { error } = await supabase.from('enrollment_requests').upsert(
     {
-      student_id: user.id,
+      student_id: userId,
       subject_id: subject.id,
       status: 'pending',
       requested_at: new Date().toISOString(),
@@ -113,10 +109,54 @@ export async function requestEnrollment(rawCode: string) {
     { onConflict: 'student_id,subject_id' }
   )
 
-  if (error) return { success: false, error: 'No se pudo enviar la solicitud.' }
+  if (error) return { success: false as const, error: 'No se pudo enviar la solicitud.' }
 
   revalidatePath('/student/scanner')
-  return { success: true, subjectName: subject.name, subjectCode: subject.code }
+  revalidatePath('/student/subjects')
+  return { success: true as const, subjectName: subject.name, subjectCode: subject.code }
+}
+
+export async function requestEnrollment(rawCode: string) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false as const, error: 'No estás autenticado.' }
+
+  const code = rawCode.trim().toUpperCase()
+  if (!code) return { success: false as const, error: 'Ingresa un código.' }
+
+  const { data: subject, error: subjectError } = await supabase
+    .from('subjects')
+    .select('id, name, code, is_active')
+    .eq('enrollment_code', code)
+    .single()
+
+  if (subjectError || !subject) {
+    return { success: false as const, error: 'Código inválido. Verifica con tu docente.' }
+  }
+
+  return createEnrollmentRequest(supabase, user.id, subject)
+}
+
+export async function requestEnrollmentBySubjectId(subjectId: string) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false as const, error: 'No estás autenticado.' }
+
+  const { data: subject, error: subjectError } = await supabase
+    .from('subjects')
+    .select('id, name, code, is_active')
+    .eq('id', subjectId)
+    .single()
+
+  if (subjectError || !subject) {
+    return { success: false as const, error: 'Materia no encontrada.' }
+  }
+
+  return createEnrollmentRequest(supabase, user.id, subject)
 }
 
 export async function approveEnrollmentRequest(requestId: string) {
