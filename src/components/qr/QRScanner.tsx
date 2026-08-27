@@ -81,17 +81,17 @@ export default function QRScanner() {
   return (
     <div className="w-full">
       {status === 'idle' && (
+        // html5-qrcode ya dibuja su propio recuadro de escaneo (el
+        // "qrbox" de abajo: sombreado + esquinas blancas) sobre el
+        // video en tiempo real. Un segundo marco superpuesto acá, en
+        // CSS, no puede coincidir con el suyo -- el tamaño real del
+        // qrbox lo calcula la librería contra el video ya montado,
+        // que varía según la cámara del dispositivo. El resultado
+        // eran dos recuadros de tamaños distintos, uno encima del
+        // otro, mal alineados (bug reportado). Se deja un solo
+        // recuadro: el nativo de la librería.
         <div className="rounded-2xl overflow-hidden border-2 border-emerald-100 bg-black aspect-square flex items-center justify-center relative">
           <div id="qr-reader" className="w-full h-full" />
-          {/* Corner markers */}
-          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-            <div className="w-48 h-48 relative">
-              <span className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-emerald-400 rounded-tl-sm" />
-              <span className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-emerald-400 rounded-tr-sm" />
-              <span className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-emerald-400 rounded-bl-sm" />
-              <span className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-emerald-400 rounded-br-sm" />
-            </div>
-          </div>
         </div>
       )}
 
