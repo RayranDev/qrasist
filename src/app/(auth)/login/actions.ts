@@ -47,12 +47,27 @@ export async function signup(formData: FormData) {
   const firstName = normalizeName((formData.get('first_name') as string) || '')
   const lastName = normalizeName((formData.get('last_name') as string) || '')
   const studentCode = ((formData.get('student_code') as string) || '').trim()
+  const careerId = ((formData.get('career_id') as string) || '').trim()
 
   if (!firstName || !lastName) redirect('/login?error=Nombre+y+apellido+son+obligatorios')
   if (!/^\d{12}$/.test(studentCode))
     redirect('/login?error=El+c%C3%B3digo+debe+tener+exactamente+12+d%C3%ADgitos+num%C3%A9ricos')
   if (!email.endsWith('@urepublicana.edu.co'))
     redirect('/login?error=El+correo+debe+ser+institucional+%40urepublicana.edu.co')
+  if (!careerId) redirect('/login?error=Selecciona+tu+carrera')
+
+  // Regla de negocio: hasta que el estudiante no tenga una carrera
+  // no puede inscribirse a ninguna materia (ver enrollmentGuards.ts).
+  // Validamos el id contra el catalogo real -- el select viene del
+  // cliente, no confiamos en que sea una carrera activa de verdad.
+  const admin = getSupabaseAdmin()
+  const { data: career } = await admin
+    .from('careers')
+    .select('id')
+    .eq('id', careerId)
+    .eq('is_active', true)
+    .maybeSingle()
+  if (!career) redirect('/login?error=La+carrera+seleccionada+no+es+v%C3%A1lida')
 
   const supabase = await createClient()
 
@@ -86,6 +101,23 @@ export async function signup(formData: FormData) {
         '/login?error=' +
           encodeURIComponent(
             'Tu cuenta se creó pero el código estudiantil no se guardó. Contacta al administrador.'
+          )
+      )
+    }
+
+    // student_careers solo admite escritura de ADMIN por RLS (ver
+    // 010_careers_periods_pensum.sql) -- el propio registro no puede
+    // insertar su fila, asi que se hace con el cliente de servicio.
+    // El student_id sale del usuario recien creado, no de un input
+    // del cliente, asi que no hay escalamiento de privilegios.
+    const { error: careerError } = await admin
+      .from('student_careers')
+      .insert({ student_id: data.user.id, career_id: careerId, is_active: true })
+    if (careerError) {
+      redirect(
+        '/login?error=' +
+          encodeURIComponent(
+            'Tu cuenta se creó pero no se pudo guardar tu carrera. Contacta al administrador.'
           )
       )
     }

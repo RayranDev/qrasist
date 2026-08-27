@@ -1,5 +1,6 @@
 import AuthForm from './AuthForm'
 import { QrCode } from 'lucide-react'
+import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 
 export default async function LoginPage({
   searchParams,
@@ -7,6 +8,17 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>
 }) {
   const { error } = await searchParams
+
+  // El visitante no está autenticado todavía, así que no puede pasar
+  // por la RLS normal de "careers" (exige sesión activa) -- se lee
+  // con el cliente de servicio porque el catálogo de carreras no es
+  // información sensible y el formulario de registro lo necesita.
+  const admin = getSupabaseAdmin()
+  const { data: careers } = await admin
+    .from('careers')
+    .select('id, name, code')
+    .eq('is_active', true)
+    .order('name')
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface px-4">
@@ -19,7 +31,7 @@ export default async function LoginPage({
           <p className="text-gray-500 mt-2 font-medium">Ingreso a la plataforma académica</p>
         </div>
 
-        <AuthForm error={error} />
+        <AuthForm error={error} careers={careers || []} />
       </div>
     </div>
   )

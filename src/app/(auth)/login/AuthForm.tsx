@@ -3,7 +3,13 @@
 import { useState } from 'react'
 import { login, signup } from './actions'
 
-export default function AuthForm({ error }: { error?: string }) {
+interface Career {
+  id: string
+  name: string
+  code: string
+}
+
+export default function AuthForm({ error, careers }: { error?: string; careers: Career[] }) {
   const [isLogin, setIsLogin] = useState(true)
 
   const inputClass =
@@ -67,6 +73,29 @@ export default function AuthForm({ error }: { error?: string }) {
                     .slice(0, 12)
                 }}
               />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider ml-1">
+                Carrera
+              </label>
+              <select
+                required
+                name="career_id"
+                defaultValue=""
+                className={`${inputClass} appearance-none cursor-pointer`}
+              >
+                <option value="" disabled>
+                  Selecciona tu carrera
+                </option>
+                {careers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1.5 ml-1">
+                Vas a ver solo las materias de esta carrera.
+              </p>
             </div>
           </div>
         )}
