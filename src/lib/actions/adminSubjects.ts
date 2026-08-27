@@ -40,6 +40,11 @@ export async function createSubject(formData: FormData) {
   return { success: true }
 }
 
+// Borrado inteligente: si la materia tiene sesiones, inscripciones,
+// pensum o solicitudes asociadas, se archiva para no perder ese
+// historial (todas esas tablas tienen ON DELETE CASCADE hacia
+// subjects, asi que un DELETE real las arrastraria en silencio).
+// Si no tiene nada asociado, se borra de verdad.
 export async function deleteSubject(subjectId: string) {
   const supabase = await createClient()
   const {
@@ -50,13 +55,58 @@ export async function deleteSubject(subjectId: string) {
     return { success: false, error: 'No autorizado' }
   }
 
-  const { error } = await supabase.from('subjects').update({ is_active: false }).eq('id', subjectId)
+  const [
+    { count: sessions },
+    { count: enrollments },
+    { count: subjectCareers },
+    { count: enrollmentRequests },
+  ] = await Promise.all([
+    supabase
+      .from('sessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('subject_id', subjectId),
+    supabase
+      .from('enrollments')
+      .select('*', { count: 'exact', head: true })
+      .eq('subject_id', subjectId),
+    supabase
+      .from('subject_careers')
+      .select('*', { count: 'exact', head: true })
+      .eq('subject_id', subjectId),
+    supabase
+      .from('enrollment_requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('subject_id', subjectId),
+  ])
 
-  if (error) return { success: false, error: 'Error al desactivar la materia' }
+  const hasDependents =
+    (sessions || 0) > 0 ||
+    (enrollments || 0) > 0 ||
+    (subjectCareers || 0) > 0 ||
+    (enrollmentRequests || 0) > 0
+
+  if (hasDependents) {
+    const { error } = await supabase
+      .from('subjects')
+      .update({ is_active: false })
+      .eq('id', subjectId)
+    if (error) return { success: false, error: 'Error al archivar la materia' }
+    revalidatePath('/admin/subjects')
+    revalidatePath('/admin/dashboard')
+    return {
+      success: true,
+      archived: true,
+      message:
+        'Esta materia tiene sesiones, inscripciones o pénsum asociados: se archivó en vez de borrarse.',
+    }
+  }
+
+  const { error } = await supabase.from('subjects').delete().eq('id', subjectId)
+  if (error) return { success: false, error: 'Error al borrar la materia' }
 
   revalidatePath('/admin/subjects')
   revalidatePath('/admin/dashboard')
-  return { success: true }
+  return { success: true, archived: false }
 }
 
 export async function reactivateSubject(subjectId: string) {

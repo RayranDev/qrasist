@@ -10,7 +10,7 @@ import {
 import { assignSubjectToCareer, removeSubjectFromCareer } from '@/lib/actions/academic'
 import { useToast } from '@/components/toast/ToastProvider'
 import ConfirmModal from '@/components/ConfirmModal'
-import { Plus, Pencil, Archive } from 'lucide-react'
+import { Plus, Pencil, Trash2 } from 'lucide-react'
 
 const inputClass =
   'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all shadow-sm'
@@ -145,7 +145,7 @@ export function SubjectActionButtons({
   subjectCareerIds: string[]
 }) {
   const [isEditing, setIsEditing] = useState(false)
-  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [name, setName] = useState(subject.name)
   const [code, setCode] = useState(subject.code)
@@ -159,16 +159,21 @@ export function SubjectActionButtons({
     ? professors.filter((p) => p.careerIds.some((id) => subjectCareerIds.includes(id)))
     : []
 
-  const handleDeactivate = async () => {
+  const handleDelete = async () => {
     setLoading(true)
     const result = await deleteSubject(subject.id)
     if (result.success) {
-      showToast(`"${subject.name}" archivada.`, 'success')
+      showToast(
+        result.archived
+          ? `"${subject.name}" tiene datos asociados: se archivó en vez de borrarse.`
+          : `"${subject.name}" eliminada permanentemente.`,
+        'success'
+      )
     } else {
-      showToast(result.error || 'No se pudo archivar la materia.', 'error')
+      showToast(result.error || 'No se pudo eliminar la materia.', 'error')
     }
     setLoading(false)
-    setShowDeactivateConfirm(false)
+    setShowDeleteConfirm(false)
   }
 
   const handleReactivate = async () => {
@@ -290,16 +295,16 @@ export function SubjectActionButtons({
 
   return (
     <div className="flex items-center gap-1 relative z-10">
-      {showDeactivateConfirm && (
+      {showDeleteConfirm && (
         <ConfirmModal
-          title="Archivar materia"
-          message={`¿Desactivar "${subject.name}"? La materia quedará archivada y no estará visible para docentes ni estudiantes. Podrás reactivarla cuando quieras.`}
-          confirmLabel="Archivar"
-          loadingLabel="Archivando..."
+          title="Eliminar materia"
+          message={`¿Eliminar "${subject.name}"? Si no tiene sesiones, inscripciones ni pénsum asociados se borrará permanentemente. Si tiene datos asociados, se archivará en su lugar para no perder el historial.`}
+          confirmLabel="Eliminar"
+          loadingLabel="Eliminando..."
           loading={loading}
-          icon={Archive}
-          onConfirm={handleDeactivate}
-          onCancel={() => setShowDeactivateConfirm(false)}
+          icon={Trash2}
+          onConfirm={handleDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
         />
       )}
       {isActive ? (
@@ -313,12 +318,12 @@ export function SubjectActionButtons({
             <Pencil className="w-5 h-5" strokeWidth={2} />
           </button>
           <button
-            onClick={() => setShowDeactivateConfirm(true)}
+            onClick={() => setShowDeleteConfirm(true)}
             disabled={loading}
-            className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
-            title="Archivar materia"
+            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+            title="Eliminar materia"
           >
-            <Archive className="w-5 h-5" strokeWidth={2} />
+            <Trash2 className="w-5 h-5" strokeWidth={2} />
           </button>
         </>
       ) : (
@@ -390,7 +395,9 @@ export function SubjectCareerAssignment({
             className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold bg-sky-50 text-sky-700 rounded-lg"
           >
             {a.career.code}
-            {a.level != null && <span className="text-sky-400 font-medium">· Nivel {a.level}</span>}
+            {a.level != null && (
+              <span className="text-sky-400 font-medium">· Semestre {a.level}</span>
+            )}
             <button
               type="button"
               onClick={() => handleRemove(a)}
@@ -424,7 +431,7 @@ export function SubjectCareerAssignment({
             max={20}
             value={level}
             onChange={(e) => setLevel(e.target.value)}
-            placeholder="Nivel"
+            placeholder="Semestre"
             className="w-16 px-2 py-1 text-xs bg-gray-50 border border-gray-200 rounded-lg"
           />
           <button
