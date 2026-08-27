@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { requestEnrollment } from '@/lib/actions/enrollmentRequests'
 import { useToast } from '@/components/toast/ToastProvider'
 
-export default function JoinSubjectForm() {
+export default function JoinByCode() {
+  const [open, setOpen] = useState(false)
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const showToast = useToast()
@@ -20,23 +21,29 @@ export default function JoinSubjectForm() {
         'success'
       )
       setCode('')
+      setOpen(false)
     } else {
       showToast(result.error || 'No se pudo enviar la solicitud.', 'error')
     }
     setLoading(false)
   }
 
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="text-xs font-bold text-gray-400 hover:text-emerald-600 transition text-center"
+      >
+        ¿Tu docente te dio un código? Ingresalo acá
+      </button>
+    )
+  }
+
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5"
-    >
-      <p className="text-sm font-bold text-gray-900 mb-1">¿Tu docente te dio un código?</p>
-      <p className="text-xs text-gray-400 mb-3">
-        Úsalo para solicitar inscripción a una materia. El docente debe aprobarla.
-      </p>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2">
       <div className="flex gap-2">
         <input
+          autoFocus
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
           type="text"
@@ -52,6 +59,13 @@ export default function JoinSubjectForm() {
           {loading ? '...' : 'Unirme'}
         </button>
       </div>
+      <button
+        type="button"
+        onClick={() => setOpen(false)}
+        className="text-xs font-bold text-gray-400 hover:text-gray-600 transition self-center"
+      >
+        Cancelar
+      </button>
     </form>
   )
 }

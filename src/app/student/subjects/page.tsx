@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import BackLink from '@/components/BackLink'
 import SubjectBrowser from './SubjectBrowser'
+import JoinByCode from './JoinByCode'
 
 export const dynamic = 'force-dynamic'
 
@@ -85,29 +85,23 @@ export default async function StudentSubjectsPage() {
   }))
 
   return (
-    <div className="min-h-screen bg-surface flex flex-col">
-      <div className="flex-1 p-5 max-w-md mx-auto w-full flex flex-col">
-        <header className="mb-6 pt-4">
-          <BackLink href="/student/scanner">Volver al Inicio</BackLink>
-          <h1 className="text-xl font-black text-gray-900">Mis Materias</h1>
-          <p className="text-gray-500 mt-1 text-sm">
-            Elegí una materia de tu carrera y pedí inscripción directamente.
-          </p>
-        </header>
+    <div className="pt-2 flex flex-col gap-5">
+      <h1 className="text-lg font-black text-gray-900">Materias</h1>
 
-        {careerIds.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center">
-            <p className="text-sm text-gray-500 font-medium">
-              Todavía no tenés una carrera asignada.
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              Contactá al administrador para que te la asigne.
-            </p>
-          </div>
-        ) : (
-          <SubjectBrowser careers={careers} items={items} />
-        )}
-      </div>
+      {careerIds.length === 0 ? (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center">
+          <p className="text-sm text-gray-500 font-medium">
+            Todavía no tenés una carrera asignada.
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            Contactá al administrador para que te la asigne.
+          </p>
+        </div>
+      ) : (
+        <SubjectBrowser careers={careers} items={items} />
+      )}
+
+      <JoinByCode />
     </div>
   )
 }

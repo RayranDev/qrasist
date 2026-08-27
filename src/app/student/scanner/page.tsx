@@ -1,21 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import QRScanner from '@/components/qr/QRScanner'
 import LocalTime from '@/components/LocalTime'
-import JoinSubjectForm from '@/components/JoinSubjectForm'
-import { Check, BookOpen, ChevronRight } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
-interface AttendanceRecord {
-  id: string
+interface LastAttendance {
   scanned_at: string
   session: {
-    subject: {
-      name: string
-      code: string
-    } | null
+    subject: { name: string; code: string } | null
   } | null
 }
 
@@ -27,17 +20,10 @@ export default async function StudentScannerPage() {
 
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('name, student_code')
-    .eq('id', user.id)
-    .single()
-
-  const { data: recentAttendances } = await supabase
+  const { data: lastAttendance } = await supabase
     .from('attendances')
     .select(
       `
-      id,
       scanned_at,
       session:sessions (
         subject:subjects ( name, code )
@@ -46,107 +32,22 @@ export default async function StudentScannerPage() {
     )
     .eq('student_id', user.id)
     .order('scanned_at', { ascending: false })
-    .limit(5)
+    .limit(1)
+    .maybeSingle()
 
-  const firstName = profile?.name?.split(' ')[0] || 'Estudiante'
+  const last = lastAttendance as unknown as LastAttendance | null
 
   return (
-    <div className="min-h-screen bg-surface flex flex-col">
-      <div className="flex-1 p-5 max-w-md mx-auto w-full flex flex-col gap-6">
-        {/* Header */}
-        <header className="flex justify-between items-center pt-4">
-          <div>
-            <p className="text-xs font-semibold text-emerald-600">Portal Estudiante</p>
-            <h1 className="text-xl font-black text-gray-900">Hola, {firstName} 👋</h1>
-            {profile?.student_code && (
-              <p className="text-xs text-gray-400 font-mono mt-0.5">Cód. {profile.student_code}</p>
-            )}
-          </div>
-          <form action="/auth/signout" method="post">
-            <button className="px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl transition">
-              Cerrar Sesión
-            </button>
-          </form>
-        </header>
+    <div className="pt-2">
+      <QRScanner />
 
-        {/* Scanner */}
-        <section>
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
-            Escanear QR
-          </p>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <QRScanner />
-          </div>
-        </section>
-
-        {/* Solicitar inscripción */}
-        <section className="flex flex-col gap-3">
-          <Link
-            href="/student/subjects"
-            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center gap-3 hover:border-emerald-200 transition"
-          >
-            <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
-              <BookOpen className="w-5 h-5" strokeWidth={2} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-gray-900">Buscar mis materias</p>
-              <p className="text-xs text-gray-400">
-                Filtrá por carrera y semestre, y pedí inscripción sin código.
-              </p>
-            </div>
-            <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" strokeWidth={2} />
-          </Link>
-          <JoinSubjectForm />
-        </section>
-
-        {/* Historial reciente */}
-        <section className="pb-6">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-              Últimas Asistencias
-            </p>
-            <a
-              href="/student/history"
-              className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition"
-            >
-              Ver todo →
-            </a>
-          </div>
-          {recentAttendances && recentAttendances.length > 0 ? (
-            <div className="space-y-2.5">
-              {(recentAttendances as unknown as AttendanceRecord[]).map((record) => (
-                <div
-                  key={record.id}
-                  className="bg-white rounded-xl border border-gray-100 px-4 py-3 flex items-center gap-3 shadow-sm"
-                >
-                  <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
-                    <Check className="w-4 h-4 text-emerald-500" strokeWidth={2.5} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-gray-900 truncate">
-                      {record.session?.subject?.name}
-                    </p>
-                    <p className="text-xs text-gray-400 flex items-center gap-1.5">
-                      <span className="font-mono text-emerald-600">
-                        {record.session?.subject?.code}
-                      </span>
-                      <span>·</span>
-                      <LocalTime date={record.scanned_at} />
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="bg-white rounded-xl border border-gray-100 p-6 text-center shadow-sm">
-              <p className="text-sm text-gray-400 font-medium">
-                Aún no tienes asistencias registradas.
-              </p>
-              <p className="text-xs text-gray-400 mt-1">Escanea el QR de tu profe para comenzar.</p>
-            </div>
-          )}
-        </section>
-      </div>
+      {last?.session?.subject && (
+        <p className="text-center text-xs text-gray-400 mt-4">
+          Última clase: <span className="font-bold text-gray-600">{last.session.subject.name}</span>
+          {' · '}
+          <LocalTime date={last.scanned_at} />
+        </p>
+      )}
     </div>
   )
 }
