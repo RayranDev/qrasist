@@ -37,6 +37,7 @@ export default async function ProfessorHistoryPage() {
           id,
           scanned_at,
           student_id,
+          ip_address,
           student:profiles (
             name,
             student_code

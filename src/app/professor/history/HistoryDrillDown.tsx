@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { format } from 'date-fns'
 import { useToast } from '@/components/toast/ToastProvider'
 import { es } from 'date-fns/locale'
-import { Download, Archive, Users, ChevronRight, BookOpen } from 'lucide-react'
+import { Download, Archive, Users, ChevronRight, BookOpen, TriangleAlert } from 'lucide-react'
 
 interface Student {
   name: string
@@ -15,7 +15,33 @@ interface Attendance {
   id: string
   scanned_at: string
   student_id: string
+  ip_address: string | null
   student: Student | null
+}
+
+// IP mas frecuente entre las asistencias de una sesion -- no es
+// "la IP correcta", es solo la del grupo (normalmente el WiFi del
+// salon). Sirve para resaltar un registro que vino de una red
+// distinta al resto, que es la senal real de fraude a distancia --
+// bloquear por IP compartida haria lo contrario (todo el salon
+// comparte esa IP legitimamente).
+function mostCommonIp(attendances: Attendance[]): string | null {
+  const counts = new Map<string, number>()
+  for (const a of attendances) {
+    if (!a.ip_address || a.ip_address === 'unknown') continue
+    counts.set(a.ip_address, (counts.get(a.ip_address) || 0) + 1)
+  }
+  let best: string | null = null
+  let bestCount = 0
+  for (const [ip, count] of counts) {
+    if (count > bestCount) {
+      best = ip
+      bestCount = count
+    }
+  }
+  // Si nadie repite IP (clases muy chicas, cada quien con datos
+  // moviles), no hay "grupo" contra el cual comparar -- no marcar nada.
+  return bestCount > 1 ? best : null
 }
 
 interface Session {
@@ -60,6 +86,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
           fecha: format(d, 'dd/MM/yyyy'),
           hora: format(d, 'hh:mm a'),
           tipo,
+          ip: a.ip_address && a.ip_address !== 'unknown' ? a.ip_address : 'N/A',
         }
       }
 
@@ -75,6 +102,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
               { header: 'Fecha de Registro', key: 'fecha', width: 16 },
               { header: 'Hora Exacta', key: 'hora', width: 14 },
               { header: 'Tipo de Asistente', key: 'tipo', width: 16 },
+              { header: 'IP de Registro', key: 'ip', width: 18 },
             ],
             rows: [
               ...enrolledAttendances.map((a) => toRow(a, 'Regular')),
@@ -85,9 +113,11 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
       )
     }
 
+    const groupIp = mostCommonIp(selectedSession.attendances || [])
+
     const renderTable = (attendances: Attendance[], emptyMessage: string) => (
       <div className="overflow-x-auto rounded-2xl border border-gray-100 mb-8">
-        <table className="w-full text-left text-sm min-w-[600px]">
+        <table className="w-full text-left text-sm min-w-175">
           <thead className="bg-gray-50/80">
             <tr>
               <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">
@@ -99,8 +129,11 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
               <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">
                 Fecha
               </th>
-              <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs text-right">
+              <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">
                 Hora
+              </th>
+              <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">
+                IP
               </th>
             </tr>
           </thead>
@@ -108,6 +141,11 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
             {attendances && attendances.length > 0 ? (
               attendances.map((att) => {
                 const dateObj = new Date(att.scanned_at)
+                const isOutlierIp =
+                  groupIp !== null &&
+                  att.ip_address !== null &&
+                  att.ip_address !== 'unknown' &&
+                  att.ip_address !== groupIp
                 return (
                   <tr key={att.id} className="hover:bg-gray-50/50 transition">
                     <td className="px-6 py-4 font-bold text-gray-900 flex items-center gap-2.5">
@@ -120,15 +158,31 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
                     <td className="px-6 py-4 text-gray-500 font-medium">
                       {format(dateObj, 'dd/MM/yyyy')}
                     </td>
-                    <td className="px-6 py-4 text-gray-600 font-mono text-right">
+                    <td className="px-6 py-4 text-gray-600 font-mono">
                       {format(dateObj, 'hh:mm a')}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-xs text-gray-500">
+                          {att.ip_address && att.ip_address !== 'unknown' ? att.ip_address : '—'}
+                        </span>
+                        {isOutlierIp && (
+                          <span
+                            title="Esta IP es distinta a la del resto del grupo en esta clase"
+                            className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md"
+                          >
+                            <TriangleAlert className="w-3 h-3" strokeWidth={2.5} />
+                            distinta
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )
               })
             ) : (
               <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-gray-500 italic">
+                <td colSpan={5} className="px-6 py-8 text-center text-gray-500 italic">
                   {emptyMessage}
                 </td>
               </tr>
