@@ -1,6 +1,11 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import {
+  DEFAULT_ROTATION_SECONDS,
+  MIN_ROTATION_SECONDS,
+  MAX_ROTATION_SECONDS,
+} from '@/lib/qrRotation'
 
 const MIN_DURATION_MINUTES = 1
 const MAX_DURATION_MINUTES = 180
@@ -13,7 +18,8 @@ interface Coords {
 export async function createSession(
   subjectId: string,
   durationMinutes: number = 15,
-  coords?: Coords
+  coords?: Coords,
+  rotationSeconds: number = DEFAULT_ROTATION_SECONDS
 ) {
   if (
     !Number.isFinite(durationMinutes) ||
@@ -23,6 +29,17 @@ export async function createSession(
     return {
       success: false,
       error: `La duración debe ser entre ${MIN_DURATION_MINUTES} y ${MAX_DURATION_MINUTES} minutos.`,
+    }
+  }
+
+  if (
+    !Number.isFinite(rotationSeconds) ||
+    rotationSeconds < MIN_ROTATION_SECONDS ||
+    rotationSeconds > MAX_ROTATION_SECONDS
+  ) {
+    return {
+      success: false,
+      error: `La rotación del código debe estar entre ${MIN_ROTATION_SECONDS} y ${MAX_ROTATION_SECONDS} segundos.`,
     }
   }
 
@@ -60,6 +77,7 @@ export async function createSession(
       expires_at: expiresAt.toISOString(),
       latitude: coords?.latitude ?? null,
       longitude: coords?.longitude ?? null,
+      qr_rotation_seconds: rotationSeconds,
     })
     .select('id, qr_token, expires_at')
     .single()
@@ -71,12 +89,13 @@ export async function createSession(
   return { success: true, sessionId: newSession.id }
 }
 
-// Antifraude: rota el QR cada ~20s (ver QRDisplay) para que una foto
-// compartida por WhatsApp quede inutil casi al instante, en vez de
-// seguir siendo valida los 15 minutos completos de la sesion. El
-// token anterior queda guardado un ciclo (previous_qr_token) para no
-// rechazar un escaneo que llego justo en el borde de la rotacion --
-// ver el .or() en registerAttendance().
+// Antifraude: rota el QR cada qr_rotation_seconds (ver QRDisplay,
+// configurable por el profesor entre 10 y 60s al generar la sesion)
+// para que una foto compartida por WhatsApp quede inutil casi al
+// instante, en vez de seguir siendo valida los 15 minutos completos
+// de la sesion. El token anterior queda guardado un ciclo
+// (previous_qr_token) para no rechazar un escaneo que llego justo en
+// el borde de la rotacion -- ver el .or() en registerAttendance().
 export async function refreshSessionQrToken(sessionId: string) {
   const supabase = await createClient()
 

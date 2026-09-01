@@ -58,6 +58,7 @@ export default async function ProfessorSessionPage({
             sessionId={session.id}
             qrToken={session.qr_token}
             expiresAt={session.expires_at}
+            rotationSeconds={session.qr_rotation_seconds}
           />
         </div>
       </div>

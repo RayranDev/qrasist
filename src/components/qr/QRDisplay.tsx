@@ -9,14 +9,20 @@ interface QRDisplayProps {
   sessionId: string
   qrToken: string
   expiresAt: string
+  // Cada cuanto se rota el token, elegido por el profesor al generar
+  // la sesion (entre 10 y 60s -- ver session.ts). Corto a proposito:
+  // una foto del QR compartida por WhatsApp queda inutil casi al
+  // instante en vez de seguir siendo valida los 15 minutos completos
+  // de la sesion.
+  rotationSeconds: number
 }
 
-// Cada cuanto se rota el token -- corto a proposito: una foto del QR
-// compartida por WhatsApp queda inutil casi al instante en vez de
-// seguir siendo valida los 15 minutos completos de la sesion.
-const ROTATION_SECONDS = 20
-
-export default function QRDisplay({ sessionId, qrToken, expiresAt }: QRDisplayProps) {
+export default function QRDisplay({
+  sessionId,
+  qrToken,
+  expiresAt,
+  rotationSeconds,
+}: QRDisplayProps) {
   const [currentToken, setCurrentToken] = useState(qrToken)
   const [timeLeft, setTimeLeft] = useState('')
   const [isExpired, setIsExpired] = useState(false)
@@ -56,9 +62,9 @@ export default function QRDisplay({ sessionId, qrToken, expiresAt }: QRDisplayPr
       // ya se encarga de mostrar la pantalla de "QR Expirado".
     }
 
-    const interval = setInterval(rotate, ROTATION_SECONDS * 1000)
+    const interval = setInterval(rotate, rotationSeconds * 1000)
     return () => clearInterval(interval)
-  }, [sessionId])
+  }, [sessionId, rotationSeconds])
 
   return (
     <div className="flex flex-col items-center justify-center p-8 bg-white rounded-3xl shadow-sm border border-gray-100 max-w-sm mx-auto">
@@ -96,7 +102,7 @@ export default function QRDisplay({ sessionId, qrToken, expiresAt }: QRDisplayPr
             Pide a tus estudiantes que escaneen este código desde su aplicación móvil.
           </p>
           <p className="mt-1 text-gray-400 text-xs text-center">
-            El código se renueva cada {ROTATION_SECONDS} segundos por seguridad.
+            El código se renueva cada {rotationSeconds} segundos por seguridad.
           </p>
         </>
       )}
