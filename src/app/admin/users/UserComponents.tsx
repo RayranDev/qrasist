@@ -595,7 +595,9 @@ export function ActionButtons({
   const [lastName, setLastName] = useState(currentLastName)
   const [code, setCode] = useState(currentCode || '')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const showToast = useToast()
 
   const currentName = `${currentFirstName} ${currentLastName}`.trim()
@@ -625,6 +627,11 @@ export function ActionButtons({
   }
 
   const handleSave = async () => {
+    if (password.trim() !== '' && password !== confirmPassword) {
+      showToast('La contraseña y su confirmación no coinciden.', 'error')
+      return
+    }
+
     setLoading(true)
     try {
       const result = await updateUserAccount(userId, {
@@ -636,7 +643,9 @@ export function ActionButtons({
       if (result.success) {
         setIsEditing(false)
         setPassword('')
+        setConfirmPassword('')
         setShowPassword(false)
+        setShowConfirmPassword(false)
         showToast('Usuario actualizado.', 'success')
       } else {
         showToast(result.error || 'No se pudo guardar el usuario.', 'error')
@@ -716,6 +725,34 @@ export function ActionButtons({
                 </button>
               </div>
             </div>
+            {password.trim() !== '' && (
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Confirmar Nueva Contraseña
+                </label>
+                <div className="relative">
+                  <input
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    placeholder="Repetí la contraseña"
+                    className={`${inputClass} pr-8`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                    tabIndex={-1}
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           <div className="flex gap-3">
             <button
@@ -723,7 +760,9 @@ export function ActionButtons({
               onClick={() => {
                 setIsEditing(false)
                 setPassword('')
+                setConfirmPassword('')
                 setShowPassword(false)
+                setShowConfirmPassword(false)
               }}
               className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition"
             >
@@ -757,17 +796,17 @@ export function ActionButtons({
           <>
             <button
               onClick={() => setIsEditing(true)}
-              className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+              className="p-1.5 text-gray-500 bg-gray-50 border border-gray-200 rounded-lg hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 transition"
               title="Editar"
             >
-              <Pencil className="w-5 h-5" strokeWidth={2} />
+              <Pencil className="w-4.5 h-4.5" strokeWidth={2} />
             </button>
             <button
               onClick={() => setIsDeactivating(true)}
-              className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+              className="p-1.5 text-gray-500 bg-gray-50 border border-gray-200 rounded-lg hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 transition"
               title="Desactivar"
             >
-              <Ban className="w-5 h-5" strokeWidth={2} />
+              <Ban className="w-4.5 h-4.5" strokeWidth={2} />
             </button>
           </>
         ) : (
