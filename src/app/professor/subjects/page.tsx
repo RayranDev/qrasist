@@ -36,7 +36,7 @@ export default async function ProfessorSubjectsPage() {
             <div>
               <p className="text-sm font-semibold text-emerald-600 mb-0.5">Portal Docente</p>
               <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">
-                Hola, {firstName} 👋
+                Hola, {firstName}
               </h1>
               <p className="text-gray-500 mt-1 text-sm">
                 {subjects?.length === 1
