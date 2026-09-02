@@ -10,7 +10,7 @@ import {
 } from '@/lib/qrRotation'
 import { useToast } from '@/components/toast/ToastProvider'
 import { getBestEffortLocation } from '@/lib/utils/geolocation'
-import { Settings2 } from 'lucide-react'
+import { Settings2, ChevronDown } from 'lucide-react'
 
 export default function SessionButton({ subjectId }: { subjectId: string }) {
   const [loading, setLoading] = useState(false)
@@ -36,15 +36,26 @@ export default function SessionButton({ subjectId }: { subjectId: string }) {
       <button
         type="button"
         onClick={() => setShowOptions((v) => !v)}
-        className="flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-emerald-600 transition mb-2"
+        aria-expanded={showOptions}
+        className={`w-full flex items-center justify-between gap-1.5 px-3 py-2 mb-2 text-xs font-bold rounded-lg border transition ${
+          showOptions
+            ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+            : 'text-gray-600 bg-gray-50 border-gray-200 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700'
+        }`}
       >
-        <Settings2 className="w-3.5 h-3.5" strokeWidth={2} />
-        Ajustar rotación del código
+        <span className="flex items-center gap-1.5">
+          <Settings2 className="w-3.5 h-3.5" strokeWidth={2} />
+          Ajustar rotación del código
+        </span>
+        <ChevronDown
+          className={`w-3.5 h-3.5 transition-transform ${showOptions ? 'rotate-180' : ''}`}
+          strokeWidth={2}
+        />
       </button>
 
       {showOptions && (
         <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-xl">
-          <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
+          <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
             Rotación (segundos)
           </label>
           <div className="flex items-center gap-2">
@@ -54,9 +65,9 @@ export default function SessionButton({ subjectId }: { subjectId: string }) {
               max={MAX_ROTATION_SECONDS}
               value={rotationSeconds}
               onChange={(e) => setRotationSeconds(Number(e.target.value))}
-              className="w-20 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 outline-none focus:border-emerald-500"
+              className="w-20 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 font-semibold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
             />
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-gray-500">
               El código se renueva cada tantos segundos. Entre {MIN_ROTATION_SECONDS} y{' '}
               {MAX_ROTATION_SECONDS} — más corto es más seguro, más largo da más margen para
               escanear.
