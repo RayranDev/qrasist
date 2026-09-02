@@ -5,9 +5,9 @@ import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>
+  searchParams: Promise<{ error?: string; info?: string }>
 }) {
-  const { error } = await searchParams
+  const { error, info } = await searchParams
 
   // El visitante no está autenticado todavía, así que no puede pasar
   // por la RLS normal de "careers" (exige sesión activa) -- se lee
@@ -31,7 +31,7 @@ export default async function LoginPage({
           <p className="text-gray-500 mt-2 font-medium">Ingreso a la plataforma académica</p>
         </div>
 
-        <AuthForm error={error} careers={careers || []} />
+        <AuthForm error={error} info={info} careers={careers || []} />
       </div>
     </div>
   )

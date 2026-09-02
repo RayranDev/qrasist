@@ -9,7 +9,15 @@ interface Career {
   code: string
 }
 
-export default function AuthForm({ error, careers }: { error?: string; careers: Career[] }) {
+export default function AuthForm({
+  error,
+  info,
+  careers,
+}: {
+  error?: string
+  info?: string
+  careers: Career[]
+}) {
   const [isLogin, setIsLogin] = useState(true)
 
   const inputClass =
@@ -20,6 +28,11 @@ export default function AuthForm({ error, careers }: { error?: string; careers: 
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm font-bold shadow-sm">
           {error}
+        </div>
+      )}
+      {info && !error && (
+        <div className="mb-6 p-4 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl text-sm font-bold shadow-sm">
+          {info}
         </div>
       )}
 
