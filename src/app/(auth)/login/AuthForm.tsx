@@ -2,6 +2,10 @@
 
 import { useState } from 'react'
 import { login, signup } from './actions'
+import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
+import { Button } from '@/components/ui/Button'
+import { validateStudentCode } from '@/lib/validations/studentCode'
 
 interface Career {
   id: string
@@ -19,143 +23,140 @@ export default function AuthForm({
   careers: Career[]
 }) {
   const [isLogin, setIsLogin] = useState(true)
+  const [studentCodeInput, setStudentCodeInput] = useState('')
+  const [codeError, setCodeError] = useState<string | undefined>(undefined)
 
-  const inputClass =
-    'w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all text-gray-900 bg-gray-50 placeholder-gray-400 font-medium'
+  const handleStudentCodeChange = (val: string) => {
+    const clean = val.replace(/\D/g, '').slice(0, 12)
+    setStudentCodeInput(clean)
+
+    if (clean.length > 0 && clean.length < 12) {
+      setCodeError(`Faltan ${12 - clean.length} dígitos`)
+    } else if (clean.length === 12) {
+      const check = validateStudentCode(clean)
+      setCodeError(check.isValid ? undefined : check.error)
+    } else {
+      setCodeError(undefined)
+    }
+  }
 
   return (
     <>
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm font-bold shadow-sm">
+        <div className="mb-6 p-4 bg-red-50 border border-red-200/80 text-red-700 rounded-xl text-xs font-semibold shadow-xs animate-in fade-in duration-200">
           {error}
         </div>
       )}
       {info && !error && (
-        <div className="mb-6 p-4 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl text-sm font-bold shadow-sm">
+        <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200/80 text-emerald-800 rounded-xl text-xs font-semibold shadow-xs animate-in fade-in duration-200">
           {info}
         </div>
       )}
 
-      <form action={isLogin ? login : signup} className="space-y-5">
+      <form action={isLogin ? login : signup} className="space-y-4">
         {!isLogin && (
-          <div className="animate-in fade-in slide-in-from-top-2 duration-300 space-y-5">
+          <div className="animate-in fade-in slide-in-from-top-2 duration-200 space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider ml-1">
-                  Nombres
-                </label>
-                <input
-                  required
-                  name="first_name"
-                  type="text"
-                  className={inputClass}
-                  placeholder="Ej. Juan"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider ml-1">
-                  Apellidos
-                </label>
-                <input
-                  required
-                  name="last_name"
-                  type="text"
-                  className={inputClass}
-                  placeholder="Ej. Pérez"
-                />
-              </div>
+              <Input
+                required
+                name="first_name"
+                type="text"
+                label="Nombres"
+                placeholder="Ej. Juan"
+              />
+              <Input
+                required
+                name="last_name"
+                type="text"
+                label="Apellidos"
+                placeholder="Ej. Pérez"
+              />
             </div>
+
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider ml-1">
-                Código Estudiantil
-              </label>
-              <input
+              <Input
                 required
                 name="student_code"
                 type="text"
                 inputMode="numeric"
-                pattern="[0-9]{12}"
-                minLength={12}
-                maxLength={12}
-                className={inputClass}
+                label="Código Estudiantil"
+                value={studentCodeInput}
+                onChange={(e) => handleStudentCodeChange(e.target.value)}
                 placeholder="12 dígitos numéricos"
-                title="El código debe tener exactamente 12 dígitos numéricos"
-                onInput={(e) => {
-                  ;(e.target as HTMLInputElement).value = (e.target as HTMLInputElement).value
-                    .replace(/\D/g, '')
-                    .slice(0, 12)
-                }}
+                error={codeError}
+                helperText={
+                  !codeError && studentCodeInput.length === 12
+                    ? '✓ Código y dígito de control verificados'
+                    : undefined
+                }
               />
             </div>
+
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider ml-1">
-                Carrera
-              </label>
-              <select
+              <Select
                 required
                 name="career_id"
+                label="Carrera"
                 defaultValue=""
-                className={`${inputClass} appearance-none cursor-pointer`}
+                helperText="Verás únicamente las materias correspondientes a tu pénsum."
               >
                 <option value="" disabled>
                   Selecciona tu carrera
                 </option>
                 {careers.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name}
+                    {c.name} ({c.code})
                   </option>
                 ))}
-              </select>
-              <p className="text-xs text-gray-400 mt-1.5 ml-1">
-                Vas a ver solo las materias de esta carrera.
-              </p>
+              </Select>
             </div>
           </div>
         )}
 
-        <div className="animate-in fade-in duration-300">
-          <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider ml-1">
-            Correo Electrónico
-          </label>
-          <input
+        <div className="animate-in fade-in duration-200">
+          <Input
             required
             name="email"
             type="email"
-            className={inputClass}
+            label="Correo Institucional"
             placeholder="usuario@urepublicana.edu.co"
+            helperText="Debe pertenecer al dominio @urepublicana.edu.co"
           />
         </div>
 
-        <div className="animate-in fade-in duration-300">
-          <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider ml-1">
-            Contraseña
-          </label>
-          <input
+        <div className="animate-in fade-in duration-200">
+          <Input
             required
             name="password"
             type="password"
+            label="Contraseña"
             minLength={6}
-            className={inputClass}
             placeholder="••••••••"
           />
         </div>
 
-        <button
+        <Button
           type="submit"
-          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-xl transition-all shadow-md active:scale-[0.98] mt-2"
+          variant="primary"
+          size="lg"
+          className="w-full mt-2"
+          disabled={!isLogin && !!codeError}
         >
           {isLogin ? 'Iniciar Sesión' : 'Crear Cuenta Estudiantil'}
-        </button>
+        </Button>
       </form>
 
       <div className="mt-8 pt-6 border-t border-gray-100 text-center">
-        <p className="text-gray-500 text-sm mb-2">
-          {isLogin ? '¿Eres estudiante y no tienes cuenta?' : '¿Ya tienes una cuenta?'}
+        <p className="text-gray-500 text-xs mb-2">
+          {isLogin ? '¿Eres estudiante y no tienes cuenta?' : '¿Ya tienes una cuenta registrada?'}
         </p>
         <button
           type="button"
-          onClick={() => setIsLogin(!isLogin)}
-          className="text-sm text-emerald-600 font-bold hover:text-emerald-700 hover:underline transition"
+          onClick={() => {
+            setIsLogin(!isLogin)
+            setCodeError(undefined)
+          }}
+          className="text-xs text-emerald-600 font-bold hover:text-emerald-700 hover:underline transition"
         >
           {isLogin ? 'Regístrate aquí' : 'Inicia Sesión aquí'}
         </button>

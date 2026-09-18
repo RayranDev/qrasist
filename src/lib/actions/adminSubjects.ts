@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { checkAdmin } from './authGuards'
 import { checkProfessorAssignable } from './enrollmentGuards'
+import { subjectSchema } from '@/lib/validations/schemas'
 
 export async function createSubject(formData: FormData) {
   const supabase = await createClient()
@@ -15,19 +16,32 @@ export async function createSubject(formData: FormData) {
     return { success: false, error: 'No autorizado' }
   }
 
-  const name = formData.get('name') as string
-  const code = formData.get('code') as string
-  const period_id = formData.get('period_id') as string
+  const raw = {
+    name: formData.get('name') as string,
+    code: formData.get('code') as string,
+    periodId: (formData.get('period_id') as string) || undefined,
+    absenceRuleType: (formData.get('absence_rule_type') as string) || 'PERCENTAGE',
+    maxAbsencePercentage: formData.get('max_absence_percentage') || 20,
+    maxAbsenceCount: formData.get('max_absence_count') || undefined,
+    totalPlannedSessions: formData.get('total_planned_sessions') || 16,
+  }
 
-  if (!name || !code) return { success: false, error: 'Nombre y código son obligatorios' }
+  const parsed = subjectSchema.safeParse(raw)
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message || 'Datos de materia inválidos',
+    }
+  }
 
-  // Una materia recien creada todavia no pertenece a ninguna
-  // carrera, asi que no puede tener profesor (regla A+B) --
-  // se asigna despues, una vez tenga carrera en su pensum.
   const { error } = await supabase.from('subjects').insert({
-    name,
-    code,
-    period_id: period_id || null,
+    name: parsed.data.name,
+    code: parsed.data.code,
+    period_id: parsed.data.periodId || null,
+    absence_rule_type: parsed.data.absenceRuleType,
+    max_absence_percentage: parsed.data.maxAbsencePercentage,
+    max_absence_count: parsed.data.maxAbsenceCount || null,
+    total_planned_sessions: parsed.data.totalPlannedSessions,
   })
 
   if (error) {
@@ -40,11 +54,6 @@ export async function createSubject(formData: FormData) {
   return { success: true }
 }
 
-// Borrado inteligente: si la materia tiene sesiones, inscripciones,
-// pensum o solicitudes asociadas, se archiva para no perder ese
-// historial (todas esas tablas tienen ON DELETE CASCADE hacia
-// subjects, asi que un DELETE real las arrastraria en silencio).
-// Si no tiene nada asociado, se borra de verdad.
 export async function deleteSubject(subjectId: string) {
   const supabase = await createClient()
   const {
@@ -130,7 +139,16 @@ export async function reactivateSubject(subjectId: string) {
 
 export async function updateSubject(
   subjectId: string,
-  data: { name: string; code: string; professor_id: string | null; period_id: string | null }
+  data: {
+    name: string
+    code: string
+    professor_id: string | null
+    period_id: string | null
+    absence_rule_type?: 'PERCENTAGE' | 'FIXED_COUNT'
+    max_absence_percentage?: number
+    max_absence_count?: number | null
+    total_planned_sessions?: number
+  }
 ) {
   const supabase = await createClient()
   const {
@@ -141,7 +159,19 @@ export async function updateSubject(
     return { success: false, error: 'No autorizado' }
   }
 
-  if (!data.name || !data.code) return { success: false, error: 'Nombre y código son obligatorios' }
+  const parsed = subjectSchema.safeParse({
+    name: data.name,
+    code: data.code,
+    periodId: data.period_id,
+    absenceRuleType: data.absence_rule_type,
+    maxAbsencePercentage: data.max_absence_percentage,
+    maxAbsenceCount: data.max_absence_count,
+    totalPlannedSessions: data.total_planned_sessions,
+  })
+
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message || 'Datos inválidos' }
+  }
 
   if (data.professor_id) {
     const check = await checkProfessorAssignable(supabase, subjectId, data.professor_id)
@@ -151,10 +181,14 @@ export async function updateSubject(
   const { error } = await supabase
     .from('subjects')
     .update({
-      name: data.name,
-      code: data.code,
+      name: parsed.data.name,
+      code: parsed.data.code,
       professor_id: data.professor_id || null,
-      period_id: data.period_id || null,
+      period_id: parsed.data.periodId || null,
+      absence_rule_type: parsed.data.absenceRuleType,
+      max_absence_percentage: parsed.data.maxAbsencePercentage,
+      max_absence_count: parsed.data.maxAbsenceCount || null,
+      total_planned_sessions: parsed.data.totalPlannedSessions,
     })
     .eq('id', subjectId)
 

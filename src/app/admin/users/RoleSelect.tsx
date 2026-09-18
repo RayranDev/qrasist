@@ -11,7 +11,7 @@ interface Props {
 
 const ROLE_LABEL: Record<Props['currentRole'], string> = {
   ADMIN: 'Administrador',
-  PROFESSOR: 'Profesor',
+  PROFESSOR: 'Docente',
   STUDENT: 'Estudiante',
 }
 
@@ -38,16 +38,10 @@ export default function RoleSelect({ userId, currentRole }: Props) {
       value={currentRole}
       onChange={handleChange}
       disabled={loading}
-      className={`text-xs font-semibold rounded-lg px-3 py-1.5 outline-none cursor-pointer border-2 transition ${
-        currentRole === 'ADMIN'
-          ? 'bg-purple-50 text-purple-700 border-purple-100 hover:border-purple-200'
-          : currentRole === 'PROFESSOR'
-            ? 'bg-amber-50 text-amber-700 border-amber-100 hover:border-amber-200'
-            : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:border-emerald-200'
-      }`}
+      className="text-xs font-medium text-neutral-800 bg-white border border-neutral-200/90 rounded-lg px-2.5 py-1.5 outline-none cursor-pointer hover:border-neutral-300 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-colors shadow-2xs disabled:opacity-50"
     >
       <option value="STUDENT">Estudiante</option>
-      <option value="PROFESSOR">Profesor</option>
+      <option value="PROFESSOR">Docente</option>
       <option value="ADMIN">Administrador</option>
     </select>
   )

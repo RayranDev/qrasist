@@ -151,23 +151,16 @@ export default function AdminUserList({
                 PROFESSOR: 'Docentes',
                 STUDENT: 'Estudiantes',
               }
-              const active: Record<FilterRole, string> = {
-                ALL: 'bg-emerald-600 text-white shadow-md',
-                ADMIN: 'bg-purple-600 text-white shadow-md',
-                PROFESSOR: 'bg-amber-600 text-white shadow-md',
-                STUDENT: 'bg-emerald-600 text-white shadow-md',
-              }
-              const hover: Record<FilterRole, string> = {
-                ALL: 'hover:bg-gray-50',
-                ADMIN: 'hover:bg-purple-50',
-                PROFESSOR: 'hover:bg-amber-50',
-                STUDENT: 'hover:bg-emerald-50',
-              }
+              const isActive = roleFilter === r
               return (
                 <Link
                   key={r}
                   href={buildHref(r, statusFilter, 1, careerFilter, searchQuery)}
-                  className={`px-4 py-2 rounded-xl text-sm font-bold transition ${roleFilter === r ? active[r] : `bg-white text-gray-600 border border-gray-200 ${hover[r]}`}`}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    isActive
+                      ? 'bg-neutral-900 text-white shadow-2xs'
+                      : 'bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-50 hover:text-neutral-900'
+                  }`}
                 >
                   {labels[r]}
                 </Link>
@@ -180,18 +173,30 @@ export default function AdminUserList({
           <div className="flex gap-2">
             <Link
               href={buildHref(roleFilter, 'active', 1, careerFilter, searchQuery)}
-              className={`px-4 py-1.5 rounded-xl text-xs font-bold transition ${statusFilter === 'active' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                statusFilter === 'active'
+                  ? 'bg-neutral-900 text-white shadow-2xs'
+                  : 'bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-50'
+              }`}
             >
               Activos
             </Link>
             <Link
               href={buildHref(roleFilter, 'inactive', 1, careerFilter, searchQuery)}
-              className={`px-4 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${statusFilter === 'inactive' ? 'bg-amber-500 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-amber-50'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+                statusFilter === 'inactive'
+                  ? 'bg-neutral-900 text-white shadow-2xs'
+                  : 'bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-50'
+              }`}
             >
               Inactivos
               {inactiveCount > 0 && (
                 <span
-                  className={`text-xs rounded-full px-1.5 py-0.5 font-black ${statusFilter === 'inactive' ? 'bg-white/20' : 'bg-amber-100 text-amber-700'}`}
+                  className={`text-[10px] rounded-md px-1.5 py-0.2 font-mono font-bold ${
+                    statusFilter === 'inactive'
+                      ? 'bg-white/20 text-white'
+                      : 'bg-neutral-100 text-neutral-600'
+                  }`}
                 >
                   {inactiveCount}
                 </span>
@@ -216,8 +221,108 @@ export default function AdminUserList({
         </div>
       )}
 
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-x-auto">
-        <table className="w-full text-left min-w-160">
+      {/* Vista Móvil: Tarjetas Táctiles (sin scroll horizontal) */}
+      <div className="block md:hidden space-y-3">
+        {users.length > 0 ? (
+          users.map((profile) => (
+            <div
+              key={profile.id}
+              className={`p-4 rounded-2xl border transition-all ${
+                profile.is_active === false
+                  ? 'bg-gray-50/80 border-gray-200 opacity-70'
+                  : 'bg-white border-gray-200/80 shadow-xs'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2 mb-2.5">
+                <div>
+                  <div className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                    {profile.name}
+                    {profile.is_active === false && (
+                      <span className="text-[11px] font-bold px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full">
+                        Inactivo
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-500 font-medium truncate max-w-[220px]">
+                    {profile.email}
+                  </div>
+                </div>
+
+                {profile.student_code && (
+                  <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                    {profile.student_code}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-gray-100 gap-2 flex-wrap">
+                <div className="shrink-0">
+                  {profile.is_active !== false ? (
+                    <RoleSelect userId={profile.id} currentRole={profile.role} />
+                  ) : (
+                    <span className="text-xs font-semibold text-gray-400 px-2 py-1 bg-gray-100 rounded-lg">
+                      {profile.role}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1">
+                  {profile.role === 'STUDENT' && profile.is_active !== false && (
+                    <>
+                      <button
+                        onClick={() => setHistoryUser({ id: profile.id, name: profile.name })}
+                        className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition"
+                        title="Ver historial de asistencias"
+                        aria-label="Ver historial"
+                      >
+                        <ClipboardList className="w-5 h-5" strokeWidth={2} />
+                      </button>
+                      <button
+                        onClick={() => setCareersUser({ id: profile.id, name: profile.name })}
+                        className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-500 hover:text-sky-600 hover:bg-sky-50 rounded-xl transition"
+                        title="Carreras del estudiante"
+                        aria-label="Carreras"
+                      >
+                        <GraduationCap className="w-5 h-5" strokeWidth={2} />
+                      </button>
+                    </>
+                  )}
+                  {profile.role === 'PROFESSOR' && profile.is_active !== false && (
+                    <button
+                      onClick={() => setCareersProf({ id: profile.id, name: profile.name })}
+                      className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-500 hover:text-sky-600 hover:bg-sky-50 rounded-xl transition"
+                      title="Carreras del profesor"
+                      aria-label="Carreras"
+                    >
+                      <GraduationCap className="w-5 h-5" strokeWidth={2} />
+                    </button>
+                  )}
+                  {currentUser.id !== profile.id && (
+                    <ActionButtons
+                      userId={profile.id}
+                      currentFirstName={profile.first_name}
+                      currentLastName={profile.last_name}
+                      currentCode={profile.student_code ?? undefined}
+                      currentRole={profile.role}
+                      isActive={profile.is_active !== false}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="p-8 text-center bg-white rounded-2xl border border-gray-200 text-gray-500 text-sm">
+            {statusFilter === 'inactive'
+              ? 'No hay usuarios inactivos.'
+              : 'No hay usuarios con este rol.'}
+          </div>
+        )}
+      </div>
+
+      {/* Vista Desktop: Tabla compacta */}
+      <div className="hidden md:block bg-white rounded-2xl shadow-xs border border-gray-200/80 overflow-x-auto">
+        <table className="w-full text-left">
           <thead className="bg-gray-50/80 border-b border-gray-100">
             <tr>
               <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">
@@ -244,10 +349,10 @@ export default function AdminUserList({
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <div>
-                        <div className="font-bold text-gray-900 flex items-center gap-2">
+                        <div className="font-bold text-gray-900 flex items-center gap-2 text-sm">
                           {profile.name}
                           {profile.is_active === false && (
-                            <span className="text-xs font-bold px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">
+                            <span className="text-[11px] font-bold px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full">
                               Inactivo
                             </span>
                           )}

@@ -217,7 +217,7 @@ export default async function AdminSubjectsPage({
                             </span>
                           )}
                           {sub.period && (
-                            <span className="px-2 py-0.5 text-xs font-bold bg-violet-50 text-violet-700 rounded-full">
+                            <span className="px-2 py-0.5 text-xs font-mono font-medium bg-neutral-100 text-neutral-600 border border-neutral-200/60 rounded-md">
                               {sub.period.name}
                             </span>
                           )}

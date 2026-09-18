@@ -4,30 +4,31 @@ import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { redirect } from 'next/navigation'
 import { normalizeName } from '@/lib/utils/normalizeText'
+import { loginSchema, signupSchema } from '@/lib/validations/schemas'
 
 export async function login(formData: FormData) {
   const email = ((formData.get('email') as string) || '').trim()
   const password = ((formData.get('password') as string) || '').trim()
 
+  const parsed = loginSchema.safeParse({ email, password })
+  if (!parsed.success) {
+    redirect(
+      '/login?error=' + encodeURIComponent(parsed.error.issues[0]?.message || 'Datos inválidos')
+    )
+  }
+
   const supabase = await createClient()
 
   const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
+    email: parsed.data.email,
+    password: parsed.data.password,
   })
 
   if (error) {
-    // Si la contraseña es incorrecta, redirigimos con un flag de error (puedes mostrar un toast luego)
     redirect('/login?error=Credenciales+incorrectas')
   }
 
-  // Antifraude: una sola sesion activa por cuenta. Al loguearse en
-  // un dispositivo nuevo, se cierran todas las demas sesiones de
-  // esta cuenta -- si dos personas comparten credenciales, la
-  // segunda saca a la primera en vez de poder registrar asistencia
-  // "como ella" desde otro dispositivo al mismo tiempo. No falla el
-  // login si esto no se puede hacer (ej. admin key no disponible),
-  // solo se omite el cierre de otras sesiones.
+  // Antifraude: una sola sesión activa por cuenta
   if (data.session) {
     try {
       const admin = getSupabaseAdmin()
@@ -37,48 +38,49 @@ export async function login(formData: FormData) {
     }
   }
 
-  // Una vez autenticado, redirigimos a una ruta central que evalúe el rol
   redirect('/dashboard')
 }
 
 export async function signup(formData: FormData) {
-  const email = ((formData.get('email') as string) || '').trim()
-  const password = ((formData.get('password') as string) || '').trim()
-  const firstName = normalizeName((formData.get('first_name') as string) || '')
-  const lastName = normalizeName((formData.get('last_name') as string) || '')
-  const studentCode = ((formData.get('student_code') as string) || '').trim()
-  const careerId = ((formData.get('career_id') as string) || '').trim()
+  const rawData = {
+    firstName: normalizeName((formData.get('first_name') as string) || ''),
+    lastName: normalizeName((formData.get('last_name') as string) || ''),
+    studentCode: ((formData.get('student_code') as string) || '').trim(),
+    careerId: ((formData.get('career_id') as string) || '').trim(),
+    email: ((formData.get('email') as string) || '').trim(),
+    password: ((formData.get('password') as string) || '').trim(),
+  }
 
-  if (!firstName || !lastName) redirect('/login?error=Nombre+y+apellido+son+obligatorios')
-  if (!/^\d{12}$/.test(studentCode))
-    redirect('/login?error=El+c%C3%B3digo+debe+tener+exactamente+12+d%C3%ADgitos+num%C3%A9ricos')
-  if (!email.endsWith('@urepublicana.edu.co'))
-    redirect('/login?error=El+correo+debe+ser+institucional+%40urepublicana.edu.co')
-  if (!careerId) redirect('/login?error=Selecciona+tu+carrera')
+  const parsed = signupSchema.safeParse(rawData)
+  if (!parsed.success) {
+    redirect(
+      '/login?error=' + encodeURIComponent(parsed.error.issues[0]?.message || 'Datos inválidos')
+    )
+  }
 
-  // Regla de negocio: hasta que el estudiante no tenga una carrera
-  // no puede inscribirse a ninguna materia (ver enrollmentGuards.ts).
-  // Validamos el id contra el catalogo real -- el select viene del
-  // cliente, no confiamos en que sea una carrera activa de verdad.
+  // Validamos el id de la carrera contra la base de datos
   const admin = getSupabaseAdmin()
   const { data: career } = await admin
     .from('careers')
     .select('id')
-    .eq('id', careerId)
+    .eq('id', parsed.data.careerId)
     .eq('is_active', true)
     .maybeSingle()
-  if (!career) redirect('/login?error=La+carrera+seleccionada+no+es+v%C3%A1lida')
+
+  if (!career) {
+    redirect('/login?error=La+carrera+seleccionada+no+es+v%C3%A1lida')
+  }
 
   const supabase = await createClient()
 
   const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
+    email: parsed.data.email,
+    password: parsed.data.password,
     options: {
       data: {
-        first_name: firstName,
-        last_name: lastName,
-        student_code: studentCode,
+        first_name: parsed.data.firstName,
+        last_name: parsed.data.lastName,
+        student_code: parsed.data.studentCode,
       },
     },
   })
@@ -87,15 +89,15 @@ export async function signup(formData: FormData) {
     redirect('/login?error=' + encodeURIComponent(error.message))
   }
 
-  // Esperar un poco a que el trigger de Supabase cree el profile
+  // Esperar a que el trigger de Supabase cree el profile
   await new Promise((resolve) => setTimeout(resolve, 500))
 
-  // Intentar actualizar la tabla pública con el student_code
   if (data.user) {
     const { error: profileError } = await supabase
       .from('profiles')
-      .update({ student_code: studentCode })
+      .update({ student_code: parsed.data.studentCode })
       .eq('id', data.user.id)
+
     if (profileError) {
       redirect(
         '/login?error=' +
@@ -105,14 +107,10 @@ export async function signup(formData: FormData) {
       )
     }
 
-    // student_careers solo admite escritura de ADMIN por RLS (ver
-    // 010_careers_periods_pensum.sql) -- el propio registro no puede
-    // insertar su fila, asi que se hace con el cliente de servicio.
-    // El student_id sale del usuario recien creado, no de un input
-    // del cliente, asi que no hay escalamiento de privilegios.
     const { error: careerError } = await admin
       .from('student_careers')
-      .insert({ student_id: data.user.id, career_id: careerId, is_active: true })
+      .insert({ student_id: data.user.id, career_id: parsed.data.careerId, is_active: true })
+
     if (careerError) {
       redirect(
         '/login?error=' +

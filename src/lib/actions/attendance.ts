@@ -3,13 +3,51 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { headers } from 'next/headers'
+import { checkRateLimit } from '@/lib/utils/rateLimiter'
 
 interface Coords {
   latitude: number
   longitude: number
 }
 
-export async function registerAttendance(qrToken: string, coords?: Coords) {
+export type AttendanceErrorCode =
+  | 'EXPIRED'
+  | 'NOT_ENROLLED'
+  | 'DUPLICATE'
+  | 'RATE_LIMITED'
+  | 'INVALID'
+  | 'INACTIVE'
+  | 'UNAUTHENTICATED'
+  | 'SERVER_ERROR'
+
+export type RegisterAttendanceResult =
+  | {
+      ok: true
+      success: true
+      data: {
+        subjectName: string
+        subjectCode: string
+        time: string
+        isGuest: boolean
+      }
+      message: string
+      isGuest: boolean
+      subjectName: string
+      subjectCode: string
+      time: string
+    }
+  | {
+      ok: false
+      success: false
+      code: AttendanceErrorCode
+      message: string
+      error: string
+    }
+
+export async function registerAttendance(
+  qrToken: string,
+  coords?: Coords
+): Promise<RegisterAttendanceResult> {
   const supabase = await createClient()
 
   // Capturar la IP real (Next.js headers)
@@ -21,27 +59,47 @@ export async function registerAttendance(qrToken: string, coords?: Coords) {
     data: { user },
     error: authError,
   } = await supabase.auth.getUser()
-  if (authError || !user) return { success: false, error: 'No estás autenticado.' }
 
-  // Validar formato UUID antes de usarlo en el filtro .or() de
-  // PostgREST -- evita tanto un error crudo de Postgres por UUID
-  // malformado como cualquier caracter con significado especial en
-  // esa sintaxis (coma, parentesis) si esta accion se llama
-  // directamente sin pasar por la validacion del cliente.
-  const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
-  if (!uuidRegex.test(qrToken)) {
-    return { success: false, error: 'Código QR inválido. Formato no reconocido.' }
+  if (authError || !user) {
+    return {
+      ok: false,
+      success: false,
+      code: 'UNAUTHENTICATED',
+      message: 'No estás autenticado.',
+      error: 'No estás autenticado.',
+    }
   }
 
-  // 2. Buscar la sesión por el token QR. Se usa el cliente de
-  // servicio (sin RLS) a proposito: esto es una validacion de
-  // secreto ("¿este token corresponde a una sesion real?"), no una
-  // consulta de "que filas puede ver este usuario" -- un invitado
-  // que escanea por primera vez todavia no esta inscrito ni tiene
-  // asistencia previa, asi que no calificaria bajo ninguna regla de
-  // RLS. Se acepta el token actual o el inmediatamente anterior
-  // (rotacion cada ~20s, ver refreshSessionQrToken) para no rechazar
-  // un escaneo que llego justo en el borde de la rotacion.
+  // 2. Rate Limiting por usuario y por IP (máx 10 intentos por minuto)
+  const userRateKey = `scan:user:${user.id}`
+  const ipRateKey = `scan:ip:${ipAddress}`
+  const userRate = checkRateLimit(userRateKey, { maxAttempts: 10, windowMs: 60_000 })
+  const ipRate = checkRateLimit(ipRateKey, { maxAttempts: 20, windowMs: 60_000 })
+
+  if (!userRate.allowed || !ipRate.allowed) {
+    const retrySec = userRate.retryAfterSeconds || ipRate.retryAfterSeconds || 15
+    return {
+      ok: false,
+      success: false,
+      code: 'RATE_LIMITED',
+      message: `Demasiados intentos de escaneo. Esperá ${retrySec} segundos antes de reintentar.`,
+      error: `Demasiados intentos de escaneo. Esperá ${retrySec} segundos antes de reintentar.`,
+    }
+  }
+
+  // 3. Validar formato UUID antes de consultar PostgREST
+  const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
+  if (!uuidRegex.test(qrToken)) {
+    return {
+      ok: false,
+      success: false,
+      code: 'INVALID',
+      message: 'Código QR inválido. Formato no reconocido.',
+      error: 'Código QR inválido. Formato no reconocido.',
+    }
+  }
+
+  // 4. Buscar la sesión por el token QR (actual o inmediatamente anterior)
   const admin = getSupabaseAdmin()
   const { data: session, error: sessionError } = await admin
     .from('sessions')
@@ -50,26 +108,40 @@ export async function registerAttendance(qrToken: string, coords?: Coords) {
     .single()
 
   if (sessionError || !session) {
-    return { success: false, error: 'Código QR inválido. No pertenece a esta clase.' }
+    return {
+      ok: false,
+      success: false,
+      code: 'INVALID',
+      message: 'Código QR inválido. No pertenece a ninguna clase activa.',
+      error: 'Código QR inválido. No pertenece a ninguna clase activa.',
+    }
   }
 
-  // 3. Validar que la sesión no haya sido archivada por el docente
+  // 5. Validar que la sesión no haya sido archivada por el docente
   if (session.is_active === false) {
-    return { success: false, error: 'Esta sesión ha sido archivada y ya no acepta registros.' }
+    return {
+      ok: false,
+      success: false,
+      code: 'INACTIVE',
+      message: 'Esta sesión ha sido archivada y ya no acepta registros.',
+      error: 'Esta sesión ha sido archivada y ya no acepta registros.',
+    }
   }
 
-  // 4. Validar si el token expiró
+  // 6. Validar si el token expiró o la sesión fue cerrada
   const now = new Date()
   const expiresAt = new Date(session.expires_at)
-  if (now > expiresAt) {
+  if (now > expiresAt || !session.qr_token) {
     return {
+      ok: false,
       success: false,
-      error: 'Este código QR ha expirado. Solicita al profesor que genere uno nuevo.',
-    } // Error 3
+      code: 'EXPIRED',
+      message: 'Este código QR ha expirado. Solicitá al profesor que genere uno nuevo.',
+      error: 'Este código QR ha expirado. Solicitá al profesor que genere uno nuevo.',
+    }
   }
 
-  // 5. Traer datos de la materia para el mensaje de confirmación
-  //    y validar que no esté archivada.
+  // 7. Traer datos de la materia y validar que no esté archivada
   const { data: subject } = await supabase
     .from('subjects')
     .select('name, code, is_active')
@@ -77,10 +149,16 @@ export async function registerAttendance(qrToken: string, coords?: Coords) {
     .single()
 
   if (subject?.is_active === false) {
-    return { success: false, error: 'Esta materia ha sido archivada y ya no acepta registros.' }
+    return {
+      ok: false,
+      success: false,
+      code: 'INACTIVE',
+      message: 'Esta materia ha sido archivada y ya no acepta registros.',
+      error: 'Esta materia ha sido archivada y ya no acepta registros.',
+    }
   }
 
-  // 6. Verificar si el estudiante está inscrito en la materia
+  // 8. Verificar si el estudiante está inscrito en la materia
   const { data: enrollment } = await supabase
     .from('enrollments')
     .select('id')
@@ -90,18 +168,7 @@ export async function registerAttendance(qrToken: string, coords?: Coords) {
 
   const isEnrolled = !!enrollment
 
-  // 7. Verificar duplicado por materia en el mismo día. Este SELECT
-  // es solo para dar un mensaje amigable antes de intentar el
-  // INSERT -- la garantía real es el índice único
-  // idx_unique_attendance_per_subject_per_day (ver
-  // ATTENDANCE_DEDUP_MIGRATION.sql), que cubre la condición de
-  // carrera entre dos sesiones distintas de la misma materia el
-  // mismo día que este SELECT por sí solo no puede evitar.
-  //
-  // El "día" se calcula en hora de Colombia (UTC-5 fijo, sin
-  // horario de verano), igual que attendance_day() en la
-  // migración -- new Date().setHours() usa la zona del servidor
-  // (UTC en Vercel), que correría el corte del día 5 horas.
+  // 9. Verificar duplicado por materia en el mismo día (cálculo en zona de Bogotá UTC-5)
   const BOGOTA_OFFSET_MS = 5 * 60 * 60 * 1000
   const nowBogota = new Date(Date.now() - BOGOTA_OFFSET_MS)
   const y = nowBogota.getUTCFullYear()
@@ -121,13 +188,15 @@ export async function registerAttendance(qrToken: string, coords?: Coords) {
 
   if (existingToday) {
     return {
+      ok: false,
       success: false,
+      code: 'DUPLICATE',
+      message: `Ya registraste asistencia para ${subject?.name || 'esta materia'} hoy.`,
       error: `Ya registraste asistencia para ${subject?.name || 'esta materia'} hoy.`,
     }
   }
 
-  // 8. Intentar registrar la asistencia. La ubicacion es opcional
-  // y solo para auditoria (ver migracion 017) -- nunca bloquea.
+  // 10. Intentar registrar la asistencia
   const { error: insertError } = await supabase.from('attendances').insert({
     session_id: session.id,
     student_id: user.id,
@@ -139,11 +208,20 @@ export async function registerAttendance(qrToken: string, coords?: Coords) {
   if (insertError) {
     if (insertError.code === '23505') {
       return {
+        ok: false,
         success: false,
+        code: 'DUPLICATE',
+        message: `Ya registraste asistencia para ${subject?.name || 'esta materia'} hoy.`,
         error: `Ya registraste asistencia para ${subject?.name || 'esta materia'} hoy.`,
       }
     }
-    return { success: false, error: 'Error del servidor. Intenta nuevamente.' }
+    return {
+      ok: false,
+      success: false,
+      code: 'SERVER_ERROR',
+      message: 'Error del servidor al registrar asistencia. Intenta nuevamente.',
+      error: 'Error del servidor al registrar asistencia. Intenta nuevamente.',
+    }
   }
 
   const registeredAt = new Date()
@@ -157,14 +235,32 @@ export async function registerAttendance(qrToken: string, coords?: Coords) {
 
   if (!isEnrolled) {
     return {
+      ok: true,
       success: true,
+      data: {
+        subjectName,
+        subjectCode,
+        time: timeStr,
+        isGuest: true,
+      },
       isGuest: true,
       message: `Registrado como invitado en ${subjectName} (${subjectCode}) a las ${timeStr}`,
+      subjectName,
+      subjectCode,
+      time: timeStr,
     }
   }
 
   return {
+    ok: true,
     success: true,
+    data: {
+      subjectName,
+      subjectCode,
+      time: timeStr,
+      isGuest: false,
+    },
+    isGuest: false,
     message: `${subjectName} · ${subjectCode} — ${timeStr}`,
     subjectName,
     subjectCode,

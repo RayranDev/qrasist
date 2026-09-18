@@ -46,6 +46,10 @@ interface Subject {
   professor_id: string | null
   period_id: string | null
   is_active?: boolean
+  absence_rule_type?: 'PERCENTAGE' | 'FIXED_COUNT'
+  max_absence_percentage?: number
+  max_absence_count?: number | null
+  total_planned_sessions?: number
 }
 
 export function CreateSubjectForm({ periods }: { periods: Period[] }) {
@@ -94,7 +98,7 @@ export function CreateSubjectForm({ periods }: { periods: Period[] }) {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-5 items-end">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-4">
         <div>
           <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1 uppercase tracking-wider">
             Nombre
@@ -132,19 +136,79 @@ export function CreateSubjectForm({ periods }: { periods: Period[] }) {
             ))}
           </select>
         </div>
-        <div>
-          <button
-            disabled={loading}
-            type="submit"
-            className="w-full py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition shadow-md active:scale-95 flex items-center justify-center gap-2"
-          >
-            {loading ? 'Guardando...' : 'Agregar Materia'}
-          </button>
+      </div>
+
+      <div className="pt-3 border-t border-gray-100">
+        <p className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 ml-1">
+          Regla de Inasistencias y Reprobación
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+          <div>
+            <label className="block text-[11px] font-semibold text-gray-600 mb-1 ml-1">
+              Cálculo por
+            </label>
+            <select
+              name="absence_rule_type"
+              className={`${inputClass} appearance-none cursor-pointer text-xs`}
+            >
+              <option value="PERCENTAGE">Porcentaje (% de inasistencia)</option>
+              <option value="FIXED_COUNT">Cantidad fija de fallas</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-gray-600 mb-1 ml-1">
+              % Máx / Faltas Permitidas
+            </label>
+            <div className="flex gap-2">
+              <input
+                name="max_absence_percentage"
+                type="number"
+                defaultValue={20}
+                min={1}
+                max={100}
+                placeholder="20%"
+                className={`${inputClass} text-xs`}
+                title="% Máximo de inasistencias"
+              />
+              <input
+                name="max_absence_count"
+                type="number"
+                min={1}
+                max={50}
+                placeholder="Faltas (ej. 4)"
+                className={`${inputClass} text-xs`}
+                title="Cantidad fija de fallas (si aplica)"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-gray-600 mb-1 ml-1">
+              Clases Semestre (Total)
+            </label>
+            <input
+              name="total_planned_sessions"
+              type="number"
+              defaultValue={16}
+              min={1}
+              max={60}
+              className={`${inputClass} text-xs`}
+            />
+          </div>
         </div>
       </div>
-      <p className="text-xs text-gray-400 mt-3">
-        El profesor se asigna después, una vez que la materia tenga una carrera vinculada.
-      </p>
+
+      <div className="mt-5 flex items-center justify-between gap-4">
+        <p className="text-xs text-gray-400">
+          El profesor se asigna después, una vez que la materia tenga carrera vinculada.
+        </p>
+        <button
+          disabled={loading}
+          type="submit"
+          className="py-2.5 px-6 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition shadow-xs active:scale-95 flex items-center justify-center shrink-0 cursor-pointer"
+        >
+          {loading ? 'Guardando...' : 'Crear Materia'}
+        </button>
+      </div>
     </form>
   )
 }
@@ -167,6 +231,18 @@ export function SubjectActionButtons({
   const [code, setCode] = useState(subject.code)
   const [profId, setProfId] = useState(subject.professor_id || '')
   const [periodId, setPeriodId] = useState(subject.period_id || '')
+  const [absenceRuleType, setAbsenceRuleType] = useState<'PERCENTAGE' | 'FIXED_COUNT'>(
+    subject.absence_rule_type || 'PERCENTAGE'
+  )
+  const [maxAbsencePercentage, setMaxAbsencePercentage] = useState(
+    subject.max_absence_percentage ?? 20
+  )
+  const [maxAbsenceCount, setMaxAbsenceCount] = useState<number | string>(
+    subject.max_absence_count ?? ''
+  )
+  const [totalPlannedSessions, setTotalPlannedSessions] = useState(
+    subject.total_planned_sessions ?? 16
+  )
   const showToast = useToast()
 
   const isActive = subject.is_active !== false
@@ -210,6 +286,10 @@ export function SubjectActionButtons({
       code,
       professor_id: profId === '' ? null : profId,
       period_id: periodId === '' ? null : periodId,
+      absence_rule_type: absenceRuleType,
+      max_absence_percentage: Number(maxAbsencePercentage) || 20,
+      max_absence_count: maxAbsenceCount !== '' ? Number(maxAbsenceCount) : null,
+      total_planned_sessions: Number(totalPlannedSessions) || 16,
     })
     if (result.success) {
       setIsEditing(false)
@@ -223,7 +303,7 @@ export function SubjectActionButtons({
   if (isEditing) {
     return (
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-        <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full animate-in zoom-in-95 duration-200">
+        <div className="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
           <h3 className="text-lg font-bold text-gray-900 mb-4">Editar Materia</h3>
           <div className="space-y-4 mb-6 text-left">
             <div>
@@ -266,11 +346,6 @@ export function SubjectActionButtons({
                   Vinculá esta materia a una carrera primero para poder asignar profesor.
                 </p>
               )}
-              {hasCareer && eligibleProfessors.length === 0 && (
-                <p className="text-xs text-amber-600 mt-1">
-                  Ningún profesor pertenece todavía a la(s) carrera(s) de esta materia.
-                </p>
-              )}
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">Período</label>
@@ -286,6 +361,63 @@ export function SubjectActionButtons({
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="pt-3 border-t border-gray-100">
+              <p className="text-xs font-bold text-gray-700 mb-2">Regla de Inasistencias</p>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="block text-[11px] text-gray-500 mb-1">Tipo de Regla</label>
+                  <select
+                    value={absenceRuleType}
+                    onChange={(e) =>
+                      setAbsenceRuleType(e.target.value as 'PERCENTAGE' | 'FIXED_COUNT')
+                    }
+                    className={`${inputClass} text-xs appearance-none`}
+                  >
+                    <option value="PERCENTAGE">Porcentaje (%)</option>
+                    <option value="FIXED_COUNT">Cantidad de Fallas</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] text-gray-500 mb-1">
+                    {absenceRuleType === 'PERCENTAGE' ? '% Límite' : 'Faltas Máx.'}
+                  </label>
+                  {absenceRuleType === 'PERCENTAGE' ? (
+                    <input
+                      type="number"
+                      value={maxAbsencePercentage}
+                      onChange={(e) => setMaxAbsencePercentage(Number(e.target.value))}
+                      min={1}
+                      max={100}
+                      className={`${inputClass} text-xs`}
+                    />
+                  ) : (
+                    <input
+                      type="number"
+                      value={maxAbsenceCount}
+                      onChange={(e) => setMaxAbsenceCount(e.target.value)}
+                      placeholder="Ej. 4"
+                      min={1}
+                      max={50}
+                      className={`${inputClass} text-xs`}
+                    />
+                  )}
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] text-gray-500 mb-1">
+                  Clases Planificadas (Semestre)
+                </label>
+                <input
+                  type="number"
+                  value={totalPlannedSessions}
+                  onChange={(e) => setTotalPlannedSessions(Number(e.target.value))}
+                  min={1}
+                  max={60}
+                  className={`${inputClass} text-xs`}
+                />
+              </div>
             </div>
           </div>
           <div className="flex gap-3">

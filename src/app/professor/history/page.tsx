@@ -25,8 +25,17 @@ export default async function ProfessorHistoryPage() {
       name,
       code,
       is_active,
+      absence_rule_type,
+      max_absence_percentage,
+      max_absence_count,
+      total_planned_sessions,
       enrollments (
-        student_id
+        student_id,
+        student:profiles (
+          id,
+          name,
+          student_code
+        )
       ),
       sessions (
         id,
