@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QR-Asist — Presentación del Proyecto</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: #059669;
+      --primary-dark: #047857;
+      --primary-light: #d1fae5;
+      --primary-glow: rgba(5, 150, 105, 0.25);
+      --bg: #0b0f17;
+      --surface: #131b2e;
+      --surface-border: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #10b981;
+      --warning: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+
+    /* Presentation Header */
+    header {
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--surface-border);
+      background: rgba(11, 15, 23, 0.8);
+      backdrop-filter: blur(12px);
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-weight: 700;
+      font-size: 1.1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-badge {
+      background: var(--primary);
+      color: white;
+      font-size: 0.75rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-weight: 600;
+    }
+
+    .slide-indicator {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+    }
+
+    /* Deck container */
+    main {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 3rem 5rem;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(18px) scale(0.98);
+      transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.35s;
+    }
+
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0) scale(1);
+    }
+
+    .slide-content {
+      max-width: 980px;
+      width: 100%;
+    }
+
+    .tag {
+      display: inline-block;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 0.3rem 0.8rem;
+      border-radius: 9999px;
+      margin-bottom: 1.25rem;
+    }
+
+    h1 {
+      font-size: 3.25rem;
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      margin-bottom: 1.2rem;
+      background: linear-gradient(135deg, #ffffff 40%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    h2 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin-bottom: 1.2rem;
+    }
+
+    .subtitle {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      max-width: 780px;
+    }
+
+    /* Grid layout for features / points */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-top: 2rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      padding: 1.75rem;
+      border-radius: 1rem;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .card:hover {
+      border-color: var(--primary);
+      transform: translateY(-2px);
+    }
+
+    .card-icon {
+      font-size: 1.75rem;
+      margin-bottom: 1rem;
+      display: inline-block;
+    }
+
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      color: #fff;
+    }
+
+    .card-desc {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Workflow visualizer */
+    .flow-steps {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-top: 2.5rem;
+    }
+
+    .flow-step {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      position: relative;
+    }
+
+    .flow-number {
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: var(--primary);
+      margin-bottom: 0.5rem;
+    }
+
+    .flow-arrow {
+      color: var(--text-muted);
+      font-size: 1.5rem;
+      font-weight: 300;
+    }
+
+    /* Stats/Metric Pill */
+    .stat-row {
+      display: flex;
+      gap: 2rem;
+      margin-top: 2rem;
+    }
+
+    .stat-box {
+      flex: 1;
+      background: rgba(5, 150, 105, 0.08);
+      border: 1px solid rgba(5, 150, 105, 0.25);
+      border-radius: 1rem;
+      padding: 1.5rem;
+    }
+
+    .stat-value {
+      font-size: 2.25rem;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1;
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    /* Footer & Controls */
+    footer {
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid var(--surface-border);
+      background: rgba(11, 15, 23, 0.8);
+      backdrop-filter: blur(12px);
+    }
+
+    .tips {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .kbd {
+      background: #1e293b;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+    }
+
+    .controls {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    button.nav-btn {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--surface-border);
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    button.nav-btn:hover:not(:disabled) {
+      background: #1e293b;
+      border-color: var(--text-muted);
+    }
+
+    button.nav-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    button.nav-btn.primary {
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+
+    button.nav-btn.primary:hover:not(:disabled) {
+      background: var(--primary-dark);
+    }
+
+    /* Progress bar */
+    .progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      transition: width 0.3s ease;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+  <div class="progress-bar" id="progressBar"></div>
+
+  <header>
+    <div class="brand">
+      <span>📱 QR-Asist</span>
+      <span class="brand-badge">Pitch Deck</span>
+    </div>
+    <div class="slide-indicator" id="slideIndicator">1 / 8</div>
+  </header>
+
+  <main>
+    <!-- Slide 1: Portada -->
+    <section class="slide active">
+      <div class="slide-content">
+        <span class="tag">Solución Académica Digital</span>
+        <h1>QR-Asist</h1>
+        <p class="subtitle">
+          Sistema integral de control de asistencia universitaria mediante códigos QR dinámicos en tiempo real.
+        </p>
+        <div class="stat-row">
+          <div class="stat-box">
+            <div class="stat-value">0 seg</div>
+            <div class="stat-label">Tiempo perdido llamando a lista</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">100%</div>
+            <div class="stat-label">Trazabilidad y validación anti-fraude</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">Web</div>
+            <div class="stat-label">Sin descargas obligatorias de tiendas</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 2: El Problema -->
+    <section class="slide">
+      <div class="slide-content">
+        <span class="tag">Contexto y Diagnóstico</span>
+        <h2>El problema de la asistencia tradicional</h2>
+        <p class="subtitle">
+          Los métodos analógicos y hojas de firma consumen tiempo valioso de clase y carecen de control.
+        </p>
+        <div class="cards-grid">
+          <div class="card">
+            <div class="card-icon">⏱️</div>
+            <div class="card-title">Pérdida de 10 a 15 minutos</div>
+            <div class="card-desc">El docente interrumpe el ritmo pedagógico llamando estudiante por estudiante cada sesión.</div>
+          </div>
+          <div class="card">
+            <div class="card-icon">✍️</div>
+            <div class="card-title">Firmas fraudulentas</div>
+            <div class="card-desc">Suplantación de compañeros que firman por ausentes sin verificación alguna.</div>
+          </div>
+          <div class="card">
+            <div class="card-icon">📊</div>
+            <div class="card-title">Información aislada</div>
+            <div class="card-desc">Dificultad de los directores para consolidar inasistencias y detectar deserción temprana a tiempo.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 3: La Solución -->
+    <section class="slide">
+      <div class="slide-content">
+        <span class="tag">Propuesta de Valor</span>
+        <h2>¿Cómo lo resuelve QR-Asist?</h2>
+        <p class="subtitle">
+          Digitalización ágil, segura y directa desde el navegador de cualquier dispositivo móvil o de escritorio.
+        </p>
+        <div class="cards-grid">
+          <div class="card">
+            <div class="card-icon">⚡</div>
+            <div class="card-title">QR Dinámico Temporal</div>
+            <div class="card-desc">El docente proyecta un QR con expiración regresiva automática (ej. 15 minutos).</div>
+          </div>
+          <div class="card">
+            <div class="card-icon">📷</div>
+            <div class="card-title">Escáner Web Integrado</div>
+            <div class="card-desc">El estudiante abre la plataforma en su celular, escanea con la cámara y registra en 2 segundos.</div>
+          </div>
+          <div class="card">
+            <div class="card-icon">📈</div>
+            <div class="card-title">Métricas y Reportes CSV</div>
+            <div class="card-desc">Docentes y administradores descargan listas consolidadas al instante con un solo clic.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 4: Arquitectura y Stack -->
+    <section class="slide">
+      <div class="slide-content">
+        <span class="tag">Tecnología de Vanguardia</span>
+        <h2>Arquitectura & Stack Tecnológico</h2>
+        <p class="subtitle">
+          Construido sobre una infraestructura moderna, reactiva y de alto rendimiento.
+        </p>
+        <div class="cards-grid">
+          <div class="card">
+            <div class="card-icon">⚛️</div>
+            <div class="card-title">Next.js 16 + React 19</div>
+            <div class="card-desc">App Router para Server-Side Rendering rápido, rutas protegidas y Tailwind CSS 4 para diseño responsivo.</div>
+          </div>
+          <div class="card">
+            <div class="card-icon">🛡️</div>
+            <div class="card-title">Supabase + PostgreSQL</div>
+            <div class="card-desc">Autenticación SSR robusta, triggers automáticos para perfiles y restricciones de integridad en base de datos.</div>
+          </div>
+          <div class="card">
+            <div class="card-icon">🚀</div>
+            <div class="card-title">Vercel + HTML5 QR</div>
+            <div class="card-desc">Despliegue global continuo CI/CD con renderizado en el Edge y lectura directa de hardware de cámara.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 5: Roles y Experiencia -->
+    <section class="slide">
+      <div class="slide-content">
+        <span class="tag">Módulos Especializados</span>
+        <h2>Experiencia a la medida de cada rol</h2>
+        <p class="subtitle">
+          Tres paneles claramente segmentados según las responsabilidades del usuario.
+        </p>
+        <div class="cards-grid">
+          <div class="card">
+            <div class="card-icon">👨‍💼</div>
+            <div class="card-title">Administrador</div>
+            <div class="card-desc">Gestión integral de usuarios, asignación de materias, inscripciones y estadísticas consolidadas.</div>
+          </div>
+          <div class="card">
+            <div class="card-icon">👨‍🏫</div>
+            <div class="card-title">Docente</div>
+            <div class="card-desc">Apertura de sesión de asistencia, visualizador QR con timer, historial con drill-down y exportación CSV.</div>
+          </div>
+          <div class="card">
+            <div class="card-icon">🎓</div>
+            <div class="card-title">Estudiante</div>
+            <div class="card-desc">Scanner de código QR ágil, retroalimentación inmediata de confirmación e historial personal de asistencia.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 6: Seguridad y Reglas de Negocio -->
+    <section class="slide">
+      <div class="slide-content">
+        <span class="tag">Integridad de Datos</span>
+        <h2>Reglas de negocio y anti-fraude</h2>
+        <p class="subtitle">
+          Protecciones tanto a nivel de cliente como en la capa profunda de base de datos.
+        </p>
+        <div class="cards-grid">
+          <div class="card">
+            <div class="card-icon">🔒</div>
+            <div class="card-title">Asistencia Única por Día</div>
+            <div class="card-desc">Restricción única por base de datos: ningún estudiante puede registrarse dos veces en la misma sesión.</div>
+          </div>
+          <div class="card">
+            <div class="card-icon">⏳</div>
+            <div class="card-title">Expiración Estricta del Token</div>
+            <div class="card-desc">Tokens UUID efímeros que quedan automáticamente invalidados al agotarse el tiempo configurado.</div>
+          </div>
+          <div class="card">
+            <div class="card-icon">🌐</div>
+            <div class="card-title">Auditoría con IP y Timestamp</div>
+            <div class="card-desc">Cada registro almacena la dirección IP y la hora exacta (scanned_at) para verificación posterior.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 7: Flujo en Vivo -->
+    <section class="slide">
+      <div class="slide-content">
+        <span class="tag">Flujo Operativo</span>
+        <h2>¿Cómo funciona en una clase real?</h2>
+        <p class="subtitle">
+          Un proceso que toma menos de un minuto para todo el salón de clases.
+        </p>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-number">PASO 01</div>
+            <div class="card-title">El Docente Inicia</div>
+            <div class="card-desc">Selecciona la materia, define minutos activos y proyecta el código QR en pantalla.</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step">
+            <div class="flow-number">PASO 02</div>
+            <div class="card-title">El Alumno Escanea</div>
+            <div class="card-desc">Ingresa a la app desde su móvil, apunta la cámara al proyector y valida su identidad.</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step">
+            <div class="flow-number">PASO 03</div>
+            <div class="card-title">Consolidación Inmediata</div>
+            <div class="card-desc">La asistencia queda registrada en la nube, visible en el listado del profesor y lista para exportar.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 8: Cierre y Conclusiones -->
+    <section class="slide">
+      <div class="slide-content">
+        <span class="tag">Conclusiones</span>
+        <h2>Impacto del proyecto</h2>
+        <p class="subtitle">
+          Una solución moderna, ligera y lista para implementarse en cualquier institución educativa.
+        </p>
+        <div class="stat-row">
+          <div class="stat-box">
+            <div class="stat-value">+15 min</div>
+            <div class="stat-label">Más tiempo efectivo de enseñanza por clase</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">0 Papel</div>
+            <div class="stat-label">Reducción total del uso de formatos físicos</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">Escalable</div>
+            <div class="stat-label">Costo marginal mínimo con Next.js y Supabase</div>
+          </div>
+        </div>
+        <div style="margin-top: 2.5rem; text-align: center;">
+          <h3 style="font-size: 1.5rem; color: #fff; margin-bottom: 0.5rem;">¡Muchas gracias!</h3>
+          <p style="color: var(--text-muted);">¿Preguntas o comentarios?</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="tips">
+      Navega con <span class="kbd">←</span> <span class="kbd">→</span> o <span class="kbd">Espacio</span> • <span class="kbd">F</span> Pantalla completa
+    </div>
+    <div class="controls">
+      <button class="nav-btn" id="prevBtn" onclick="prevSlide()">← Anterior</button>
+      <button class="nav-btn primary" id="nextBtn" onclick="nextSlide()">Siguiente →</button>
+    </div>
+  </footer>
+
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    const indicator = document.getElementById('slideIndicator');
+    const progressBar = document.getElementById('progressBar');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+
+    let current = 0;
+    const total = slides.length;
+
+    function updateSlide(index) {
+      slides.forEach((s, i) => {
+        s.classList.toggle('active', i === index);
+      });
+      indicator.textContent = `${index + 1} / ${total}`;
+      progressBar.style.width = `${((index + 1) / total) * 100}%`;
+      prevBtn.disabled = index === 0;
+      nextBtn.disabled = index === total - 1;
+      nextBtn.textContent = index === total - 1 ? 'Fin' : 'Siguiente →';
+    }
+
+    function nextSlide() {
+      if (current < total - 1) {
+        current++;
+        updateSlide(current);
+      }
+    }
+
+    function prevSlide() {
+      if (current > 0) {
+        current--;
+        updateSlide(current);
+      }
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        e.preventDefault();
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault();
+        prevSlide();
+      } else if (e.key.toLowerCase() === 'f') {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+          document.exitFullscreen().catch(() => {});
+        }
+      } else if (e.key === 'Home') {
+        current = 0;
+        updateSlide(current);
+      } else if (e.key === 'End') {
+        current = total - 1;
+        updateSlide(current);
+      }
+    });
+
+    updateSlide(current);
+  </script>
+</body>
+</html>
