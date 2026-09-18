@@ -1,9 +1,23 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import MobileWarningBanner from '@/components/MobileWarningBanner'
 import AdminHeader from '@/components/admin/AdminHeader'
-import { Crown, Presentation, GraduationCap, BookOpen, CalendarDays, Landmark } from 'lucide-react'
+import PaginatedConsolidatedBoard from '@/components/admin/PaginatedConsolidatedBoard'
+import GlobalAbsencePolicyModal from '@/components/admin/GlobalAbsencePolicyModal'
+import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
+import {
+  Layers,
+  ShieldCheck,
+  UserCheck,
+  Users,
+  BookMarked,
+  Activity,
+  ArrowUpRight,
+  Percent,
+  CheckCircle2,
+  AlertTriangle,
+  Sliders,
+} from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,13 +35,15 @@ export default async function AdminDashboardPage() {
     .single()
   if (!profile || profile.role !== 'ADMIN') redirect('/login')
 
-  // Conteos generales (solo activos)
+  // Conteos generales (solo activos) + Asistencias y Sesiones
   const [
     { count: totalAdmins },
     { count: totalProfessors },
     { count: totalStudents },
     { count: totalSubjects },
     { count: totalCareers },
+    { count: totalAttendances },
+    { count: totalSessions },
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -46,10 +62,11 @@ export default async function AdminDashboardPage() {
       .eq('is_active', true),
     supabase.from('subjects').select('*', { count: 'exact', head: true }).eq('is_active', true),
     supabase.from('careers').select('*', { count: 'exact', head: true }).eq('is_active', true),
+    supabase.from('attendances').select('*', { count: 'exact', head: true }),
+    supabase.from('sessions').select('*', { count: 'exact', head: true }).eq('is_active', true),
   ])
 
-  // Desglose por carrera: cuantos estudiantes y cuantas materias
-  // pertenecen a cada una (jerarquia carrera -> estudiantes/materias)
+  // Desglose por carrera
   const { data: careers } = await supabase
     .from('careers')
     .select('id, name, code')
@@ -88,17 +105,21 @@ export default async function AdminDashboardPage() {
     .gte('date', todayStart.toISOString())
     .lte('date', todayEnd.toISOString())
 
-  // Docentes activos con materias activas asignadas
+  // Docentes activos con materias
   const { data: professors } = await supabase
     .from('profiles')
     .select('id, name')
     .eq('role', 'PROFESSOR')
     .eq('is_active', true)
 
+  // Materias con inscripciones, reglas y docentes
   const { data: allSubjects } = await supabase
     .from('subjects')
-    .select('id, name, code, professor_id')
+    .select(
+      'id, name, code, professor_id, absence_rule_type, max_absence_percentage, max_absence_count, total_planned_sessions, enrollments(student_id)'
+    )
     .eq('is_active', true)
+    .order('name')
 
   const professorStats = (professors || [])
     .map((p) => ({
@@ -107,23 +128,19 @@ export default async function AdminDashboardPage() {
     }))
     .sort((a, b) => b.subjectCount - a.subjectCount)
 
-  // Materias activas con cantidad de estudiantes activos inscritos
-  const { data: subjectsWithEnrollments } = await supabase
-    .from('subjects')
-    .select('id, name, code, enrollments(student_id)')
-    .eq('is_active', true)
-    .order('name')
-
-  const subjectStats = (subjectsWithEnrollments || [])
+  // Materias con cantidad de inscritos
+  const subjectStats = (allSubjects || [])
     .map((s) => ({
       id: s.id,
       name: s.name,
       code: s.code,
       studentCount: (s.enrollments as { student_id: string }[] | null)?.length || 0,
+      absenceRuleType: s.absence_rule_type,
+      maxAbsencePercentage: s.max_absence_percentage,
     }))
     .sort((a, b) => b.studentCount - a.studentCount)
 
-  // Estudiantes activos con cantidad de materias activas
+  // Estudiantes con conteo de materias inscritas
   const { data: students } = await supabase
     .from('profiles')
     .select('id, name, student_code')
@@ -142,248 +159,316 @@ export default async function AdminDashboardPage() {
     }))
     .sort((a, b) => b.subjectCount - a.subjectCount)
 
-  const statCards = [
+  // ==================== CÁLCULO DE KPIS DE ASISTENCIA ====================
+  // Sesiones activas con sus materias
+  const { data: allActiveSessions } = await supabase
+    .from('sessions')
+    .select('id, subject_id')
+    .eq('is_active', true)
+
+  // Registro de asistencias para cálculo de alumnos en riesgo
+  const { data: allAttendanceRecords } = await supabase
+    .from('attendances')
+    .select('student_id, session_id, session:sessions(subject_id)')
+
+  // Mapeamos sesiones dictadas por materia
+  const sessionsCountBySubject = new Map<string, number>()
+  for (const sess of allActiveSessions || []) {
+    sessionsCountBySubject.set(
+      sess.subject_id,
+      (sessionsCountBySubject.get(sess.subject_id) || 0) + 1
+    )
+  }
+
+  // Mapeamos asistencias de cada alumno por materia: key = `${studentId}_${subjectId}`
+  const studentSubjectAttendances = new Map<string, number>()
+  for (const att of allAttendanceRecords || []) {
+    const subjId = (att.session as { subject_id?: string } | null)?.subject_id
+    if (subjId && att.student_id) {
+      const key = `${att.student_id}_${subjId}`
+      studentSubjectAttendances.set(key, (studentSubjectAttendances.get(key) || 0) + 1)
+    }
+  }
+
+  // Tasa de presentismo: asistencias efectivas / asistencias esperadas
+  let totalExpectedAttendances = 0
+  for (const s of allSubjects || []) {
+    const enrolled = (s.enrollments as { student_id: string }[] | null)?.length || 0
+    const sessionsHeld = sessionsCountBySubject.get(s.id) || 0
+    totalExpectedAttendances += enrolled * sessionsHeld
+  }
+
+  const attendanceRate =
+    totalExpectedAttendances > 0
+      ? Math.min(100, Math.round(((totalAttendances ?? 0) / totalExpectedAttendances) * 1000) / 10)
+      : (totalAttendances ?? 0) > 0
+        ? 100
+        : 0
+
+  // Conteo de alumnos en riesgo institucional (WARNING o FAILED_ATTENDANCE)
+  const atRiskStudentIds = new Set<string>()
+  for (const s of allSubjects || []) {
+    const sessionsHeld = sessionsCountBySubject.get(s.id) || 0
+    if (sessionsHeld === 0) continue
+
+    const enrolled = (s.enrollments as { student_id: string }[] | null) || []
+    for (const e of enrolled) {
+      const key = `${e.student_id}_${s.id}`
+      const studentAtt = studentSubjectAttendances.get(key) || 0
+      const summary = computeAttendanceSummary(sessionsHeld, studentAtt, {
+        ruleType: s.absence_rule_type as 'PERCENTAGE' | 'FIXED_COUNT',
+        maxPercentage: s.max_absence_percentage,
+        maxCount: s.max_absence_count,
+        totalPlannedSessions: s.total_planned_sessions,
+      })
+
+      if (summary.status === 'WARNING' || summary.status === 'FAILED_ATTENDANCE') {
+        atRiskStudentIds.add(e.student_id)
+      }
+    }
+  }
+  const studentsAtRiskCount = atRiskStudentIds.size
+
+  // Valores de política activa institucional
+  const sampleSubject = allSubjects?.[0]
+  const defaultRuleType =
+    (sampleSubject?.absence_rule_type as 'PERCENTAGE' | 'FIXED_COUNT') || 'PERCENTAGE'
+  const defaultPercentage = sampleSubject?.max_absence_percentage ?? 20
+  const defaultCount = sampleSubject?.max_absence_count ?? 4
+  const defaultPlanned = sampleSubject?.total_planned_sessions ?? 16
+
+  const policyDisplayValue =
+    defaultRuleType === 'FIXED_COUNT' ? `Máx ${defaultCount} fallas` : `Máx ${defaultPercentage}%`
+  const policyDisplaySub = `${defaultPlanned} sesiones planificadas`
+
+  // Tarjetas de entidades académicas
+  const entityCards = [
     {
       label: 'Carreras',
       value: totalCareers ?? 0,
-      color: 'bg-indigo-50 text-indigo-700',
-      icon: Landmark,
+      icon: Layers,
       href: '/admin/academic',
     },
     {
       label: 'Administradores',
       value: totalAdmins ?? 0,
-      color: 'bg-purple-50 text-purple-700',
-      icon: Crown,
+      icon: ShieldCheck,
       href: '/admin/users?role=ADMIN',
     },
     {
       label: 'Docentes',
       value: totalProfessors ?? 0,
-      color: 'bg-amber-50 text-amber-700',
-      icon: Presentation,
+      icon: UserCheck,
       href: '/admin/users?role=PROFESSOR',
     },
     {
       label: 'Estudiantes',
       value: totalStudents ?? 0,
-      color: 'bg-emerald-50 text-emerald-700',
-      icon: GraduationCap,
+      icon: Users,
       href: '/admin/users?role=STUDENT',
     },
     {
       label: 'Materias',
       value: totalSubjects ?? 0,
-      color: 'bg-sky-50 text-sky-700',
-      icon: BookOpen,
+      icon: BookMarked,
       href: '/admin/subjects',
     },
     {
-      label: 'Clases hoy',
+      label: 'Sesiones hoy',
       value: sessionsToday ?? 0,
-      color: 'bg-rose-50 text-rose-700',
-      icon: CalendarDays,
+      icon: Activity,
       href: null,
     },
   ]
 
   return (
-    <div className="min-h-screen bg-surface">
-      <MobileWarningBanner />
+    <div className="min-h-screen bg-[#FAFAFA]">
       <div className="p-4 md:p-8">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-7xl mx-auto space-y-7">
           <AdminHeader
-            eyebrow="Panel de Administración"
-            title="Dashboard"
-            description="Resumen académico en tiempo real"
+            eyebrow="Institucional"
+            title="Panel de Control"
+            description="Supervisión global de presentismo, políticas académicas y consolidados"
             activeHref="/admin/dashboard"
           />
 
-          {/* Stat cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-            {statCards.map((card) => {
-              const content = (
-                <>
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center ${card.color}`}
-                  >
-                    <card.icon className="w-5 h-5" strokeWidth={2} />
-                  </div>
-                  <p className="text-3xl font-black text-gray-900">{card.value}</p>
-                  <p className="text-xs font-bold text-gray-500 self-start">{card.label}</p>
-                </>
-              )
-              const className =
-                'bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col gap-2'
-              return card.href ? (
-                <Link
-                  key={card.label}
-                  href={card.href}
-                  className={`${className} transition hover:border-gray-200 hover:shadow-md`}
-                >
-                  {content}
-                </Link>
-              ) : (
-                <div key={card.label} className={className}>
-                  {content}
+          {/* ==================== BLOQUE 1: KPIS DE ASISTENCIA Y POLÍTICA ==================== */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+                Métricas de Asistencia y Política Institucional
+              </h2>
+              <GlobalAbsencePolicyModal
+                initialRuleType={defaultRuleType}
+                initialPercentage={defaultPercentage}
+                initialCount={defaultCount}
+                initialPlannedSessions={defaultPlanned}
+                totalSubjectsCount={totalSubjects ?? 0}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+              {/* Presentismo Global */}
+              <div className="bg-white rounded-xl border border-neutral-200/80 p-4 shadow-2xs">
+                <div className="flex items-center justify-between mb-2.5">
+                  <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+                    Presentismo Global
+                  </span>
+                  <Percent className="w-4 h-4 text-neutral-400 stroke-[1.75]" />
                 </div>
-              )
-            })}
+                <div className="flex items-baseline justify-between">
+                  <span className="text-2xl sm:text-3xl font-bold font-mono text-neutral-900 tracking-tight">
+                    {attendanceRate}%
+                  </span>
+                  <span className="text-xs font-mono text-neutral-500">
+                    {totalExpectedAttendances > 0 ? 'Institucional' : 'Sin sesiones'}
+                  </span>
+                </div>
+                <div className="mt-2 text-[11px] text-neutral-400 font-mono">
+                  {totalAttendances ?? 0} marcas registradas
+                </div>
+              </div>
+
+              {/* Total Asistencias */}
+              <div className="bg-white rounded-xl border border-neutral-200/80 p-4 shadow-2xs">
+                <div className="flex items-center justify-between mb-2.5">
+                  <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+                    Total Asistencias
+                  </span>
+                  <CheckCircle2 className="w-4 h-4 text-neutral-400 stroke-[1.75]" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-2xl sm:text-3xl font-bold font-mono text-neutral-900 tracking-tight">
+                    {totalAttendances ?? 0}
+                  </span>
+                  <span className="text-xs font-mono text-neutral-500">
+                    {totalSessions ?? 0} clases
+                  </span>
+                </div>
+                <div className="mt-2 text-[11px] text-neutral-400 font-mono">
+                  En {totalSubjects ?? 0} materias activas
+                </div>
+              </div>
+
+              {/* Alumnos en Riesgo */}
+              <div className="bg-white rounded-xl border border-neutral-200/80 p-4 shadow-2xs">
+                <div className="flex items-center justify-between mb-2.5">
+                  <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+                    Alumnos en Riesgo
+                  </span>
+                  <AlertTriangle
+                    className={`w-4 h-4 stroke-[1.75] ${
+                      studentsAtRiskCount > 0 ? 'text-amber-500' : 'text-neutral-400'
+                    }`}
+                  />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span
+                    className={`text-2xl sm:text-3xl font-bold font-mono tracking-tight ${
+                      studentsAtRiskCount > 0 ? 'text-amber-600' : 'text-neutral-900'
+                    }`}
+                  >
+                    {studentsAtRiskCount}
+                  </span>
+                  <span
+                    className={`text-xs font-mono px-1.5 py-0.5 rounded-md ${
+                      studentsAtRiskCount > 0
+                        ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
+                        : 'bg-neutral-100 text-neutral-600'
+                    }`}
+                  >
+                    {studentsAtRiskCount > 0 ? 'Atención' : 'Normal'}
+                  </span>
+                </div>
+                <div className="mt-2 text-[11px] text-neutral-400 font-mono">
+                  Alerta o pérdida por inasistencias
+                </div>
+              </div>
+
+              {/* Política Institucional */}
+              <div className="bg-white rounded-xl border border-neutral-200/80 p-4 shadow-2xs flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2.5">
+                    <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+                      Política Activa
+                    </span>
+                    <Sliders className="w-4 h-4 text-neutral-400 stroke-[1.75]" />
+                  </div>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-xl sm:text-2xl font-bold font-mono text-neutral-900 tracking-tight">
+                      {policyDisplayValue}
+                    </span>
+                    <span className="text-xs font-mono text-neutral-500">
+                      {defaultRuleType === 'FIXED_COUNT' ? 'Fija' : 'Porcentual'}
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-2 text-[11px] text-neutral-400 font-mono">
+                  {policyDisplaySub}
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Consolidados */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-            {/* Carreras: estudiantes y materias por carrera */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
-                <h2 className="font-black text-gray-900">Carreras</h2>
-                <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">
-                  Estudiantes · Materias
-                </span>
-              </div>
-              <div className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
-                {careerStats.length > 0 ? (
-                  careerStats.map((c) => (
-                    <Link
-                      key={c.id}
-                      href={`/admin/academic/${c.id}/pensum`}
-                      className="flex items-center justify-between px-6 py-3.5 hover:bg-gray-50/50 transition"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 truncate">{c.name}</p>
-                        <p className="text-xs text-gray-400 font-mono">{c.code}</p>
-                      </div>
-                      <span className="text-sm font-black text-indigo-700 whitespace-nowrap ml-2">
-                        {c.studentCount} · {c.subjectCount}
+          {/* ==================== BLOQUE 2: ENTIDADES ACADÉMICAS ==================== */}
+          <div>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-3">
+              Estructura Institucional
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+              {entityCards.map((card) => {
+                const content = (
+                  <div className="flex flex-col justify-between h-full">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+                        {card.label}
                       </span>
-                    </Link>
-                  ))
+                      <card.icon className="w-4 h-4 text-neutral-400 stroke-[1.75]" />
+                    </div>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-2xl sm:text-3xl font-bold font-mono text-neutral-900 tracking-tight">
+                        {card.value}
+                      </span>
+                      {card.href && (
+                        <ArrowUpRight className="w-3.5 h-3.5 text-neutral-400 group-hover:text-neutral-700 transition-colors" />
+                      )}
+                    </div>
+                  </div>
+                )
+
+                const cardClasses =
+                  'bg-white rounded-xl border border-neutral-200/80 p-4 shadow-2xs hover:border-neutral-300 transition-all group'
+
+                return card.href ? (
+                  <Link key={card.label} href={card.href} className={cardClasses}>
+                    {content}
+                  </Link>
                 ) : (
-                  <p className="px-6 py-6 text-sm text-gray-400 italic text-center">
-                    Sin carreras registradas
-                  </p>
-                )}
-              </div>
+                  <div key={card.label} className={cardClasses}>
+                    {content}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* ==================== BLOQUE 3: TABLERO CONSOLIDADO PAGINADO CON SLIDE ==================== */}
+          <div>
+            <div className="mb-3">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+                Consolidados Académicos en Vivo
+              </h2>
+              <p className="text-xs text-neutral-400 mt-0.5">
+                Navegación paginada y filtrado reactivo para 95 materias y cientos de estudiantes
+              </p>
             </div>
 
-            {/* Docentes por materias */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
-                <h2 className="font-black text-gray-900">Docentes</h2>
-                <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">
-                  Materias asignadas
-                </span>
-              </div>
-              <div className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
-                {professorStats.length > 0 ? (
-                  professorStats.map((p) => (
-                    <Link
-                      key={p.id}
-                      href="/admin/users?role=PROFESSOR"
-                      className="flex items-center justify-between px-6 py-3.5 hover:bg-gray-50/50 transition"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-amber-50 text-amber-700 text-xs font-black flex items-center justify-center shrink-0">
-                          {p.name.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="text-sm font-semibold text-gray-800 truncate max-w-35">
-                          {p.name}
-                        </span>
-                      </div>
-                      <span
-                        className={`text-sm font-black min-w-8 text-center ${p.subjectCount > 0 ? 'text-amber-700' : 'text-gray-400'}`}
-                      >
-                        {p.subjectCount}
-                      </span>
-                    </Link>
-                  ))
-                ) : (
-                  <p className="px-6 py-6 text-sm text-gray-400 italic text-center">
-                    Sin docentes registrados
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Materias por estudiantes */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
-                <h2 className="font-black text-gray-900">Materias</h2>
-                <span className="text-xs font-bold text-sky-600 bg-sky-50 px-2 py-1 rounded-lg">
-                  Estudiantes inscritos
-                </span>
-              </div>
-              <div className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
-                {subjectStats.length > 0 ? (
-                  subjectStats.map((s) => (
-                    <Link
-                      key={s.id}
-                      href={`/admin/subjects/${s.id}/enrollments`}
-                      className="flex items-center justify-between px-6 py-3.5 hover:bg-gray-50/50 transition"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-700 flex items-center justify-center shrink-0">
-                          <BookOpen className="w-4 h-4" strokeWidth={2} />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 truncate">{s.name}</p>
-                          <p className="text-xs text-gray-400 font-mono">{s.code}</p>
-                        </div>
-                      </div>
-                      <span
-                        className={`text-sm font-black min-w-8 text-center ml-2 ${s.studentCount > 0 ? 'text-sky-700' : 'text-gray-400'}`}
-                      >
-                        {s.studentCount}
-                      </span>
-                    </Link>
-                  ))
-                ) : (
-                  <p className="px-6 py-6 text-sm text-gray-400 italic text-center">
-                    Sin materias registradas
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Estudiantes por materias */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
-                <h2 className="font-black text-gray-900">Estudiantes</h2>
-                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
-                  Materias inscritas
-                </span>
-              </div>
-              <div className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
-                {studentStats.length > 0 ? (
-                  studentStats.map((s) => (
-                    <Link
-                      key={s.id}
-                      href="/admin/users?role=STUDENT"
-                      className="flex items-center justify-between px-6 py-3.5 hover:bg-gray-50/50 transition"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-700 text-xs font-black flex items-center justify-center shrink-0">
-                          {s.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 truncate">{s.name}</p>
-                          <p className="text-xs text-gray-400 font-mono">{s.student_code || '—'}</p>
-                        </div>
-                      </div>
-                      <span
-                        className={`text-sm font-black min-w-8 text-center ml-2 ${s.subjectCount > 0 ? 'text-emerald-700' : 'text-gray-400'}`}
-                      >
-                        {s.subjectCount}
-                      </span>
-                    </Link>
-                  ))
-                ) : (
-                  <p className="px-6 py-6 text-sm text-gray-400 italic text-center">
-                    Sin estudiantes registrados
-                  </p>
-                )}
-              </div>
-            </div>
+            <PaginatedConsolidatedBoard
+              careers={careerStats}
+              professors={professorStats}
+              subjects={subjectStats}
+              students={studentStats}
+            />
           </div>
         </div>
       </div>
