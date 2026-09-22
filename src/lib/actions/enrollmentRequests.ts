@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { checkStudentEnrollable } from './enrollmentGuards'
+import { checkAdminOrSubjectProfessor } from './authGuards'
 
 // Alfabeto sin caracteres ambiguos (0/O, 1/I/L) para que el
 // estudiante lo pueda transcribir sin confundirse.
@@ -177,6 +178,11 @@ export async function approveEnrollmentRequest(requestId: string) {
     return { success: false, error: 'Esta solicitud ya fue procesada.' }
   }
 
+  const authorized = await checkAdminOrSubjectProfessor(supabase, user.id, request.subject_id)
+  if (!authorized) {
+    return { success: false, error: 'No tienes permiso para revisar esta solicitud.' }
+  }
+
   // Revalidar por si algo cambio desde que se hizo la solicitud
   // (ej. un admin quito la carrera del estudiante o de la materia).
   const check = await checkStudentEnrollable(supabase, request.subject_id, request.student_id)
@@ -208,6 +214,19 @@ export async function rejectEnrollmentRequest(requestId: string) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'No autenticado.' }
+
+  const { data: request } = await supabase
+    .from('enrollment_requests')
+    .select('id, subject_id')
+    .eq('id', requestId)
+    .single()
+
+  if (!request) return { success: false, error: 'Solicitud no encontrada.' }
+
+  const authorized = await checkAdminOrSubjectProfessor(supabase, user.id, request.subject_id)
+  if (!authorized) {
+    return { success: false, error: 'No tienes permiso para revisar esta solicitud.' }
+  }
 
   const { error } = await supabase
     .from('enrollment_requests')
