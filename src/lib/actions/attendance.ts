@@ -64,8 +64,10 @@ export async function registerAttendance(
   // 2. Rate Limiting por usuario y por IP (máx 10 intentos por minuto)
   const userRateKey = `scan:user:${user.id}`
   const ipRateKey = `scan:ip:${ipAddress}`
-  const userRate = checkRateLimit(userRateKey, { maxAttempts: 10, windowMs: 60_000 })
-  const ipRate = checkRateLimit(ipRateKey, { maxAttempts: 20, windowMs: 60_000 })
+  const [userRate, ipRate] = await Promise.all([
+    checkRateLimit(userRateKey, { maxAttempts: 10, windowMs: 60_000 }),
+    checkRateLimit(ipRateKey, { maxAttempts: 20, windowMs: 60_000 }),
+  ])
 
   if (!userRate.allowed || !ipRate.allowed) {
     const retrySec = userRate.retryAfterSeconds || ipRate.retryAfterSeconds || 15
