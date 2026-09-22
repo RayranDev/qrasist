@@ -28,7 +28,7 @@ export default function AdminHeader({
   activeHref?: string
 }) {
   return (
-    <header className="flex flex-col gap-4 mb-8 pb-6 border-b border-neutral-200/80 border-t-4 border-t-brand-700 -mt-4 pt-4 md:-mt-6 md:pt-6">
+    <header className="flex flex-col gap-4 mb-8 pb-6 border-b border-neutral-200/80 border-t-4 border-t-brand-700 -mt-4 pt-4 md:-mt-8 md:pt-6">
       <InstitutionMark size="sm" />
       <div className="flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
         <div>
