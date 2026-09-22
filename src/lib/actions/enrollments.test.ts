@@ -17,7 +17,13 @@ vi.mock('@/lib/supabase/server', () => ({
     auth: { getUser: mockGetUser },
     from: vi.fn((table: string) => {
       if (table === 'profiles') {
-        return { select: () => ({ eq: () => ({ single: mockProfileSingle }) }) }
+        // Chain generico: soporta cualquier cantidad de .eq() antes de
+        // .single() (checkAdmin ahora encadena .eq('id', ..).eq('is_active', true)).
+        const c: Record<string, unknown> = {}
+        c.select = vi.fn(() => c)
+        c.eq = vi.fn(() => c)
+        c.single = mockProfileSingle
+        return c
       }
       if (table === 'enrollments') {
         return { insert: mockInsert }

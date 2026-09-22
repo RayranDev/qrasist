@@ -188,6 +188,26 @@ export async function approveEnrollmentRequest(requestId: string) {
   const check = await checkStudentEnrollable(supabase, request.subject_id, request.student_id)
   if (!check.ok) return { success: false, error: check.error }
 
+  // Reclamar la solicitud ANTES de insertar en enrollments (igual que
+  // rejectEnrollmentRequest ya hacia con su propio .eq('status','pending')).
+  // Si esto se hiciera al reves -- insertar primero, actualizar el status
+  // despues -- un reject() concurrente podia ganarle la carrera al UPDATE
+  // final y quedar pisado por este 'approved', dejando una inscripcion
+  // viva para una solicitud que en realidad fue rechazada. Al reclamar
+  // primero con un UPDATE atomico filtrado por status='pending', solo uno
+  // de los dos (approve o reject) puede ganar la carrera.
+  const { data: claimed, error: claimError } = await supabase
+    .from('enrollment_requests')
+    .update({ status: 'approved', reviewed_at: new Date().toISOString(), reviewed_by: user.id })
+    .eq('id', requestId)
+    .eq('status', 'pending')
+    .select('id')
+
+  if (claimError) return { success: false, error: 'No se pudo actualizar la solicitud.' }
+  if (!claimed || claimed.length === 0) {
+    return { success: false, error: 'La solicitud ya fue revisada.' }
+  }
+
   const { error: enrollError } = await supabase
     .from('enrollments')
     .insert({ subject_id: request.subject_id, student_id: request.student_id })
@@ -196,13 +216,6 @@ export async function approveEnrollmentRequest(requestId: string) {
   if (enrollError && enrollError.code !== '23505') {
     return { success: false, error: 'No se pudo aprobar la solicitud.' }
   }
-
-  const { error: updateError } = await supabase
-    .from('enrollment_requests')
-    .update({ status: 'approved', reviewed_at: new Date().toISOString(), reviewed_by: user.id })
-    .eq('id', requestId)
-
-  if (updateError) return { success: false, error: 'No se pudo actualizar la solicitud.' }
 
   revalidatePath('/professor/subjects')
   return { success: true }
