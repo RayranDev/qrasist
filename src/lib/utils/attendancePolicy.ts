@@ -11,11 +11,16 @@ export interface AbsencePolicyConfig {
   maxPercentage?: number // Default: 20
   maxCount?: number | null // Si es null y regla es FIXED_COUNT, fallback a 4
   totalPlannedSessions?: number // Default: 16
+  // Cuántas tardanzas equivalen a una falta (ej. 3 = cada 3 tardanzas
+  // cuentan como 1 inasistencia adicional). NULL/undefined = las
+  // tardanzas nunca se convierten en falta.
+  latesPerAbsence?: number | null
 }
 
 export interface StudentAttendanceSummary {
   sessionsHeld: number
   attendancesCount: number
+  lateCount: number
   absencesCount: number
   absencePercentage: number
   maxAbsencesAllowed: number
@@ -27,7 +32,8 @@ export interface StudentAttendanceSummary {
 export function computeAttendanceSummary(
   sessionsHeld: number,
   attendancesCount: number,
-  config: AbsencePolicyConfig = {}
+  config: AbsencePolicyConfig = {},
+  lateCount: number = 0
 ): StudentAttendanceSummary {
   const ruleType = config.ruleType || 'PERCENTAGE'
   const maxPercentage = config.maxPercentage ?? 20
@@ -35,7 +41,16 @@ export function computeAttendanceSummary(
 
   const cleanSessionsHeld = Math.max(0, sessionsHeld)
   const validAttendances = Math.min(cleanSessionsHeld, Math.max(0, attendancesCount))
-  const absencesCount = Math.max(0, cleanSessionsHeld - validAttendances)
+  const cleanLateCount = Math.max(0, lateCount)
+
+  // Faltas "reales" (sesiones dictadas sin ningún registro) más la
+  // penalización de tardanzas acumuladas: cada `latesPerAbsence`
+  // tardanzas se contabiliza como 1 falta adicional.
+  const baseAbsencesCount = Math.max(0, cleanSessionsHeld - validAttendances)
+  const latePenaltyAbsences = config.latesPerAbsence
+    ? Math.floor(cleanLateCount / config.latesPerAbsence)
+    : 0
+  const absencesCount = baseAbsencesCount + latePenaltyAbsences
 
   const absencePercentage =
     cleanSessionsHeld > 0 ? Math.round((absencesCount / cleanSessionsHeld) * 1000) / 10 : 0
@@ -70,6 +85,7 @@ export function computeAttendanceSummary(
   return {
     sessionsHeld: cleanSessionsHeld,
     attendancesCount: validAttendances,
+    lateCount: cleanLateCount,
     absencesCount,
     absencePercentage,
     maxAbsencesAllowed,

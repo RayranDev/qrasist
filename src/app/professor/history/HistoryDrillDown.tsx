@@ -36,6 +36,9 @@ interface Attendance {
   ip_address: string | null
   latitude: number | null
   longitude: number | null
+  status?: 'PRESENT' | 'LATE'
+  marked_by?: string | null
+  manual_reason?: string | null
   student: Student | null
 }
 
@@ -93,6 +96,8 @@ interface Subject {
   max_absence_percentage?: number
   max_absence_count?: number | null
   total_planned_sessions?: number
+  late_after_minutes?: number | null
+  lates_per_absence?: number | null
   enrollments: Enrollment[]
   sessions: Session[]
 }
@@ -161,6 +166,9 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
                 Código
               </th>
               <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">
+                Estado
+              </th>
+              <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">
                 Fecha
               </th>
               <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">
@@ -205,6 +213,18 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
                     </td>
                     <td className="px-6 py-4 text-gray-600 font-mono text-xs font-bold">
                       {att.student?.student_code || '---'}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Badge variant={att.status === 'LATE' ? 'warning' : 'success'} size="sm">
+                          {att.status === 'LATE' ? 'Tarde' : 'Presente'}
+                        </Badge>
+                        {att.marked_by && (
+                          <Badge variant="info" size="sm">
+                            Manual
+                          </Badge>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-gray-500 font-medium">
                       {format(dateObj, 'dd/MM/yyyy')}
@@ -251,7 +271,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
               })
             ) : (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-gray-500 italic">
+                <td colSpan={7} className="px-6 py-8 text-center text-gray-500 italic">
                   {emptyMessage}
                 </td>
               </tr>
@@ -318,22 +338,33 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
       .map((e) => e.student)
       .filter((st): st is EnrolledProfile => !!st)
 
-    // Mapa de asistencias por estudiante para las sesiones activas de esta materia
+    // Mapa de asistencias (y tardanzas) por estudiante para las sesiones activas de esta materia
     const attendanceCountMap = new Map<string, number>()
+    const lateCountMap = new Map<string, number>()
     for (const session of activeSessions) {
       for (const att of session.attendances || []) {
         attendanceCountMap.set(att.student_id, (attendanceCountMap.get(att.student_id) || 0) + 1)
+        if (att.status === 'LATE') {
+          lateCountMap.set(att.student_id, (lateCountMap.get(att.student_id) || 0) + 1)
+        }
       }
     }
 
     const studentMetrics = enrolledStudents.map((st) => {
       const attended = attendanceCountMap.get(st.id) || 0
-      const summary = computeAttendanceSummary(activeSessions.length, attended, {
-        ruleType: selectedSubject.absence_rule_type,
-        maxPercentage: selectedSubject.max_absence_percentage,
-        maxCount: selectedSubject.max_absence_count,
-        totalPlannedSessions: selectedSubject.total_planned_sessions,
-      })
+      const lateCount = lateCountMap.get(st.id) || 0
+      const summary = computeAttendanceSummary(
+        activeSessions.length,
+        attended,
+        {
+          ruleType: selectedSubject.absence_rule_type,
+          maxPercentage: selectedSubject.max_absence_percentage,
+          maxCount: selectedSubject.max_absence_count,
+          totalPlannedSessions: selectedSubject.total_planned_sessions,
+          latesPerAbsence: selectedSubject.lates_per_absence,
+        },
+        lateCount
+      )
       return {
         student: st,
         summary,

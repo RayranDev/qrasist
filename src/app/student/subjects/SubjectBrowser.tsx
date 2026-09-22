@@ -148,7 +148,7 @@ export default function SubjectBrowser({
                 {/* Si está inscrito, mostramos su medidor de inasistencias y alertas */}
                 {status === 'enrolled' && summary && (
                   <div className="pt-2.5 border-t border-gray-100 flex items-center justify-between gap-2 flex-wrap text-xs">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-gray-500 font-medium">
                         Asistencia:{' '}
                         <strong className="text-gray-900 font-bold">
@@ -159,6 +159,12 @@ export default function SubjectBrowser({
                         <span className="text-red-700 font-bold">
                           ({summary.absencesCount} falla{summary.absencesCount > 1 ? 's' : ''})
                         </span>
+                      )}
+                      {summary.lateCount > 0 && (
+                        <Badge variant="warning" size="sm">
+                          <Clock className="w-3 h-3 text-amber-600" />
+                          {summary.lateCount} tarde{summary.lateCount > 1 ? 's' : ''}
+                        </Badge>
                       )}
                     </div>
 

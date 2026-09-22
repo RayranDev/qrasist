@@ -10,6 +10,8 @@ interface GlobalAbsencePolicyModalProps {
   initialPercentage?: number
   initialCount?: number
   initialPlannedSessions?: number
+  initialLateAfterMinutes?: number | null
+  initialLatesPerAbsence?: number | null
   totalSubjectsCount?: number
 }
 
@@ -18,6 +20,8 @@ export default function GlobalAbsencePolicyModal({
   initialPercentage = 20,
   initialCount = 4,
   initialPlannedSessions = 16,
+  initialLateAfterMinutes = 15,
+  initialLatesPerAbsence = null,
   totalSubjectsCount = 95,
 }: GlobalAbsencePolicyModalProps) {
   const [isOpen, setIsOpen] = useState(false)
@@ -25,6 +29,12 @@ export default function GlobalAbsencePolicyModal({
   const [percentage, setPercentage] = useState(initialPercentage)
   const [count, setCount] = useState(initialCount)
   const [plannedSessions, setPlannedSessions] = useState(initialPlannedSessions)
+  const [lateAfterMinutes, setLateAfterMinutes] = useState<number | string>(
+    initialLateAfterMinutes ?? ''
+  )
+  const [latesPerAbsence, setLatesPerAbsence] = useState<number | string>(
+    initialLatesPerAbsence ?? ''
+  )
   const [applyToAll, setApplyToAll] = useState(true)
   const [loading, setLoading] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(
@@ -42,6 +52,8 @@ export default function GlobalAbsencePolicyModal({
         maxAbsencePercentage: percentage,
         maxAbsenceCount: ruleType === 'FIXED_COUNT' ? count : null,
         totalPlannedSessions: plannedSessions,
+        lateAfterMinutes: lateAfterMinutes === '' ? null : Number(lateAfterMinutes),
+        latesPerAbsence: latesPerAbsence === '' ? null : Number(latesPerAbsence),
         applyToAllActiveSubjects: applyToAll,
       })
 
@@ -209,6 +221,40 @@ export default function GlobalAbsencePolicyModal({
                 <p className="text-[11px] text-neutral-500 mt-1">
                   Generalmente 16 semanas para períodos semestrales regulares.
                 </p>
+              </div>
+
+              {/* Tardanzas */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-800 mb-1.5">
+                    Tolerancia de tardanza (min)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={180}
+                    value={lateAfterMinutes}
+                    onChange={(e) => setLateAfterMinutes(e.target.value)}
+                    placeholder="Vacío = sin seguimiento"
+                    title="Minutos tras generar el QR a partir de los cuales el escaneo cuenta como tarde. Vacío desactiva el seguimiento de tardanzas."
+                    className="w-full px-3 py-2 text-xs font-mono border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-800 mb-1.5">
+                    Tardanzas por falta
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={latesPerAbsence}
+                    onChange={(e) => setLatesPerAbsence(e.target.value)}
+                    placeholder="Ej. 3 (opcional)"
+                    title="Cada cuántas tardanzas se suma una inasistencia. Vacío = las tardanzas nunca se convierten en falta."
+                    className="w-full px-3 py-2 text-xs font-mono border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                </div>
               </div>
 
               {/* Checkbox aplicar en lote */}

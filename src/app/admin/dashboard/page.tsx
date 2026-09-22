@@ -116,7 +116,7 @@ export default async function AdminDashboardPage() {
   const { data: allSubjects } = await supabase
     .from('subjects')
     .select(
-      'id, name, code, professor_id, absence_rule_type, max_absence_percentage, max_absence_count, total_planned_sessions, enrollments(student_id)'
+      'id, name, code, professor_id, absence_rule_type, max_absence_percentage, max_absence_count, total_planned_sessions, late_after_minutes, lates_per_absence, enrollments(student_id)'
     )
     .eq('is_active', true)
     .order('name')
@@ -169,7 +169,7 @@ export default async function AdminDashboardPage() {
   // Registro de asistencias para cálculo de alumnos en riesgo
   const { data: allAttendanceRecords } = await supabase
     .from('attendances')
-    .select('student_id, session_id, session:sessions(subject_id)')
+    .select('student_id, session_id, status, session:sessions(subject_id)')
 
   // Mapeamos sesiones dictadas por materia
   const sessionsCountBySubject = new Map<string, number>()
@@ -180,13 +180,18 @@ export default async function AdminDashboardPage() {
     )
   }
 
-  // Mapeamos asistencias de cada alumno por materia: key = `${studentId}_${subjectId}`
+  // Mapeamos asistencias (y tardanzas) de cada alumno por materia:
+  // key = `${studentId}_${subjectId}`
   const studentSubjectAttendances = new Map<string, number>()
+  const studentSubjectLateCounts = new Map<string, number>()
   for (const att of allAttendanceRecords || []) {
     const subjId = (att.session as { subject_id?: string } | null)?.subject_id
     if (subjId && att.student_id) {
       const key = `${att.student_id}_${subjId}`
       studentSubjectAttendances.set(key, (studentSubjectAttendances.get(key) || 0) + 1)
+      if (att.status === 'LATE') {
+        studentSubjectLateCounts.set(key, (studentSubjectLateCounts.get(key) || 0) + 1)
+      }
     }
   }
 
@@ -215,12 +220,19 @@ export default async function AdminDashboardPage() {
     for (const e of enrolled) {
       const key = `${e.student_id}_${s.id}`
       const studentAtt = studentSubjectAttendances.get(key) || 0
-      const summary = computeAttendanceSummary(sessionsHeld, studentAtt, {
-        ruleType: s.absence_rule_type as 'PERCENTAGE' | 'FIXED_COUNT',
-        maxPercentage: s.max_absence_percentage,
-        maxCount: s.max_absence_count,
-        totalPlannedSessions: s.total_planned_sessions,
-      })
+      const studentLateCount = studentSubjectLateCounts.get(key) || 0
+      const summary = computeAttendanceSummary(
+        sessionsHeld,
+        studentAtt,
+        {
+          ruleType: s.absence_rule_type as 'PERCENTAGE' | 'FIXED_COUNT',
+          maxPercentage: s.max_absence_percentage,
+          maxCount: s.max_absence_count,
+          totalPlannedSessions: s.total_planned_sessions,
+          latesPerAbsence: s.lates_per_absence,
+        },
+        studentLateCount
+      )
 
       if (summary.status === 'WARNING' || summary.status === 'FAILED_ATTENDANCE') {
         atRiskStudentIds.add(e.student_id)
@@ -236,6 +248,8 @@ export default async function AdminDashboardPage() {
   const defaultPercentage = sampleSubject?.max_absence_percentage ?? 20
   const defaultCount = sampleSubject?.max_absence_count ?? 4
   const defaultPlanned = sampleSubject?.total_planned_sessions ?? 16
+  const defaultLateAfterMinutes = sampleSubject?.late_after_minutes ?? 15
+  const defaultLatesPerAbsence = sampleSubject?.lates_per_absence ?? null
 
   const policyDisplayValue =
     defaultRuleType === 'FIXED_COUNT' ? `Máx ${defaultCount} fallas` : `Máx ${defaultPercentage}%`
@@ -303,6 +317,8 @@ export default async function AdminDashboardPage() {
                 initialPercentage={defaultPercentage}
                 initialCount={defaultCount}
                 initialPlannedSessions={defaultPlanned}
+                initialLateAfterMinutes={defaultLateAfterMinutes}
+                initialLatesPerAbsence={defaultLatesPerAbsence}
                 totalSubjectsCount={totalSubjects ?? 0}
               />
             </div>

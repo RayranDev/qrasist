@@ -10,6 +10,8 @@ const policySchema = z.object({
   maxAbsencePercentage: z.coerce.number().int().min(1).max(100).default(20),
   maxAbsenceCount: z.coerce.number().int().min(1).max(50).optional().nullable(),
   totalPlannedSessions: z.coerce.number().int().min(1).max(100).default(16),
+  lateAfterMinutes: z.coerce.number().int().min(1).max(180).optional().nullable(),
+  latesPerAbsence: z.coerce.number().int().min(1).max(10).optional().nullable(),
   applyToAllActiveSubjects: z.boolean().default(false),
 })
 
@@ -38,6 +40,8 @@ export async function updateGlobalAbsencePolicy(rawInput: unknown) {
     maxAbsencePercentage,
     maxAbsenceCount,
     totalPlannedSessions,
+    lateAfterMinutes,
+    latesPerAbsence,
     applyToAllActiveSubjects,
   } = parsed.data
 
@@ -47,6 +51,8 @@ export async function updateGlobalAbsencePolicy(rawInput: unknown) {
       max_absence_percentage: maxAbsencePercentage,
       total_planned_sessions: totalPlannedSessions,
       max_absence_count: absenceRuleType === 'FIXED_COUNT' ? maxAbsenceCount || 4 : null,
+      late_after_minutes: lateAfterMinutes ?? null,
+      lates_per_absence: latesPerAbsence ?? null,
     }
 
     const { error: batchError, count } = await supabase

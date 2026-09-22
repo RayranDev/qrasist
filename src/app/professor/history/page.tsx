@@ -29,6 +29,8 @@ export default async function ProfessorHistoryPage() {
       max_absence_percentage,
       max_absence_count,
       total_planned_sessions,
+      late_after_minutes,
+      lates_per_absence,
       enrollments (
         student_id,
         student:profiles (
@@ -51,6 +53,9 @@ export default async function ProfessorHistoryPage() {
           ip_address,
           latitude,
           longitude,
+          status,
+          marked_by,
+          manual_reason,
           student:profiles (
             name,
             student_code

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { headers } from 'next/headers'
 import { checkRateLimit } from '@/lib/utils/rateLimiter'
+import { getBogotaDayRange } from '@/lib/utils/bogotaDay'
 
 interface Coords {
   latitude: number
@@ -29,6 +30,7 @@ export type RegisterAttendanceResult =
         subjectCode: string
         time: string
         isGuest: boolean
+        isLate: boolean
       }
     }
   | {
@@ -127,7 +129,7 @@ export async function registerAttendance(
   // 7. Traer datos de la materia y validar que no esté archivada
   const { data: subject } = await supabase
     .from('subjects')
-    .select('name, code, is_active')
+    .select('name, code, is_active, late_after_minutes')
     .eq('id', session.subject_id)
     .single()
 
@@ -150,13 +152,7 @@ export async function registerAttendance(
   const isEnrolled = !!enrollment
 
   // 9. Verificar duplicado por materia en el mismo día (cálculo en zona de Bogotá UTC-5)
-  const BOGOTA_OFFSET_MS = 5 * 60 * 60 * 1000
-  const nowBogota = new Date(Date.now() - BOGOTA_OFFSET_MS)
-  const y = nowBogota.getUTCFullYear()
-  const m = nowBogota.getUTCMonth()
-  const d = nowBogota.getUTCDate()
-  const todayStart = new Date(Date.UTC(y, m, d, 0, 0, 0, 0) + BOGOTA_OFFSET_MS)
-  const todayEnd = new Date(Date.UTC(y, m, d, 23, 59, 59, 999) + BOGOTA_OFFSET_MS)
+  const { start: todayStart, end: todayEnd } = getBogotaDayRange()
 
   const { data: existingToday } = await supabase
     .from('attendances')
@@ -175,13 +171,28 @@ export async function registerAttendance(
     }
   }
 
-  // 10. Intentar registrar la asistencia
+  // 10. Determinar si el escaneo llegó tarde. late_after_minutes = NULL
+  //     desactiva el seguimiento de tardanzas para esta materia (todo
+  //     queda como PRESENT). Se compara contra sessions.date (el
+  //     instante en que el profesor generó la sesión), no expires_at.
+  const registeredAt = new Date()
+  let status: 'PRESENT' | 'LATE' = 'PRESENT'
+  if (subject?.late_after_minutes != null) {
+    const sessionStart = new Date(session.date)
+    const lateThreshold = new Date(sessionStart.getTime() + subject.late_after_minutes * 60_000)
+    if (registeredAt > lateThreshold) {
+      status = 'LATE'
+    }
+  }
+
+  // 11. Intentar registrar la asistencia
   const { error: insertError } = await supabase.from('attendances').insert({
     session_id: session.id,
     student_id: user.id,
     ip_address: ipAddress,
     latitude: coords?.latitude ?? null,
     longitude: coords?.longitude ?? null,
+    status,
   })
 
   if (insertError) {
@@ -199,7 +210,6 @@ export async function registerAttendance(
     }
   }
 
-  const registeredAt = new Date()
   const timeStr = registeredAt.toLocaleTimeString('es-CO', {
     hour: '2-digit',
     minute: '2-digit',
@@ -207,6 +217,7 @@ export async function registerAttendance(
   })
   const subjectName = subject?.name || 'Materia'
   const subjectCode = subject?.code || ''
+  const isLate = status === 'LATE'
 
   if (!isEnrolled) {
     return {
@@ -217,6 +228,7 @@ export async function registerAttendance(
         subjectCode,
         time: timeStr,
         isGuest: true,
+        isLate,
       },
     }
   }
@@ -229,6 +241,7 @@ export async function registerAttendance(
       subjectCode,
       time: timeStr,
       isGuest: false,
+      isLate,
     },
   }
 }
