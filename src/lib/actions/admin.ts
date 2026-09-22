@@ -16,6 +16,7 @@ async function verifyAdminAccess() {
     .from('profiles')
     .select('role')
     .eq('id', user.id)
+    .eq('is_active', true)
     .single()
   return profile?.role === 'ADMIN' ? user : null
 }
