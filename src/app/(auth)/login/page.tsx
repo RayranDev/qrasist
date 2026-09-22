@@ -1,5 +1,5 @@
+import Image from 'next/image'
 import AuthForm from './AuthForm'
-import { QrCode } from 'lucide-react'
 import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 
 export default async function LoginPage({
@@ -22,16 +22,28 @@ export default async function LoginPage({
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface px-4">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-sm border border-gray-100 p-8 md:p-10">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-sm border border-gray-100 border-t-4 border-t-brand-700 p-8 md:p-10">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 mb-5 shadow-inner">
-            <QrCode className="w-7 h-7" strokeWidth={2} />
-          </div>
+          <Image
+            src="/brand/escudo.png"
+            alt="Escudo de la Corporación Universitaria Republicana"
+            width={72}
+            height={72}
+            className="mx-auto mb-4 object-contain"
+            priority
+          />
+          <p className="text-xs font-bold text-brand-700 uppercase tracking-wider mb-1">
+            Corporación Universitaria Republicana
+          </p>
           <h1 className="text-3xl font-black text-gray-900 tracking-tight">QR-Asist</h1>
-          <p className="text-gray-500 mt-2 font-medium">Ingreso a la plataforma académica</p>
+          <p className="text-gray-500 mt-2 font-medium">Control de asistencia académica</p>
         </div>
 
         <AuthForm error={error} info={info} careers={careers || []} />
+
+        <p className="text-center text-[11px] text-gray-400 mt-8 italic">
+          &ldquo;Formamos más colombianos ética, social y científicamente&rdquo;
+        </p>
       </div>
     </div>
   )
