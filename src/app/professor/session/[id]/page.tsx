@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import QRDisplay from '@/components/qr/QRDisplay'
+import SessionRosterPanel from '@/components/attendance/SessionRosterPanel'
 import BackLink from '@/components/BackLink'
 
 export const dynamic = 'force-dynamic'
@@ -43,7 +44,7 @@ export default async function ProfessorSessionPage({
   return (
     <div className="min-h-screen bg-surface">
       <div className="p-4 md:p-8">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           <header className="flex justify-between items-center mb-8 md:mb-12">
             <div>
               <BackLink href="/professor/subjects">Volver a Materias</BackLink>
@@ -54,12 +55,21 @@ export default async function ProfessorSessionPage({
             </div>
           </header>
 
-          <QRDisplay
-            sessionId={session.id}
-            qrToken={session.qr_token}
-            expiresAt={session.expires_at}
-            rotationSeconds={session.qr_rotation_seconds}
-          />
+          {/* Panel lateral en desktop para no achicar el QR proyectado;
+              apilado debajo en mobile. */}
+          <div className="flex flex-col lg:flex-row lg:items-start gap-6">
+            <div className="lg:flex-1 lg:max-w-xl">
+              <QRDisplay
+                sessionId={session.id}
+                qrToken={session.qr_token}
+                expiresAt={session.expires_at}
+                rotationSeconds={session.qr_rotation_seconds}
+              />
+            </div>
+            <div className="lg:w-96 lg:shrink-0">
+              <SessionRosterPanel sessionId={session.id} />
+            </div>
+          </div>
         </div>
       </div>
     </div>
