@@ -69,7 +69,7 @@ export default async function SubjectEnrollmentsPage({
                 Gestionar Estudiantes
               </h1>
               <div className="flex items-center gap-3">
-                <span className="px-3 py-1 bg-emerald-50 text-emerald-700 font-bold rounded-lg text-sm">
+                <span className="px-3 py-1 bg-navy-50 text-navy-700 font-bold rounded-lg text-sm">
                   {subject.code}
                 </span>
                 <p className="text-gray-600 font-medium">{subject.name}</p>

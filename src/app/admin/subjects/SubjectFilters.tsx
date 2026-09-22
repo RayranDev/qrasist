@@ -16,7 +16,7 @@ interface Professor {
 }
 
 const selectClass =
-  'px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700 outline-none focus:bg-white focus:border-emerald-500 appearance-none cursor-pointer'
+  'px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700 outline-none focus:bg-white focus:border-navy-600 appearance-none cursor-pointer'
 
 export default function SubjectFilters({
   careers,
@@ -110,7 +110,7 @@ export default function SubjectFilters({
         <div className="flex gap-2">
           <Link
             href={buildStatusHref('active', careerFilter, levelFilter, professorFilter)}
-            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition ${statusFilter === 'active' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}
+            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition ${statusFilter === 'active' ? 'bg-navy-800 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}
           >
             Activas
           </Link>

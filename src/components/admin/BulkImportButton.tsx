@@ -81,7 +81,7 @@ export default function BulkImportButton({ types }: { types: ImportType[] }) {
                   }}
                   className={`px-3.5 py-1.5 rounded-lg text-sm font-bold transition ${
                     active === type
-                      ? 'bg-emerald-600 text-white shadow-sm'
+                      ? 'bg-navy-800 text-white shadow-sm'
                       : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
                   }`}
                 >
@@ -103,7 +103,7 @@ export default function BulkImportButton({ types }: { types: ImportType[] }) {
               Descargar plantilla
             </button>
 
-            <label className="px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition cursor-pointer">
+            <label className="px-4 py-2.5 bg-navy-800 text-white rounded-xl text-sm font-bold hover:bg-navy-900 transition cursor-pointer">
               {loading ? 'Importando...' : 'Subir archivo .xlsx'}
               <input
                 ref={fileInputRef}

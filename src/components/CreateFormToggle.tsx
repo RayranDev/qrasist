@@ -20,7 +20,7 @@ export default function CreateFormToggle({
     <button
       type="button"
       onClick={onClick}
-      className="w-full flex items-center justify-center gap-2 py-3.5 mb-6 bg-white border-2 border-dashed border-gray-200 rounded-2xl text-sm font-bold text-gray-500 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50/40 transition"
+      className="w-full flex items-center justify-center gap-2 py-3.5 mb-6 bg-white border-2 border-dashed border-gray-200 rounded-2xl text-sm font-bold text-gray-500 hover:border-navy-300 hover:text-navy-700 hover:bg-navy-50/40 transition"
     >
       <Icon className="w-4 h-4" strokeWidth={2.5} />
       {label}

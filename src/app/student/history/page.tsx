@@ -65,9 +65,7 @@ export default async function StudentHistoryPage() {
                 <p className="text-sm font-bold text-gray-900 truncate">
                   {record.session?.subject?.name}
                 </p>
-                <p className="text-xs font-mono text-emerald-600">
-                  {record.session?.subject?.code}
-                </p>
+                <p className="text-xs font-mono text-navy-700">{record.session?.subject?.code}</p>
               </div>
               <p className="text-xs text-gray-400 text-right shrink-0">
                 <LocalTime date={record.scanned_at} />

@@ -30,7 +30,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     const variantStyles = {
       primary:
-        'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm border border-emerald-700/20 focus-visible:ring-emerald-500',
+        'bg-navy-800 text-white hover:bg-navy-900 shadow-sm border border-navy-900/20 focus-visible:ring-navy-600',
       secondary:
         'bg-white text-gray-900 border border-gray-200 hover:bg-gray-50/80 shadow-xs focus-visible:ring-gray-300',
       outline:

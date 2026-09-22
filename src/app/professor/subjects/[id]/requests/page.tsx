@@ -46,7 +46,7 @@ export default async function SubjectRequestsPage({ params }: { params: Promise<
         <div className="max-w-3xl mx-auto">
           <Link
             href="/professor/subjects"
-            className="text-emerald-600 hover:text-emerald-700 font-medium text-sm flex items-center gap-1 mb-2"
+            className="text-navy-700 hover:text-navy-900 font-medium text-sm flex items-center gap-1 mb-2"
           >
             ← Volver a Mis Materias
           </Link>

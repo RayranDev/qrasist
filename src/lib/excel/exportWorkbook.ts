@@ -15,7 +15,7 @@ export interface ExportSheet {
 const HEADER_FILL: ExcelJS.Fill = {
   type: 'pattern',
   pattern: 'solid',
-  fgColor: { argb: 'FF059669' }, // emerald-600, el color de marca de la app
+  fgColor: { argb: 'FF002849' }, // navy-900, color institucional primario
 }
 
 /**

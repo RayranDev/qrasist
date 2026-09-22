@@ -7,6 +7,34 @@
   --surface: #f7f7f5;
 }
 
+/* Identidad institucional — Corporación Universitaria Republicana.
+   Navy = acciones primarias e interactividad. Brand (rojo) = solo marca. */
+@theme {
+  --color-navy-50: #eef4f9;
+  --color-navy-100: #d7e6f0;
+  --color-navy-200: #b0cce0;
+  --color-navy-300: #82abc9;
+  --color-navy-400: #5588ab;
+  --color-navy-500: #386c8f;
+  --color-navy-600: #275573;
+  --color-navy-700: #1c435c;
+  --color-navy-800: #123049;
+  --color-navy-900: #002849;
+  --color-navy-950: #001a30;
+
+  --color-brand-50: #fdf2f2;
+  --color-brand-100: #fbe1e2;
+  --color-brand-200: #f7c3c6;
+  --color-brand-300: #ef999e;
+  --color-brand-400: #e26169;
+  --color-brand-500: #c93540;
+  --color-brand-600: #ab1b26;
+  --color-brand-700: #a2121c;
+  --color-brand-800: #7e0f18;
+  --color-brand-900: #5e0c13;
+  --color-brand-950: #3a070c;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

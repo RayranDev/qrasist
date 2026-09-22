@@ -258,7 +258,7 @@ export function StudentCareersModal({
                   checked={checked.has(career.id)}
                   disabled={loadingId === career.id}
                   onChange={() => handleToggle(career)}
-                  className="w-5 h-5 accent-emerald-600 cursor-pointer"
+                  className="w-5 h-5 accent-navy-700 cursor-pointer"
                 />
               </label>
             ))
@@ -352,7 +352,7 @@ export function ProfessorCareersModal({
                   checked={checked.has(career.id)}
                   disabled={loadingId === career.id}
                   onChange={() => handleToggle(career)}
-                  className="w-5 h-5 accent-emerald-600 cursor-pointer"
+                  className="w-5 h-5 accent-navy-700 cursor-pointer"
                 />
               </label>
             ))
@@ -407,7 +407,7 @@ export function CreateUserForm() {
   }
 
   const inputClass =
-    'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all shadow-sm'
+    'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-navy-600 focus:ring-2 focus:ring-navy-100 transition-all shadow-sm'
 
   if (!open) {
     return (
@@ -429,7 +429,7 @@ export function CreateUserForm() {
     >
       <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+          <div className="w-10 h-10 rounded-full bg-navy-50 flex items-center justify-center text-navy-700">
             <UserPlus className="w-5 h-5" strokeWidth={2} />
           </div>
           <h3 className="text-xl font-bold text-gray-900">Agregar Nuevo Usuario</h3>
@@ -563,7 +563,7 @@ export function CreateUserForm() {
           <button
             disabled={loading}
             type="submit"
-            className="w-full py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition shadow-md active:scale-95 flex items-center justify-center gap-2"
+            className="w-full py-2.5 bg-navy-800 text-white rounded-xl text-sm font-bold hover:bg-navy-900 transition shadow-md active:scale-95 flex items-center justify-center gap-2"
           >
             {loading ? 'Creando...' : 'Crear Usuario'}
           </button>
@@ -659,7 +659,7 @@ export function ActionButtons({
   }
 
   const inputClass =
-    'w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-emerald-500 transition-all'
+    'w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-navy-600 transition-all'
 
   if (isEditing) {
     return (
@@ -771,7 +771,7 @@ export function ActionButtons({
             <button
               disabled={loading}
               onClick={handleSave}
-              className="flex-1 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition"
+              className="flex-1 py-2 bg-navy-800 text-white rounded-xl text-sm font-bold hover:bg-navy-900 transition"
             >
               {loading ? 'Guardando...' : 'Guardar'}
             </button>
@@ -796,7 +796,7 @@ export function ActionButtons({
           <>
             <button
               onClick={() => setIsEditing(true)}
-              className="p-1.5 text-gray-500 bg-gray-50 border border-gray-200 rounded-lg hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 transition"
+              className="p-1.5 text-gray-500 bg-gray-50 border border-gray-200 rounded-lg hover:border-navy-300 hover:bg-navy-50 hover:text-navy-700 transition"
               title="Editar"
             >
               <Pencil className="w-4.5 h-4.5" strokeWidth={2} />
@@ -813,7 +813,7 @@ export function ActionButtons({
           <button
             onClick={handleReactivate}
             disabled={loading}
-            className="px-3 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition disabled:opacity-50"
+            className="px-3 py-1 text-xs font-bold text-navy-700 bg-navy-50 hover:bg-navy-100 rounded-lg transition disabled:opacity-50"
             title="Reactivar usuario"
           >
             {loading ? '...' : 'Reactivar'}

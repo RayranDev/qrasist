@@ -5,7 +5,7 @@ import { updateOwnProfile } from '@/lib/actions/profile'
 import { User, Eye, EyeOff } from 'lucide-react'
 
 const inputClass =
-  'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all'
+  'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-navy-600 focus:ring-2 focus:ring-navy-100 transition-all'
 
 function PasswordField({
   label,
@@ -124,7 +124,7 @@ export default function ProfileModal({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-gray-600 bg-gray-50 border border-gray-200 rounded-xl hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 transition"
+        className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-gray-600 bg-gray-50 border border-gray-200 rounded-xl hover:border-navy-200 hover:bg-navy-50 hover:text-navy-700 transition"
         title="Editar perfil"
       >
         <User className="w-4 h-4" strokeWidth={2} />
@@ -222,7 +222,7 @@ export default function ProfileModal({
               <button
                 onClick={handleSave}
                 disabled={loading}
-                className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition"
+                className="flex-1 py-2.5 bg-navy-800 text-white rounded-xl text-sm font-bold hover:bg-navy-900 transition"
               >
                 {loading ? 'Guardando...' : 'Guardar'}
               </button>

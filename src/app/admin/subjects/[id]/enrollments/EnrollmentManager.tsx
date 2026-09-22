@@ -76,7 +76,7 @@ export default function EnrollmentManager({
       {/* Estudiantes Inscritos */}
       <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100">
         <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <span className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm">
+          <span className="w-8 h-8 rounded-full bg-navy-50 text-navy-700 flex items-center justify-center text-sm">
             {enrolledStudents.length}
           </span>
           Estudiantes Inscritos
@@ -124,7 +124,7 @@ export default function EnrollmentManager({
                 <button
                   disabled={loadingId === student.id}
                   onClick={() => handleAdd(student.id, student.name)}
-                  className="px-3 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition disabled:opacity-50"
+                  className="px-3 py-1.5 text-xs font-bold text-navy-700 bg-navy-50 hover:bg-navy-100 rounded-lg transition disabled:opacity-50"
                 >
                   {loadingId === student.id ? '...' : '+ Añadir'}
                 </button>

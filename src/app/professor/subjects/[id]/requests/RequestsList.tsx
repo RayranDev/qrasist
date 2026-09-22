@@ -57,7 +57,7 @@ export default function RequestsList({ requests }: { requests: Request[] }) {
               <button
                 disabled={loadingId === req.id}
                 onClick={() => handleDecision(req, true)}
-                className="px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition disabled:opacity-50"
+                className="px-3 py-1.5 text-xs font-bold text-navy-700 bg-navy-50 hover:bg-navy-100 rounded-lg transition disabled:opacity-50"
               >
                 {loadingId === req.id ? '...' : 'Aprobar'}
               </button>

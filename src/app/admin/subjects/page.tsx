@@ -243,7 +243,7 @@ export default async function AdminSubjectsPage({
                       {isActive && (
                         <Link
                           href={`/admin/subjects/${sub.id}/enrollments`}
-                          className="block w-full py-2 bg-gray-50 hover:bg-emerald-50 text-emerald-600 text-center rounded-xl text-sm font-bold transition border border-gray-100 hover:border-emerald-100"
+                          className="block w-full py-2 bg-gray-50 hover:bg-navy-50 text-navy-700 text-center rounded-xl text-sm font-bold transition border border-gray-100 hover:border-navy-100"
                         >
                           Gestionar Estudiantes
                         </Link>

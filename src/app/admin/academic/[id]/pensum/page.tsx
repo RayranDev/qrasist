@@ -62,7 +62,7 @@ export default async function CareerPensumPage({ params }: { params: Promise<{ i
             <div className="flex flex-wrap gap-3">
               <Link
                 href={`/admin/users?role=STUDENT&career=${careerId}`}
-                className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-sm font-bold hover:bg-emerald-100 transition"
+                className="px-4 py-2 bg-navy-50 text-navy-700 rounded-xl text-sm font-bold hover:bg-navy-100 transition"
               >
                 {studentCount ?? 0} estudiante{(studentCount ?? 0) !== 1 ? 's' : ''}
               </Link>
