@@ -4,10 +4,20 @@ import { useMemo, useState } from 'react'
 import { requestEnrollmentBySubjectId } from '@/lib/actions/enrollmentRequests'
 import { useToast } from '@/components/toast/ToastProvider'
 import FilterPanel, { FilterField } from '@/components/FilterPanel'
-import { Check, Clock, X, AlertTriangle, AlertOctagon, CheckCircle2 } from 'lucide-react'
+import {
+  Check,
+  Clock,
+  X,
+  AlertTriangle,
+  AlertOctagon,
+  CheckCircle2,
+  FileWarning,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import type { StudentAttendanceSummary } from '@/lib/utils/attendancePolicy'
+import type { MissedSessionItem } from './missedSessions'
+import JustifyModal from './JustifyModal'
 
 interface Career {
   id: string
@@ -24,6 +34,7 @@ export interface SubjectItem {
   subject: { id: string; name: string; code: string }
   status: Status
   attendanceSummary?: StudentAttendanceSummary
+  missedSessions?: MissedSessionItem[]
 }
 
 export default function SubjectBrowser({
@@ -37,7 +48,17 @@ export default function SubjectBrowser({
   const [levelFilter, setLevelFilter] = useState('')
   const [requestingId, setRequestingId] = useState<string | null>(null)
   const [localStatus, setLocalStatus] = useState<Record<string, Status>>({})
+  const [justifyTarget, setJustifyTarget] = useState<MissedSessionItem | null>(null)
   const showToast = useToast()
+
+  const handleJustified = () => {
+    showToast('Justificación enviada. Te avisaremos cuando el docente la revise.', 'success')
+    setJustifyTarget(null)
+    // El listado de sesiones perdidas y los conteos de faltas vienen
+    // del server component -- un refresh trae el estado actualizado
+    // (revalidatePath ya invalidó la cache en el servidor).
+    window.location.reload()
+  }
 
   const filteredByCareer = careerFilter ? items.filter((i) => i.career.id === careerFilter) : items
 
@@ -160,6 +181,12 @@ export default function SubjectBrowser({
                           ({summary.absencesCount} falla{summary.absencesCount > 1 ? 's' : ''})
                         </span>
                       )}
+                      {summary.justifiedCount > 0 && (
+                        <Badge variant="info" size="sm">
+                          {summary.justifiedCount} justificada
+                          {summary.justifiedCount > 1 ? 's' : ''}
+                        </Badge>
+                      )}
                       {summary.lateCount > 0 && (
                         <Badge variant="warning" size="sm">
                           <Clock className="w-3 h-3 text-amber-600" />
@@ -190,11 +217,117 @@ export default function SubjectBrowser({
                     </div>
                   </div>
                 )}
+
+                {status === 'enrolled' && item.missedSessions && item.missedSessions.length > 0 && (
+                  <MissedSessionsList
+                    sessions={item.missedSessions}
+                    onJustify={(s) => setJustifyTarget(s)}
+                  />
+                )}
               </div>
             )
           })}
         </div>
       )}
+
+      {justifyTarget && (
+        <JustifyModal
+          session={justifyTarget}
+          onClose={() => setJustifyTarget(null)}
+          onSubmitted={handleJustified}
+        />
+      )}
+    </div>
+  )
+}
+
+function MissedSessionsList({
+  sessions,
+  onJustify,
+}: {
+  sessions: MissedSessionItem[]
+  onJustify: (session: MissedSessionItem) => void
+}) {
+  return (
+    <div className="pt-2.5 border-t border-gray-100 space-y-2">
+      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+        <FileWarning className="w-3.5 h-3.5" />
+        Sesiones sin justificar
+      </p>
+      {sessions.map((s) => (
+        <div
+          key={s.sessionId}
+          className="flex items-center justify-between gap-2 bg-gray-50/80 rounded-xl px-3 py-2"
+        >
+          <span className="text-xs text-gray-600 font-medium">
+            {new Date(s.date).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
+          </span>
+          <JustificationChip session={s} onJustify={onJustify} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function JustificationChip({
+  session,
+  onJustify,
+}: {
+  session: MissedSessionItem
+  onJustify: (session: MissedSessionItem) => void
+}) {
+  const status = session.justification?.status
+
+  if (status === 'PENDING') {
+    return (
+      <Badge variant="warning" size="sm">
+        <Clock className="w-3 h-3" />
+        En revisión
+      </Badge>
+    )
+  }
+
+  if (status === 'APPROVED') {
+    return (
+      <Badge variant="success" size="sm">
+        <CheckCircle2 className="w-3 h-3" />
+        Aprobada
+      </Badge>
+    )
+  }
+
+  if (status === 'REJECTED') {
+    return (
+      <div className="flex items-center gap-2">
+        <Badge variant="danger" size="sm">
+          <X className="w-3 h-3" />
+          Rechazada
+        </Badge>
+        {session.withinWindow && (
+          <Button variant="outline" size="sm" onClick={() => onJustify(session)}>
+            Volver a enviar
+          </Button>
+        )}
+      </div>
+    )
+  }
+
+  if (!session.withinWindow) {
+    return (
+      <Badge variant="neutral" size="sm">
+        Sin justificar
+      </Badge>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <Badge variant="neutral" size="sm">
+        Sin justificar
+      </Badge>
+      <Button variant="outline" size="sm" onClick={() => onJustify(session)}>
+        Justificar
+      </Button>
     </div>
   )
 }
