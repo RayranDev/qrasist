@@ -104,11 +104,26 @@ interface Subject {
   absence_justifications?: { student_id: string; status: string }[]
 }
 
-export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) {
-  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null)
+export default function HistoryDrillDown({
+  subjects,
+  initialSubjectId,
+}: {
+  subjects: Subject[]
+  /**
+   * Materia a preseleccionar al entrar (ej. desde el link "N en riesgo"
+   * de /professor/subjects). Cuando viene con valor, también arranca en
+   * la pestaña de inasistencias filtrada a solo estudiantes en riesgo.
+   */
+  initialSubjectId?: string
+}) {
+  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(
+    () => subjects.find((s) => s.id === initialSubjectId) || null
+  )
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
-  const [subjectTab, setSubjectTab] = useState<'sessions' | 'absences'>('sessions')
-  const [onlyRiskStudents, setOnlyRiskStudents] = useState(false)
+  const [subjectTab, setSubjectTab] = useState<'sessions' | 'absences'>(
+    initialSubjectId ? 'absences' : 'sessions'
+  )
+  const [onlyRiskStudents, setOnlyRiskStudents] = useState(!!initialSubjectId)
 
   // Nivel 3: Detalle de Asistencia de una Sesión específica
   if (selectedSession) {
