@@ -51,6 +51,26 @@ export function filterAtRiskSubjects(risks: StudentSubjectRisk[]): StudentSubjec
   return risks.filter((r) => r.summary.status !== 'NORMAL')
 }
 
+/**
+ * Línea compacta de estado por materia para /student/history, ej.
+ * "3 faltas de 4 permitidas · 1 justificada · 2 tardes". Los segmentos
+ * de justificadas y tardanzas solo aparecen si hay al menos una --
+ * distinta de `statusMessage` (pensada para alertas, no para un
+ * resumen siempre visible).
+ */
+export function formatSubjectStatusLine(summary: StudentAttendanceSummary): string {
+  const parts = [
+    `${summary.absencesCount} falta${summary.absencesCount === 1 ? '' : 's'} de ${summary.maxAbsencesAllowed} permitidas`,
+  ]
+  if (summary.justifiedCount > 0) {
+    parts.push(`${summary.justifiedCount} justificada${summary.justifiedCount === 1 ? '' : 's'}`)
+  }
+  if (summary.lateCount > 0) {
+    parts.push(`${summary.lateCount} tarde${summary.lateCount === 1 ? '' : 's'}`)
+  }
+  return parts.join(' · ')
+}
+
 interface SubjectRow {
   id: string
   name: string
