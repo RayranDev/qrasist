@@ -52,6 +52,15 @@ export function getLocalSupabaseEnv(): LocalSupabaseEnv {
     )
   }
 
+  // Hard guard shared by every caller (seed script and specs that write
+  // with the service role): refuse anything that isn't a local stack,
+  // even if a future change adds another source for these values.
+  for (const url of [apiUrl, dbUrl]) {
+    if (!/^[a-z]+:\/\/([^@/]*@)?(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/i.test(url)) {
+      throw new Error(`Refusing to run E2E against a non-local Supabase URL: ${new URL(url).host}`)
+    }
+  }
+
   cached = {
     NEXT_PUBLIC_SUPABASE_URL: apiUrl,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: anonKey,
