@@ -16,3 +16,22 @@ export function getBogotaDayRange(reference: Date = new Date()): { start: Date; 
     end: new Date(Date.UTC(y, m, d, 23, 59, 59, 999) + BOGOTA_OFFSET_MS),
   }
 }
+
+/**
+ * Formatea una fecha en hora de Colombia de forma explícita (no
+ * depende de la zona horaria del navegador/servidor que renderiza),
+ * para vistas donde el timestamp exacto importa sin ambigüedad --
+ * ej. la bitácora de auditoría, que un admin puede revisar desde
+ * cualquier huso horario.
+ */
+export function formatBogotaDateTime(iso: string): string {
+  return new Intl.DateTimeFormat('es-CO', {
+    timeZone: 'America/Bogota',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  }).format(new Date(iso))
+}

@@ -9,11 +9,17 @@ const mockCheckAdminOrSubjectProfessor = vi.fn()
 
 const mockAdminExistingMaybeSingle = vi.fn()
 const mockAdminInsert = vi.fn()
+const mockAdminInsertSingle = vi.fn()
 const mockAdminUpdateEq = vi.fn()
 const mockAdminDeleteEq = vi.fn()
+const mockLogAudit = vi.fn()
 
 vi.mock('./authGuards', () => ({
   checkAdminOrSubjectProfessor: (...args: unknown[]) => mockCheckAdminOrSubjectProfessor(...args),
+}))
+
+vi.mock('@/lib/audit/auditLog', () => ({
+  logAudit: (...args: unknown[]) => mockLogAudit(...args),
 }))
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -56,7 +62,10 @@ vi.mock('@/lib/supabase/adminClient', () => ({
             eq: vi.fn(() => ({ maybeSingle: mockAdminExistingMaybeSingle })),
           })),
         })),
-        insert: mockAdminInsert,
+        insert: vi.fn((...args: unknown[]) => {
+          mockAdminInsert(...args)
+          return { select: vi.fn(() => ({ single: mockAdminInsertSingle })) }
+        }),
         update: vi.fn(() => ({ eq: mockAdminUpdateEq })),
         delete: vi.fn(() => ({ eq: mockAdminDeleteEq })),
       }
@@ -74,7 +83,9 @@ describe('markAttendanceManually', () => {
     mockCheckAdminOrSubjectProfessor.mockReset()
     mockAdminExistingMaybeSingle.mockReset()
     mockAdminInsert.mockReset()
+    mockAdminInsertSingle.mockReset()
     mockAdminUpdateEq.mockReset()
+    mockLogAudit.mockReset()
   })
 
   it('rejects when the reason is shorter than 5 characters, without touching the database', async () => {
@@ -137,7 +148,7 @@ describe('markAttendanceManually', () => {
     mockCheckAdminOrSubjectProfessor.mockResolvedValue(true)
     mockEnrollmentMaybeSingle.mockResolvedValue({ data: { id: 'enrollment-1' } })
     mockAdminExistingMaybeSingle.mockResolvedValue({ data: null })
-    mockAdminInsert.mockResolvedValue({ error: null })
+    mockAdminInsertSingle.mockResolvedValue({ data: { id: 'attendance-new-1' }, error: null })
 
     const result = await markAttendanceManually({
       sessionId: 'session-1',

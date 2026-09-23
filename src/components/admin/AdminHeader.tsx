@@ -14,6 +14,7 @@ const NAV_LINKS: AdminNavLink[] = [
   { href: '/admin/subjects', label: 'Materias' },
   { href: '/admin/users', label: 'Usuarios' },
   { href: '/admin/academic', label: 'Carreras' },
+  { href: '/admin/audit', label: 'Auditoría' },
 ]
 
 export default function AdminHeader({

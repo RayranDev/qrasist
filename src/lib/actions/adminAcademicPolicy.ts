@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { checkAdmin } from './authGuards'
+import { logAudit } from '@/lib/audit/auditLog'
 import { z } from 'zod'
 
 const policySchema = z.object({
@@ -63,6 +64,13 @@ export async function updateGlobalAbsencePolicy(rawInput: unknown) {
     if (batchError) {
       return { success: false, error: 'Error al aplicar política a las materias' }
     }
+
+    await logAudit({
+      actorId: user.id,
+      action: 'policy.update_global_absence',
+      entityType: 'subjects',
+      details: { ...updatePayload, applied_to_count: count ?? 0 },
+    })
 
     revalidatePath('/admin/dashboard')
     revalidatePath('/admin/subjects')

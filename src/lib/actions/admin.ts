@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { revalidatePath } from 'next/cache'
 import { normalizeName } from '@/lib/utils/normalizeText'
+import { logAudit } from '@/lib/audit/auditLog'
 
 async function verifyAdminAccess() {
   const supabase = await createClient()
@@ -30,9 +31,20 @@ export async function updateUserRole(userId: string, newRole: 'ADMIN' | 'PROFESS
   }
 
   const supabase = await createClient()
+
+  const { data: before } = await supabase.from('profiles').select('role').eq('id', userId).single()
+
   const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId)
 
   if (error) return { success: false, error: 'Error al actualizar el rol.' }
+
+  await logAudit({
+    actorId: adminUser.id,
+    action: 'user.role_change',
+    entityType: 'profile',
+    entityId: userId,
+    details: { role_before: before?.role ?? null, role_after: newRole },
+  })
 
   revalidatePath('/admin/users')
   return { success: true }
@@ -95,6 +107,14 @@ export async function createUserAccount(formData: FormData) {
       }
     }
 
+    await logAudit({
+      actorId: adminUser.id,
+      action: 'user.create',
+      entityType: 'profile',
+      entityId: data.user.id,
+      details: { email, role, student_code: studentCode },
+    })
+
     revalidatePath('/admin/users')
     return { success: true }
   } catch (err) {
@@ -115,6 +135,13 @@ export async function deleteUserAccount(userId: string) {
 
   if (error) return { success: false, error: error.message }
 
+  await logAudit({
+    actorId: adminUser.id,
+    action: 'user.deactivate',
+    entityType: 'profile',
+    entityId: userId,
+  })
+
   revalidatePath('/admin/users')
   revalidatePath('/admin/dashboard')
   return { success: true }
@@ -128,6 +155,13 @@ export async function reactivateUser(userId: string) {
   const { error } = await supabase.from('profiles').update({ is_active: true }).eq('id', userId)
 
   if (error) return { success: false, error: error.message }
+
+  await logAudit({
+    actorId: adminUser.id,
+    action: 'user.reactivate',
+    entityType: 'profile',
+    entityId: userId,
+  })
 
   revalidatePath('/admin/users')
   revalidatePath('/admin/dashboard')
@@ -187,6 +221,22 @@ export async function updateUserAccount(
       await admin.auth.admin.updateUserById(userId, { user_metadata: metaUpdates })
       if (profileError) return { success: false, error: profileError.message }
     }
+
+    // Nunca se registra la contraseña en texto plano ni su hash --
+    // solo la marca de que hubo un cambio, para no convertir el
+    // audit_log en un vector de fuga de credenciales.
+    await logAudit({
+      actorId: adminUser.id,
+      action: 'user.update_account',
+      entityType: 'profile',
+      entityId: userId,
+      details: {
+        ...(data.first_name ? { first_name_changed: true } : {}),
+        ...(data.last_name ? { last_name_changed: true } : {}),
+        ...(data.student_code ? { student_code_changed: true } : {}),
+        ...(data.password ? { password_changed: true } : {}),
+      },
+    })
 
     revalidatePath('/admin/users')
     return { success: true }
