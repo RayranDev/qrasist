@@ -94,11 +94,21 @@ export async function createUserAccount(formData: FormData) {
 
     if (error) return { success: false, error: error.message }
 
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    const { error: profileUpdateError } = await admin
-      .from('profiles')
-      .update({ role, student_code: studentCode, email })
-      .eq('id', data.user.id)
+    // Upsert y no update: para correos no institucionales (solo ADMIN)
+    // el trigger handle_new_user no crea el perfil (025), asi que aca se
+    // crea completo, con el rol y el correo juntos para cumplir
+    // chk_email_domain en una sola escritura.
+    const { error: profileUpdateError } = await admin.from('profiles').upsert(
+      {
+        id: data.user.id,
+        role,
+        first_name: firstName,
+        last_name: lastName,
+        student_code: studentCode,
+        email,
+      },
+      { onConflict: 'id' }
+    )
 
     if (profileUpdateError) {
       return {
