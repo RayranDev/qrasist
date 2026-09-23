@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Sliders, CheckCircle2, AlertCircle, X, ShieldAlert } from 'lucide-react'
+import { Sliders, CheckCircle2, AlertCircle, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { updateGlobalAbsencePolicy } from '@/lib/actions/adminAcademicPolicy'
 
