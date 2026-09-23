@@ -44,11 +44,16 @@ export interface StudentItem {
   subjectCount: number
 }
 
+type ConsolidatedTab = 'all' | 'careers' | 'professors' | 'subjects' | 'students'
+
 interface PaginatedConsolidatedBoardProps {
   careers: CareerItem[]
   professors: ProfessorItem[]
   subjects: SubjectItem[]
   students: StudentItem[]
+  /** Pestaña con la que arranca -- permite que un link externo (ej. el
+   * bloque "Hoy" del dashboard) aterrice directo en "Estudiantes". */
+  initialTab?: ConsolidatedTab
 }
 
 const ITEMS_PER_PAGE = 6
@@ -58,11 +63,10 @@ export default function PaginatedConsolidatedBoard({
   professors,
   subjects,
   students,
+  initialTab = 'all',
 }: PaginatedConsolidatedBoardProps) {
   // Tab / Slide activo: 'all' | 'careers' | 'professors' | 'subjects' | 'students'
-  const [activeSlide, setActiveSlide] = useState<
-    'all' | 'careers' | 'professors' | 'subjects' | 'students'
-  >('all')
+  const [activeSlide, setActiveSlide] = useState<ConsolidatedTab>(initialTab)
 
   // Búsqueda independiente por entidad
   const [searchCareer, setSearchCareer] = useState('')
