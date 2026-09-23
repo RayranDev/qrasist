@@ -45,6 +45,7 @@ export default async function AdminDashboardPage({
     { count: totalSessions },
     { count: periodsActiveCount },
     { count: pendingJustificationsTotal },
+    { count: openSessionsNow },
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -65,6 +66,13 @@ export default async function AdminDashboardPage({
       .from('absence_justifications')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'PENDING'),
+    // Ventanas de QR abiertas en este momento (no todas las sesiones
+    // historicas no archivadas).
+    supabase
+      .from('sessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_active', true)
+      .gt('expires_at', new Date().toISOString()),
   ])
 
   // Desglose por carrera
@@ -296,7 +304,7 @@ export default async function AdminDashboardPage({
       pendingEnrollmentRequests: pendingEnrollmentRequestsTotal,
       pendingJustifications: pendingJustificationsTotal ?? 0,
       atRiskStudents: studentsAtRiskCount,
-      activeSessionsNow: totalSessions ?? 0,
+      activeSessionsNow: openSessionsNow ?? 0,
     },
     {
       enrollmentRequestsHref: topRequestSubjectId
