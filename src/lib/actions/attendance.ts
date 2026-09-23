@@ -23,25 +23,18 @@ export type AttendanceErrorCode =
 export type RegisterAttendanceResult =
   | {
       ok: true
-      success: true
+      message: string
       data: {
         subjectName: string
         subjectCode: string
         time: string
         isGuest: boolean
       }
-      message: string
-      isGuest: boolean
-      subjectName: string
-      subjectCode: string
-      time: string
     }
   | {
       ok: false
-      success: false
       code: AttendanceErrorCode
       message: string
-      error: string
     }
 
 export async function registerAttendance(
@@ -63,27 +56,25 @@ export async function registerAttendance(
   if (authError || !user) {
     return {
       ok: false,
-      success: false,
       code: 'UNAUTHENTICATED',
       message: 'No estás autenticado.',
-      error: 'No estás autenticado.',
     }
   }
 
   // 2. Rate Limiting por usuario y por IP (máx 10 intentos por minuto)
   const userRateKey = `scan:user:${user.id}`
   const ipRateKey = `scan:ip:${ipAddress}`
-  const userRate = checkRateLimit(userRateKey, { maxAttempts: 10, windowMs: 60_000 })
-  const ipRate = checkRateLimit(ipRateKey, { maxAttempts: 20, windowMs: 60_000 })
+  const [userRate, ipRate] = await Promise.all([
+    checkRateLimit(userRateKey, { maxAttempts: 10, windowMs: 60_000 }),
+    checkRateLimit(ipRateKey, { maxAttempts: 20, windowMs: 60_000 }),
+  ])
 
   if (!userRate.allowed || !ipRate.allowed) {
     const retrySec = userRate.retryAfterSeconds || ipRate.retryAfterSeconds || 15
     return {
       ok: false,
-      success: false,
       code: 'RATE_LIMITED',
       message: `Demasiados intentos de escaneo. Esperá ${retrySec} segundos antes de reintentar.`,
-      error: `Demasiados intentos de escaneo. Esperá ${retrySec} segundos antes de reintentar.`,
     }
   }
 
@@ -92,10 +83,8 @@ export async function registerAttendance(
   if (!uuidRegex.test(qrToken)) {
     return {
       ok: false,
-      success: false,
       code: 'INVALID',
       message: 'Código QR inválido. Formato no reconocido.',
-      error: 'Código QR inválido. Formato no reconocido.',
     }
   }
 
@@ -110,10 +99,8 @@ export async function registerAttendance(
   if (sessionError || !session) {
     return {
       ok: false,
-      success: false,
       code: 'INVALID',
       message: 'Código QR inválido. No pertenece a ninguna clase activa.',
-      error: 'Código QR inválido. No pertenece a ninguna clase activa.',
     }
   }
 
@@ -121,10 +108,8 @@ export async function registerAttendance(
   if (session.is_active === false) {
     return {
       ok: false,
-      success: false,
       code: 'INACTIVE',
       message: 'Esta sesión ha sido archivada y ya no acepta registros.',
-      error: 'Esta sesión ha sido archivada y ya no acepta registros.',
     }
   }
 
@@ -134,10 +119,8 @@ export async function registerAttendance(
   if (now > expiresAt || !session.qr_token) {
     return {
       ok: false,
-      success: false,
       code: 'EXPIRED',
       message: 'Este código QR ha expirado. Solicitá al profesor que genere uno nuevo.',
-      error: 'Este código QR ha expirado. Solicitá al profesor que genere uno nuevo.',
     }
   }
 
@@ -151,10 +134,8 @@ export async function registerAttendance(
   if (subject?.is_active === false) {
     return {
       ok: false,
-      success: false,
       code: 'INACTIVE',
       message: 'Esta materia ha sido archivada y ya no acepta registros.',
-      error: 'Esta materia ha sido archivada y ya no acepta registros.',
     }
   }
 
@@ -189,10 +170,8 @@ export async function registerAttendance(
   if (existingToday) {
     return {
       ok: false,
-      success: false,
       code: 'DUPLICATE',
       message: `Ya registraste asistencia para ${subject?.name || 'esta materia'} hoy.`,
-      error: `Ya registraste asistencia para ${subject?.name || 'esta materia'} hoy.`,
     }
   }
 
@@ -209,18 +188,14 @@ export async function registerAttendance(
     if (insertError.code === '23505') {
       return {
         ok: false,
-        success: false,
         code: 'DUPLICATE',
         message: `Ya registraste asistencia para ${subject?.name || 'esta materia'} hoy.`,
-        error: `Ya registraste asistencia para ${subject?.name || 'esta materia'} hoy.`,
       }
     }
     return {
       ok: false,
-      success: false,
       code: 'SERVER_ERROR',
       message: 'Error del servidor al registrar asistencia. Intenta nuevamente.',
-      error: 'Error del servidor al registrar asistencia. Intenta nuevamente.',
     }
   }
 
@@ -236,34 +211,24 @@ export async function registerAttendance(
   if (!isEnrolled) {
     return {
       ok: true,
-      success: true,
+      message: `Registrado como invitado en ${subjectName} (${subjectCode}) a las ${timeStr}`,
       data: {
         subjectName,
         subjectCode,
         time: timeStr,
         isGuest: true,
       },
-      isGuest: true,
-      message: `Registrado como invitado en ${subjectName} (${subjectCode}) a las ${timeStr}`,
-      subjectName,
-      subjectCode,
-      time: timeStr,
     }
   }
 
   return {
     ok: true,
-    success: true,
+    message: `${subjectName} · ${subjectCode} — ${timeStr}`,
     data: {
       subjectName,
       subjectCode,
       time: timeStr,
       isGuest: false,
     },
-    isGuest: false,
-    message: `${subjectName} · ${subjectCode} — ${timeStr}`,
-    subjectName,
-    subjectCode,
-    time: timeStr,
   }
 }
