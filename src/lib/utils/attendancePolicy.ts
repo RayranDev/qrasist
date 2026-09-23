@@ -41,7 +41,9 @@ export function computeAttendanceSummary(
 
   const cleanSessionsHeld = Math.max(0, sessionsHeld)
   const validAttendances = Math.min(cleanSessionsHeld, Math.max(0, attendancesCount))
-  const cleanLateCount = Math.max(0, lateCount)
+  // Una tardanza es una asistencia registrada: nunca puede haber mas
+  // tardanzas que asistencias, asi las faltas no superan lo dictado.
+  const cleanLateCount = Math.min(validAttendances, Math.max(0, lateCount))
 
   // Faltas "reales" (sesiones dictadas sin ningún registro) más la
   // penalización de tardanzas acumuladas: cada `latesPerAbsence`

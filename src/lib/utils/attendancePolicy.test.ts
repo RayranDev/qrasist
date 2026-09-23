@@ -59,6 +59,16 @@ describe('computeAttendanceSummary', () => {
       expect(res.status).toBe('NORMAL')
     })
 
+    it('never counts more lates than registered attendances', () => {
+      // 4 sessions held, 1 attended, but a stale caller reports 8 lates.
+      // Absences must stay capped at the sessions actually held.
+      const res = computeAttendanceSummary(4, 1, { latesPerAbsence: 1 }, 8)
+
+      expect(res.lateCount).toBe(1)
+      expect(res.absencesCount).toBe(4)
+      expect(res.absencePercentage).toBe(100)
+    })
+
     it('converts every N lates into one extra absence', () => {
       // 10 sessions held, 10 attended, 6 lates, 3 lates = 1 absence.
       // Expected: floor(6/3) = 2 extra absences on top of 0 real ones.
