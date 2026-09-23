@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { checkStudentEnrollable } from './enrollmentGuards'
 import { checkAdminOrSubjectProfessor } from './authGuards'
+import { logAudit } from '@/lib/audit/auditLog'
 
 // Alfabeto sin caracteres ambiguos (0/O, 1/I/L) para que el
 // estudiante lo pueda transcribir sin confundirse.
@@ -217,6 +218,15 @@ export async function approveEnrollmentRequest(requestId: string) {
     return { success: false, error: 'No se pudo aprobar la solicitud.' }
   }
 
+  await logAudit({
+    actorId: user.id,
+    action: 'enrollment_request.approve',
+    entityType: 'enrollment_request',
+    entityId: requestId,
+    subjectId: request.subject_id,
+    details: { student_id: request.student_id },
+  })
+
   revalidatePath('/professor/subjects')
   return { success: true }
 }
@@ -230,7 +240,7 @@ export async function rejectEnrollmentRequest(requestId: string) {
 
   const { data: request } = await supabase
     .from('enrollment_requests')
-    .select('id, subject_id')
+    .select('id, student_id, subject_id')
     .eq('id', requestId)
     .single()
 
@@ -248,6 +258,15 @@ export async function rejectEnrollmentRequest(requestId: string) {
     .eq('status', 'pending')
 
   if (error) return { success: false, error: 'No se pudo rechazar la solicitud.' }
+
+  await logAudit({
+    actorId: user.id,
+    action: 'enrollment_request.reject',
+    entityType: 'enrollment_request',
+    entityId: requestId,
+    subjectId: request.subject_id,
+    details: { student_id: request.student_id },
+  })
 
   revalidatePath('/professor/subjects')
   return { success: true }

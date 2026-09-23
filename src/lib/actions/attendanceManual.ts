@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { checkAdminOrSubjectProfessor } from './authGuards'
 import { getBogotaDayRange } from '@/lib/utils/bogotaDay'
+import { logAudit } from '@/lib/audit/auditLog'
 import { revalidatePath } from 'next/cache'
 
 export type ManualAttendanceStatus = 'PRESENT' | 'LATE'
@@ -83,7 +84,7 @@ export async function markAttendanceManually({
 
   const { data: existing } = await admin
     .from('attendances')
-    .select('id')
+    .select('id, status')
     .eq('session_id', sessionId)
     .eq('student_id', studentId)
     .maybeSingle()
@@ -94,23 +95,42 @@ export async function markAttendanceManually({
       .update({ status, marked_by: user.id, manual_reason: trimmedReason })
       .eq('id', existing.id)
     if (error) return { success: false, error: 'No se pudo actualizar la asistencia.' }
-  } else {
-    const { error } = await admin.from('attendances').insert({
-      session_id: sessionId,
-      student_id: studentId,
-      status,
-      marked_by: user.id,
-      manual_reason: trimmedReason,
-      scanned_at: session.date,
-      ip_address: 'manual',
+
+    await logAudit({
+      actorId: user.id,
+      action: 'attendance.update',
+      entityType: 'attendance',
+      entityId: existing.id,
+      subjectId: session.subject_id,
+      details: {
+        student_id: studentId,
+        session_id: sessionId,
+        status_before: existing.status,
+        status_after: status,
+        reason: trimmedReason,
+      },
     })
+  } else {
+    const { data: inserted, error } = await admin
+      .from('attendances')
+      .insert({
+        session_id: sessionId,
+        student_id: studentId,
+        status,
+        marked_by: user.id,
+        manual_reason: trimmedReason,
+        scanned_at: session.date,
+        ip_address: 'manual',
+      })
+      .select('id')
+      .single()
 
     if (error) {
       if (error.code === '23505') {
         const { start, end } = getBogotaDayRange(new Date(session.date))
         const { data: sameDayRow } = await admin
           .from('attendances')
-          .select('id')
+          .select('id, session_id, status, scanned_at, ip_address')
           .eq('student_id', studentId)
           .eq('subject_id', session.subject_id)
           .gte('scanned_at', start.toISOString())
@@ -134,9 +154,37 @@ export async function markAttendanceManually({
         if (relocateError) {
           return { success: false, error: 'Ya tiene asistencia registrada ese día.' }
         }
+
+        await logAudit({
+          actorId: user.id,
+          action: 'attendance.relocate',
+          entityType: 'attendance',
+          entityId: sameDayRow.id,
+          subjectId: session.subject_id,
+          details: {
+            path: 'relocated',
+            student_id: studentId,
+            from_session_id: sameDayRow.session_id,
+            to_session_id: sessionId,
+            status_before: sameDayRow.status,
+            status_after: status,
+            original_scanned_at: sameDayRow.scanned_at,
+            original_ip_address: sameDayRow.ip_address,
+            reason: trimmedReason,
+          },
+        })
       } else {
         return { success: false, error: 'No se pudo registrar la asistencia.' }
       }
+    } else {
+      await logAudit({
+        actorId: user.id,
+        action: 'attendance.mark',
+        entityType: 'attendance',
+        entityId: inserted?.id ?? null,
+        subjectId: session.subject_id,
+        details: { student_id: studentId, session_id: sessionId, status, reason: trimmedReason },
+      })
     }
   }
 
@@ -146,8 +194,6 @@ export async function markAttendanceManually({
 
 /**
  * Quita una fila de asistencia (marcada por escaneo o manualmente).
- * Fase 4 agregará una tabla audit_log real; por ahora el motivo queda
- * en el log del servidor como gancho claro para ese registro futuro.
  */
 export async function removeAttendanceMark({
   attendanceId,
@@ -167,7 +213,7 @@ export async function removeAttendanceMark({
 
   const { data: attendance } = await supabase
     .from('attendances')
-    .select('id, session:sessions(subject_id)')
+    .select('id, student_id, session_id, status, session:sessions(subject_id)')
     .eq('id', attendanceId)
     .single()
 
@@ -184,8 +230,20 @@ export async function removeAttendanceMark({
   const { error } = await admin.from('attendances').delete().eq('id', attendanceId)
   if (error) return { success: false, error: 'No se pudo quitar la asistencia.' }
 
-  // Gancho de auditoría (fase 4: audit_log persistente).
-  console.log(`[audit] attendance ${attendanceId} removed by ${user.id} - reason: ${reason.trim()}`)
+  const trimmedReason = reason.trim()
+  await logAudit({
+    actorId: user.id,
+    action: 'attendance.remove',
+    entityType: 'attendance',
+    entityId: attendanceId,
+    subjectId,
+    details: {
+      student_id: attendance.student_id,
+      session_id: attendance.session_id,
+      status_before: attendance.status,
+      reason: trimmedReason,
+    },
+  })
 
   revalidatePath('/professor/history')
   return { success: true }
