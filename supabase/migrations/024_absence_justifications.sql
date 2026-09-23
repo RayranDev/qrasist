@@ -17,13 +17,13 @@
 -- sin calificar. Se documenta acá para que quede claro en el mismo
 -- lugar donde se crean las FKs.
 --
--- RLS: se usan policies narrow (no todo vía service role) porque el
--- propio estudiante necesita poder INSERT/UPDATE su justificación
--- (crear y reenviar tras un rechazo) sin depender de un endpoint que
--- reimplemente esa lógica -- las server actions igual revalidan todo
--- (elegibilidad, ventana de 7 días, ownership del path) antes de
--- tocar la fila, así que RLS es defensa en profundidad, no la única
--- barrera.
+-- RLS: solo lectura. No hay policies de INSERT/UPDATE/DELETE: todas
+-- las escrituras pasan por las server actions (service role) despues
+-- de validar elegibilidad, ventana de 7 dias y ownership del adjunto.
+-- Una policy de escritura para el estudiante seria la UNICA barrera
+-- ante una llamada directa a PostgREST con su propio JWT (la anon key
+-- es publica), y permitiria insertar o pasar a APPROVED su propia
+-- justificacion sin revision del profesor.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS public.absence_justifications (
@@ -47,35 +47,29 @@ CREATE INDEX IF NOT EXISTS absence_justifications_status_idx ON public.absence_j
 
 ALTER TABLE public.absence_justifications ENABLE ROW LEVEL SECURITY;
 
--- Estudiante: ve, crea y actualiza (reenvío tras rechazo) sus propias
--- justificaciones. Profesor dueño de la materia y ADMIN: solo lectura
--- (la revisión la hace reviewJustification() con service role, con
--- claim atómico igual que approveEnrollmentRequest).
+-- Estudiante: ve sus propias justificaciones. Profesor activo dueño de
+-- la materia y ADMIN: lectura (la revisión la hace reviewJustification()
+-- con service role, con claim atómico igual que approveEnrollmentRequest).
 DROP POLICY IF EXISTS absence_justifications_select ON public.absence_justifications;
 CREATE POLICY absence_justifications_select ON public.absence_justifications
   FOR SELECT USING (
     student_id = auth.uid()
     OR public.my_role() = 'ADMIN'
-    OR EXISTS (
-      SELECT 1 FROM public.subjects s
-      WHERE s.id = absence_justifications.subject_id
-        AND s.professor_id = auth.uid()
-        AND s.is_active IS NOT FALSE
+    OR (
+      public.is_active_self()
+      AND EXISTS (
+        SELECT 1 FROM public.subjects s
+        WHERE s.id = absence_justifications.subject_id
+          AND s.professor_id = auth.uid()
+          AND s.is_active IS NOT FALSE
+      )
     )
   );
 
+-- Versiones anteriores de esta migración creaban policies de escritura
+-- para el estudiante; se eliminan si existen (ver nota de RLS arriba).
 DROP POLICY IF EXISTS absence_justifications_student_insert ON public.absence_justifications;
-CREATE POLICY absence_justifications_student_insert ON public.absence_justifications
-  FOR INSERT WITH CHECK (public.my_role() = 'STUDENT' AND student_id = auth.uid());
-
--- El estudiante solo puede reescribir su propia fila (reenvío tras
--- rechazo); campos de revisión (status/reviewed_by/reviewed_at) los
--- toca reviewJustification() vía service role, que bypassa RLS.
 DROP POLICY IF EXISTS absence_justifications_student_update ON public.absence_justifications;
-CREATE POLICY absence_justifications_student_update ON public.absence_justifications
-  FOR UPDATE
-  USING (public.my_role() = 'STUDENT' AND student_id = auth.uid())
-  WITH CHECK (public.my_role() = 'STUDENT' AND student_id = auth.uid());
 
 -- ------------------------------------------------------------
 -- Storage: bucket privado `justifications` para los adjuntos.
@@ -101,12 +95,15 @@ CREATE POLICY justifications_reviewer_read ON storage.objects
     bucket_id = 'justifications'
     AND (
       public.my_role() = 'ADMIN'
-      OR EXISTS (
-        SELECT 1
-        FROM public.absence_justifications aj
-        JOIN public.subjects s ON s.id = aj.subject_id
-        WHERE aj.attachment_path = storage.objects.name
-          AND s.professor_id = auth.uid()
+      OR (
+        public.is_active_self()
+        AND EXISTS (
+          SELECT 1
+          FROM public.absence_justifications aj
+          JOIN public.subjects s ON s.id = aj.subject_id
+          WHERE aj.attachment_path = storage.objects.name
+            AND s.professor_id = auth.uid()
+        )
       )
     )
   );
