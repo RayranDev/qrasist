@@ -4,11 +4,13 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { Html5Qrcode } from 'html5-qrcode'
 import { registerAttendance, AttendanceErrorCode } from '@/lib/actions/attendance'
 import { getBestEffortLocation } from '@/lib/utils/geolocation'
-import { Check, TriangleAlert, CircleX, WifiOff, RefreshCw } from 'lucide-react'
+import { Check, TriangleAlert, CircleX, WifiOff, RefreshCw, Clock3 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 
 export default function QRScanner() {
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error' | 'guest'>('idle')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'late' | 'error' | 'guest'>(
+    'idle'
+  )
   const [message, setMessage] = useState('')
   const [errorCode, setErrorCode] = useState<AttendanceErrorCode | null>(null)
   const [isOnline, setIsOnline] = useState(() =>
@@ -65,6 +67,11 @@ export default function QRScanner() {
           setStatus('guest')
           setMessage(
             `Registrado como invitado en ${result.data.subjectName} a las ${result.data.time}`
+          )
+        } else if (result.data.isLate) {
+          setStatus('late')
+          setMessage(
+            `Registrado como tarde en ${result.data.subjectName} (${result.data.subjectCode}) — ${result.data.time}`
           )
         } else {
           setStatus('success')
@@ -168,6 +175,21 @@ export default function QRScanner() {
           </div>
           <h3 className="text-lg font-bold text-gray-900 mb-1">¡Asistencia Confirmada!</h3>
           <p className="text-xs font-medium text-emerald-700 bg-emerald-50/80 border border-emerald-100 rounded-xl px-4 py-3 mb-6 w-full leading-relaxed">
+            {message}
+          </p>
+          <Button onClick={reset} variant="primary" size="md" className="w-full">
+            Escanear otro código
+          </Button>
+        </div>
+      )}
+
+      {status === 'late' && (
+        <div className="flex flex-col items-center py-8 w-full max-w-xs text-center animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center mb-4">
+            <Clock3 className="w-8 h-8 text-amber-600" strokeWidth={2.5} />
+          </div>
+          <h3 className="text-lg font-bold text-gray-900 mb-1">Registrado como tarde</h3>
+          <p className="text-xs font-medium text-amber-700 bg-amber-50/80 border border-amber-100 rounded-xl px-4 py-3 mb-6 w-full leading-relaxed">
             {message}
           </p>
           <Button onClick={reset} variant="primary" size="md" className="w-full">

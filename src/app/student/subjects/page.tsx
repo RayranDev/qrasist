@@ -19,6 +19,8 @@ interface SubjectCareerRow {
     max_absence_percentage?: number
     max_absence_count?: number | null
     total_planned_sessions?: number
+    late_after_minutes?: number | null
+    lates_per_absence?: number | null
   } | null
 }
 
@@ -59,7 +61,9 @@ export default async function StudentSubjectsPage() {
           absence_rule_type,
           max_absence_percentage,
           max_absence_count,
-          total_planned_sessions
+          total_planned_sessions,
+          late_after_minutes,
+          lates_per_absence
         )
       `
       )
@@ -80,7 +84,7 @@ export default async function StudentSubjectsPage() {
     supabase.from('enrollment_requests').select('subject_id, status').eq('student_id', user.id),
     supabase
       .from('attendances')
-      .select('session_id, session:sessions(subject_id)')
+      .select('session_id, status, session:sessions(subject_id)')
       .eq('student_id', user.id),
     supabase.from('sessions').select('id, subject_id').eq('is_active', true),
   ])
@@ -99,8 +103,9 @@ export default async function StudentSubjectsPage() {
     )
   }
 
-  // Mapear asistencias del estudiante por materia
+  // Mapear asistencias (y tardanzas) del estudiante por materia
   const studentAttendancesBySubject = new Map<string, number>()
+  const studentLateCountBySubject = new Map<string, number>()
   for (const att of studentAttendances || []) {
     const sessionObj = att.session as unknown as { subject_id: string } | null
     if (sessionObj?.subject_id) {
@@ -108,6 +113,12 @@ export default async function StudentSubjectsPage() {
         sessionObj.subject_id,
         (studentAttendancesBySubject.get(sessionObj.subject_id) || 0) + 1
       )
+      if (att.status === 'LATE') {
+        studentLateCountBySubject.set(
+          sessionObj.subject_id,
+          (studentLateCountBySubject.get(sessionObj.subject_id) || 0) + 1
+        )
+      }
     }
   }
 
@@ -115,14 +126,21 @@ export default async function StudentSubjectsPage() {
     const isEnrolled = enrolledIds.has(r.subject!.id)
     const sessionsHeld = activeSessionsCountBySubject.get(r.subject!.id) || 0
     const attended = studentAttendancesBySubject.get(r.subject!.id) || 0
+    const lateCount = studentLateCountBySubject.get(r.subject!.id) || 0
 
     const attendanceSummary = isEnrolled
-      ? computeAttendanceSummary(sessionsHeld, attended, {
-          ruleType: r.subject!.absence_rule_type,
-          maxPercentage: r.subject!.max_absence_percentage,
-          maxCount: r.subject!.max_absence_count,
-          totalPlannedSessions: r.subject!.total_planned_sessions,
-        })
+      ? computeAttendanceSummary(
+          sessionsHeld,
+          attended,
+          {
+            ruleType: r.subject!.absence_rule_type,
+            maxPercentage: r.subject!.max_absence_percentage,
+            maxCount: r.subject!.max_absence_count,
+            totalPlannedSessions: r.subject!.total_planned_sessions,
+            latesPerAbsence: r.subject!.lates_per_absence,
+          },
+          lateCount
+        )
       : undefined
 
     return {

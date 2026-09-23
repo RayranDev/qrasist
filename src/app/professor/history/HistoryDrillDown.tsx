@@ -17,6 +17,7 @@ import {
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
+import AttendanceRowActions from '@/components/attendance/AttendanceRowActions'
 
 interface EnrolledProfile {
   id: string
@@ -36,6 +37,9 @@ interface Attendance {
   ip_address: string | null
   latitude: number | null
   longitude: number | null
+  status?: 'PRESENT' | 'LATE'
+  marked_by?: string | null
+  manual_reason?: string | null
   student: Student | null
 }
 
@@ -93,6 +97,8 @@ interface Subject {
   max_absence_percentage?: number
   max_absence_count?: number | null
   total_planned_sessions?: number
+  late_after_minutes?: number | null
+  lates_per_absence?: number | null
   enrollments: Enrollment[]
   sessions: Session[]
 }
@@ -149,7 +155,21 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
 
     const groupIp = mostCommonIp(selectedSession.attendances || [])
 
-    const renderTable = (attendances: Attendance[], emptyMessage: string) => (
+    // Estudiantes inscritos que todavía no tienen ningún registro en
+    // esta sesión puntual -- permite marcarlos manualmente desde el
+    // historial, no solo corregir filas existentes.
+    const enrolledAttendedIds = new Set(enrolledAttendances.map((a) => a.student_id))
+    const notRegisteredStudents = (selectedSubject!.enrollments || [])
+      .map((e) => e.student)
+      .filter((st): st is EnrolledProfile => !!st && !enrolledAttendedIds.has(st.id))
+
+    const refreshAfterManualAction = () => window.location.reload()
+
+    const renderTable = (
+      attendances: Attendance[],
+      emptyMessage: string,
+      allowManualActions: boolean
+    ) => (
       <div className="overflow-x-auto rounded-2xl border border-gray-100 mb-8">
         <table className="w-full text-left text-sm min-w-175">
           <thead className="bg-gray-50/80">
@@ -159,6 +179,9 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
               </th>
               <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">
                 Código
+              </th>
+              <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">
+                Estado
               </th>
               <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">
                 Fecha
@@ -172,6 +195,11 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
               <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">
                 Ubicación
               </th>
+              {allowManualActions && (
+                <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">
+                  Acciones
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -205,6 +233,18 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
                     </td>
                     <td className="px-6 py-4 text-gray-600 font-mono text-xs font-bold">
                       {att.student?.student_code || '---'}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Badge variant={att.status === 'LATE' ? 'warning' : 'success'} size="sm">
+                          {att.status === 'LATE' ? 'Tarde' : 'Presente'}
+                        </Badge>
+                        {att.marked_by && (
+                          <Badge variant="info" size="sm">
+                            Manual
+                          </Badge>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-gray-500 font-medium">
                       {format(dateObj, 'dd/MM/yyyy')}
@@ -246,12 +286,26 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
                         <span className="text-xs text-gray-300">—</span>
                       )}
                     </td>
+                    {allowManualActions && (
+                      <td className="px-6 py-4">
+                        <AttendanceRowActions
+                          sessionId={selectedSession.id}
+                          studentId={att.student_id}
+                          attendanceId={att.id}
+                          currentStatus={att.status ?? 'PRESENT'}
+                          onChanged={refreshAfterManualAction}
+                        />
+                      </td>
+                    )}
                   </tr>
                 )
               })
             ) : (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-gray-500 italic">
+                <td
+                  colSpan={allowManualActions ? 8 : 7}
+                  className="px-6 py-8 text-center text-gray-500 italic"
+                >
                   {emptyMessage}
                 </td>
               </tr>
@@ -295,7 +349,35 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
           </span>
           Estudiantes Regulares (Inscritos)
         </h4>
-        {renderTable(enrolledAttendances, 'Ningún estudiante inscrito registró asistencia.')}
+        {renderTable(enrolledAttendances, 'Ningún estudiante inscrito registró asistencia.', true)}
+
+        {notRegisteredStudents.length > 0 && (
+          <>
+            <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-xs">
+                {notRegisteredStudents.length}
+              </span>
+              Inscritos Sin Registro
+            </h4>
+            <div className="rounded-2xl border border-dashed border-gray-200 divide-y divide-gray-100 mb-8">
+              {notRegisteredStudents.map((st) => (
+                <div key={st.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">{st.name}</p>
+                    <p className="text-xs font-mono text-gray-400">{st.student_code || '---'}</p>
+                  </div>
+                  <AttendanceRowActions
+                    sessionId={selectedSession.id}
+                    studentId={st.id}
+                    attendanceId={null}
+                    currentStatus={null}
+                    onChanged={refreshAfterManualAction}
+                  />
+                </div>
+              ))}
+            </div>
+          </>
+        )}
 
         <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
           <span className="w-6 h-6 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center text-xs">
@@ -303,7 +385,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
           </span>
           Invitados (No Inscritos)
         </h4>
-        {renderTable(guestAttendances, 'No hubo invitados en esta clase.')}
+        {renderTable(guestAttendances, 'No hubo invitados en esta clase.', false)}
       </div>
     )
   }
@@ -318,22 +400,33 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
       .map((e) => e.student)
       .filter((st): st is EnrolledProfile => !!st)
 
-    // Mapa de asistencias por estudiante para las sesiones activas de esta materia
+    // Mapa de asistencias (y tardanzas) por estudiante para las sesiones activas de esta materia
     const attendanceCountMap = new Map<string, number>()
+    const lateCountMap = new Map<string, number>()
     for (const session of activeSessions) {
       for (const att of session.attendances || []) {
         attendanceCountMap.set(att.student_id, (attendanceCountMap.get(att.student_id) || 0) + 1)
+        if (att.status === 'LATE') {
+          lateCountMap.set(att.student_id, (lateCountMap.get(att.student_id) || 0) + 1)
+        }
       }
     }
 
     const studentMetrics = enrolledStudents.map((st) => {
       const attended = attendanceCountMap.get(st.id) || 0
-      const summary = computeAttendanceSummary(activeSessions.length, attended, {
-        ruleType: selectedSubject.absence_rule_type,
-        maxPercentage: selectedSubject.max_absence_percentage,
-        maxCount: selectedSubject.max_absence_count,
-        totalPlannedSessions: selectedSubject.total_planned_sessions,
-      })
+      const lateCount = lateCountMap.get(st.id) || 0
+      const summary = computeAttendanceSummary(
+        activeSessions.length,
+        attended,
+        {
+          ruleType: selectedSubject.absence_rule_type,
+          maxPercentage: selectedSubject.max_absence_percentage,
+          maxCount: selectedSubject.max_absence_count,
+          totalPlannedSessions: selectedSubject.total_planned_sessions,
+          latesPerAbsence: selectedSubject.lates_per_absence,
+        },
+        lateCount
+      )
       return {
         student: st,
         summary,

@@ -44,6 +44,8 @@ export const subjectSchema = z.object({
   maxAbsencePercentage: z.coerce.number().int().min(1).max(100).default(20),
   maxAbsenceCount: z.coerce.number().int().min(1).max(50).optional().nullable(),
   totalPlannedSessions: z.coerce.number().int().min(1).max(100).default(16),
+  lateAfterMinutes: z.coerce.number().int().min(1).max(180).optional().nullable(),
+  latesPerAbsence: z.coerce.number().int().min(1).max(10).optional().nullable(),
 })
 
 export const sessionConfigSchema = z.object({

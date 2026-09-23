@@ -50,6 +50,8 @@ interface Subject {
   max_absence_percentage?: number
   max_absence_count?: number | null
   total_planned_sessions?: number
+  late_after_minutes?: number | null
+  lates_per_absence?: number | null
 }
 
 export function CreateSubjectForm({ periods }: { periods: Period[] }) {
@@ -197,6 +199,43 @@ export function CreateSubjectForm({ periods }: { periods: Period[] }) {
         </div>
       </div>
 
+      <div className="pt-3 mt-3 border-t border-gray-100">
+        <p className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 ml-1">
+          Tardanzas
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-[11px] font-semibold text-gray-600 mb-1 ml-1">
+              Tolerancia (minutos)
+            </label>
+            <input
+              name="late_after_minutes"
+              type="number"
+              defaultValue={15}
+              min={1}
+              max={180}
+              placeholder="Vacío = sin seguimiento"
+              className={`${inputClass} text-xs`}
+              title="Minutos tras abrir el QR a partir de los cuales el escaneo cuenta como tarde. Vacío desactiva el seguimiento de tardanzas."
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-gray-600 mb-1 ml-1">
+              Tardanzas por falta
+            </label>
+            <input
+              name="lates_per_absence"
+              type="number"
+              min={1}
+              max={10}
+              placeholder="Ej. 3 (opcional)"
+              className={`${inputClass} text-xs`}
+              title="Cada cuántas tardanzas se suma una inasistencia. Vacío = las tardanzas nunca se convierten en falta."
+            />
+          </div>
+        </div>
+      </div>
+
       <div className="mt-5 flex items-center justify-between gap-4">
         <p className="text-xs text-gray-400">
           El profesor se asigna después, una vez que la materia tenga carrera vinculada.
@@ -242,6 +281,12 @@ export function SubjectActionButtons({
   )
   const [totalPlannedSessions, setTotalPlannedSessions] = useState(
     subject.total_planned_sessions ?? 16
+  )
+  const [lateAfterMinutes, setLateAfterMinutes] = useState<number | string>(
+    subject.late_after_minutes ?? 15
+  )
+  const [latesPerAbsence, setLatesPerAbsence] = useState<number | string>(
+    subject.lates_per_absence ?? ''
   )
   const showToast = useToast()
 
@@ -290,6 +335,8 @@ export function SubjectActionButtons({
       max_absence_percentage: Number(maxAbsencePercentage) || 20,
       max_absence_count: maxAbsenceCount !== '' ? Number(maxAbsenceCount) : null,
       total_planned_sessions: Number(totalPlannedSessions) || 16,
+      late_after_minutes: lateAfterMinutes !== '' ? Number(lateAfterMinutes) : null,
+      lates_per_absence: latesPerAbsence !== '' ? Number(latesPerAbsence) : null,
     })
     if (result.success) {
       setIsEditing(false)
@@ -417,6 +464,40 @@ export function SubjectActionButtons({
                   max={60}
                   className={`${inputClass} text-xs`}
                 />
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-gray-100">
+              <p className="text-xs font-bold text-gray-700 mb-2">Tardanzas</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] text-gray-500 mb-1">Tolerancia (min)</label>
+                  <input
+                    type="number"
+                    value={lateAfterMinutes}
+                    onChange={(e) => setLateAfterMinutes(e.target.value)}
+                    min={1}
+                    max={180}
+                    placeholder="Vacío = sin seguimiento"
+                    title="Minutos tras abrir el QR a partir de los cuales el escaneo cuenta como tarde. Vacío desactiva el seguimiento de tardanzas."
+                    className={`${inputClass} text-xs`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-gray-500 mb-1">
+                    Tardanzas por falta
+                  </label>
+                  <input
+                    type="number"
+                    value={latesPerAbsence}
+                    onChange={(e) => setLatesPerAbsence(e.target.value)}
+                    min={1}
+                    max={10}
+                    placeholder="Ej. 3 (opcional)"
+                    title="Cada cuántas tardanzas se suma una inasistencia. Vacío = las tardanzas nunca se convierten en falta."
+                    className={`${inputClass} text-xs`}
+                  />
+                </div>
               </div>
             </div>
           </div>

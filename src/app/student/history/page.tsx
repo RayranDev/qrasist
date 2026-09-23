@@ -1,12 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import LocalTime from '@/components/LocalTime'
+import { Badge } from '@/components/ui/Badge'
 
 export const dynamic = 'force-dynamic'
 
 interface AttendanceRecord {
   id: string
   scanned_at: string
+  status?: 'PRESENT' | 'LATE'
   session: {
     id: string
     date: string
@@ -33,6 +35,7 @@ export default async function StudentHistoryPage() {
       `
       id,
       scanned_at,
+      status,
       session:sessions (
         id,
         date,
@@ -62,8 +65,13 @@ export default async function StudentHistoryPage() {
           {records.map((record) => (
             <div key={record.id} className="px-4 py-3.5 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-sm font-bold text-gray-900 truncate">
+                <p className="text-sm font-bold text-gray-900 truncate flex items-center gap-1.5">
                   {record.session?.subject?.name}
+                  {record.status === 'LATE' && (
+                    <Badge variant="warning" size="sm">
+                      Tarde
+                    </Badge>
+                  )}
                 </p>
                 <p className="text-xs font-mono text-navy-700">{record.session?.subject?.code}</p>
               </div>

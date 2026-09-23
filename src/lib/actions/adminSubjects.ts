@@ -24,6 +24,11 @@ export async function createSubject(formData: FormData) {
     maxAbsencePercentage: formData.get('max_absence_percentage') || 20,
     maxAbsenceCount: formData.get('max_absence_count') || undefined,
     totalPlannedSessions: formData.get('total_planned_sessions') || 16,
+    // Campo vacío = tardanzas desactivadas para esta materia (columna NULL);
+    // el input de creación siempre trae un defaultValue, así que "vacío"
+    // solo ocurre si el admin lo borra a propósito.
+    lateAfterMinutes: formData.get('late_after_minutes') || null,
+    latesPerAbsence: formData.get('lates_per_absence') || null,
   }
 
   const parsed = subjectSchema.safeParse(raw)
@@ -42,6 +47,8 @@ export async function createSubject(formData: FormData) {
     max_absence_percentage: parsed.data.maxAbsencePercentage,
     max_absence_count: parsed.data.maxAbsenceCount || null,
     total_planned_sessions: parsed.data.totalPlannedSessions,
+    late_after_minutes: parsed.data.lateAfterMinutes ?? null,
+    lates_per_absence: parsed.data.latesPerAbsence ?? null,
   })
 
   if (error) {
@@ -148,6 +155,8 @@ export async function updateSubject(
     max_absence_percentage?: number
     max_absence_count?: number | null
     total_planned_sessions?: number
+    late_after_minutes?: number | null
+    lates_per_absence?: number | null
   }
 ) {
   const supabase = await createClient()
@@ -167,6 +176,8 @@ export async function updateSubject(
     maxAbsencePercentage: data.max_absence_percentage,
     maxAbsenceCount: data.max_absence_count,
     totalPlannedSessions: data.total_planned_sessions,
+    lateAfterMinutes: data.late_after_minutes,
+    latesPerAbsence: data.lates_per_absence,
   })
 
   if (!parsed.success) {
@@ -189,6 +200,8 @@ export async function updateSubject(
       max_absence_percentage: parsed.data.maxAbsencePercentage,
       max_absence_count: parsed.data.maxAbsenceCount || null,
       total_planned_sessions: parsed.data.totalPlannedSessions,
+      late_after_minutes: parsed.data.lateAfterMinutes ?? null,
+      lates_per_absence: parsed.data.latesPerAbsence ?? null,
     })
     .eq('id', subjectId)
 
