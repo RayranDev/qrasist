@@ -27,7 +27,9 @@ describe('safeRedirectPath', () => {
     expect(safeRedirectPath('//evil.com', '/login')).toBe('/login')
   })
 
-  it('rejects backslash tricks that browsers treat as absolute', () => {
+  it('rejects backslash tricks that browsers/URL parsers treat as protocol-relative', () => {
+    // El parser WHATWG normaliza "\" a "/" en esquemas especiales, así
+    // que "/\evil.com" termina siendo "//evil.com" (host = evil.com).
     expect(safeRedirectPath('/\\evil.com', '/login')).toBe('/login')
   })
 
@@ -38,5 +40,37 @@ describe('safeRedirectPath', () => {
 
   it('uses "/" as the default fallback', () => {
     expect(safeRedirectPath('not-a-path')).toBe('/')
+  })
+
+  // --- Bypass real: el parser de URL borra tabs/saltos de línea del
+  // input ANTES de parsear, así que "/\n/evil.com" se convertía en
+  // "//evil.com" (protocol-relative) y terminaba en otro host.
+  it('rejects a literal newline that the URL parser would strip into a protocol-relative URL', () => {
+    expect(safeRedirectPath('/\n/evil.com', '/login')).toBe('/login')
+  })
+
+  it('rejects a literal tab for the same reason', () => {
+    expect(safeRedirectPath('/\t/evil.com', '/login')).toBe('/login')
+  })
+
+  it('rejects a literal carriage return for the same reason', () => {
+    expect(safeRedirectPath('/\r/evil.com', '/login')).toBe('/login')
+  })
+
+  it('rejects a %0A-decoded newline the same way as a literal one', () => {
+    // Simula lo que llega si algo en el camino decodifica el query
+    // param (ej. "%2F%0A%2Fevil.com" -> "/\n/evil.com") antes de
+    // pasarlo -- no depende de que el caller nunca decodifique.
+    const decoded = decodeURIComponent('%2F%0A%2Fevil.com')
+    expect(safeRedirectPath(decoded, '/login')).toBe('/login')
+  })
+
+  it('rejects other stray control characters even without a special meaning to the URL parser', () => {
+    expect(safeRedirectPath('/foo\u0000bar', '/login')).toBe('/login')
+    expect(safeRedirectPath('/foo\u007Fbar', '/login')).toBe('/login')
+  })
+
+  it('normalizes dot-segments within the same origin instead of rejecting them', () => {
+    expect(safeRedirectPath('/a/../b')).toBe('/b')
   })
 })
