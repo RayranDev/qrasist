@@ -124,7 +124,7 @@ export default function SubjectBrowser({
                   <div className="min-w-0">
                     <p className="font-bold text-gray-900 text-sm truncate">{item.subject.name}</p>
                     <p className="text-xs text-gray-400 flex items-center gap-1.5 flex-wrap mt-0.5">
-                      <span className="font-mono text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded text-[11px]">
+                      <span className="font-mono text-navy-700 font-bold bg-navy-50 px-1.5 py-0.5 rounded text-[11px]">
                         {item.subject.code}
                       </span>
                       <span>·</span>

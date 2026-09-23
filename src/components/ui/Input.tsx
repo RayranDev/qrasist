@@ -39,7 +39,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             } ${rightElement ? 'pr-10' : ''} ${
               error
                 ? 'border-red-300 bg-red-50/20 text-red-900 focus:border-red-500 focus:ring-2 focus:ring-red-200'
-                : 'border-gray-200 hover:border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100'
+                : 'border-gray-200 hover:border-gray-300 focus:border-navy-600 focus:ring-2 focus:ring-navy-100'
             } disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed ${className}`}
             {...props}
           />

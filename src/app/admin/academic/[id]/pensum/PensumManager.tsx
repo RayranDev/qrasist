@@ -5,7 +5,7 @@ import { assignSubjectToCareer, removeSubjectFromCareer } from '@/lib/actions/ac
 import { useToast } from '@/components/toast/ToastProvider'
 
 const inputClass =
-  'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all shadow-sm'
+  'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-navy-600 focus:ring-2 focus:ring-navy-100 transition-all shadow-sm'
 
 interface Subject {
   id: string
@@ -93,7 +93,7 @@ export function AssignSubjectForm({
         <button
           disabled={loading || availableSubjects.length === 0}
           type="submit"
-          className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition disabled:opacity-50"
+          className="px-5 py-2.5 bg-navy-800 text-white rounded-xl text-sm font-bold hover:bg-navy-900 transition disabled:opacity-50"
         >
           {loading ? 'Guardando...' : 'Agregar'}
         </button>

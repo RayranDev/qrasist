@@ -249,7 +249,7 @@ export default function AdminUserList({
                 </div>
 
                 {profile.student_code && (
-                  <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                  <span className="font-mono text-xs font-bold text-navy-700 bg-navy-50 px-2 py-0.5 rounded-md border border-navy-100">
                     {profile.student_code}
                   </span>
                 )}

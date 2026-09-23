@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import NavigationProgress from '@/components/NavigationProgress'
@@ -15,8 +15,13 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'QR-Asist',
-  description: 'Sistema de control de asistencia académica mediante QR',
+  title: 'QR-Asist · Corporación Universitaria Republicana',
+  description:
+    'Sistema de control de asistencia académica mediante QR de la Corporación Universitaria Republicana.',
+}
+
+export const viewport: Viewport = {
+  themeColor: '#002849',
 }
 
 export default function RootLayout({

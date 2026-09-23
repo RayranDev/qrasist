@@ -26,17 +26,17 @@ export default function StudentTabBar() {
               className="flex flex-col items-center justify-center min-h-[52px] py-2 relative transition-colors"
             >
               {active && (
-                <span className="absolute top-0 inset-x-8 h-0.5 rounded-full bg-emerald-600" />
+                <span className="absolute top-0 inset-x-8 h-0.5 rounded-full bg-navy-800" />
               )}
               <Icon
                 className={`w-5 h-5 transition-transform duration-150 ${
-                  active ? 'text-emerald-600 scale-105' : 'text-gray-400'
+                  active ? 'text-navy-800 scale-105' : 'text-gray-400'
                 }`}
                 strokeWidth={active ? 2.5 : 2}
               />
               <span
                 className={`text-[11px] font-semibold mt-1 transition-colors ${
-                  active ? 'text-emerald-700' : 'text-gray-500'
+                  active ? 'text-navy-900' : 'text-gray-500'
                 }`}
               >
                 {tab.label}

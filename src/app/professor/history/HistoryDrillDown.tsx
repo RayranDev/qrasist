@@ -276,7 +276,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
                 Clase del{' '}
                 {format(new Date(selectedSession.date), "EEEE d 'de' MMMM", { locale: es })}
               </h3>
-              <p className="text-sm text-emerald-600 font-semibold">{selectedSubject?.name}</p>
+              <p className="text-sm text-navy-700 font-semibold">{selectedSubject?.name}</p>
             </div>
           </div>
           <Button
@@ -290,7 +290,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
         </div>
 
         <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-          <span className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-xs">
+          <span className="w-6 h-6 rounded-full bg-navy-50 text-navy-700 flex items-center justify-center text-xs">
             {enrolledAttendances.length}
           </span>
           Estudiantes Regulares (Inscritos)
@@ -478,7 +478,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
             className={`p-4 rounded-2xl border transition-all flex justify-between items-center group relative ${
               archived
                 ? 'border-dashed border-gray-200 bg-gray-50/40 opacity-70'
-                : 'border-gray-200/80 bg-white hover:border-emerald-300 hover:shadow-xs'
+                : 'border-gray-200/80 bg-white hover:border-navy-300 hover:shadow-xs'
             }`}
           >
             <div
@@ -487,7 +487,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
             >
               <div className="flex items-center gap-2 flex-wrap">
                 <h4
-                  className={`font-bold capitalize text-sm ${archived ? 'text-gray-500' : 'text-gray-900 group-hover:text-emerald-600 transition'}`}
+                  className={`font-bold capitalize text-sm ${archived ? 'text-gray-500' : 'text-gray-900 group-hover:text-navy-700 transition'}`}
                 >
                   {format(new Date(session.date), "EEEE d 'de' MMMM", { locale: es })}
                 </h4>
@@ -526,7 +526,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
                     <Archive className="w-4 h-4" strokeWidth={2} />
                   </button>
                   <div
-                    className="text-gray-300 group-hover:text-emerald-600 transition cursor-pointer p-1"
+                    className="text-gray-300 group-hover:text-navy-700 transition cursor-pointer p-1"
                     onClick={() => setSelectedSession(session)}
                   >
                     <ChevronRight className="w-5 h-5" strokeWidth={2} />
@@ -562,7 +562,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
             onClick={exportSubjectConsolidated}
             variant="secondary"
             size="sm"
-            leftIcon={<FileSpreadsheet className="w-4 h-4 text-emerald-600" />}
+            leftIcon={<FileSpreadsheet className="w-4 h-4 text-navy-700" />}
           >
             Exportar Planilla Completa (.xlsx)
           </Button>
@@ -603,7 +603,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
               onClick={() => setSubjectTab('sessions')}
               className={`pb-3 px-3 text-xs font-bold transition-all relative ${
                 subjectTab === 'sessions'
-                  ? 'text-emerald-700 border-b-2 border-emerald-600'
+                  ? 'text-navy-800 border-b-2 border-navy-700'
                   : 'text-gray-400 hover:text-gray-700'
               }`}
             >
@@ -613,7 +613,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
               onClick={() => setSubjectTab('absences')}
               className={`pb-3 px-3 text-xs font-bold transition-all relative ${
                 subjectTab === 'absences'
-                  ? 'text-emerald-700 border-b-2 border-emerald-600'
+                  ? 'text-navy-800 border-b-2 border-navy-700'
                   : 'text-gray-400 hover:text-gray-700'
               }`}
             >
@@ -839,7 +839,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
               onClick={() => setSelectedSubject(subject)}
               className={`p-5 rounded-2xl border transition-all cursor-pointer group flex flex-col justify-between ${
                 subActive
-                  ? 'bg-white border-gray-200/80 hover:border-emerald-300 hover:shadow-sm'
+                  ? 'bg-white border-gray-200/80 hover:border-navy-300 hover:shadow-sm'
                   : 'bg-gray-50 border-dashed border-amber-200 opacity-70'
               }`}
             >
@@ -880,7 +880,7 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
                 </span>
                 <span
                   className={`opacity-0 group-hover:opacity-100 transition flex items-center gap-1 font-bold ${
-                    subActive ? 'text-emerald-700' : 'text-amber-600'
+                    subActive ? 'text-navy-800' : 'text-amber-600'
                   }`}
                 >
                   Ver reporte <ChevronRight className="w-3.5 h-3.5" strokeWidth={2.5} />

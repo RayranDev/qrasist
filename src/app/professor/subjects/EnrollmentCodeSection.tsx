@@ -37,9 +37,7 @@ export default function EnrollmentCodeSection({
           Código de inscripción
         </p>
         {currentCode ? (
-          <p className="font-mono text-lg font-black text-emerald-600 tracking-wider">
-            {currentCode}
-          </p>
+          <p className="font-mono text-lg font-black text-navy-700 tracking-wider">{currentCode}</p>
         ) : (
           <p className="text-sm text-gray-400 italic">Sin generar</p>
         )}

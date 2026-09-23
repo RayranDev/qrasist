@@ -60,7 +60,7 @@ export default function UserSearchBar({
             onChange={(e) => setQuery(e.target.value)}
             type="text"
             placeholder="Nombre o código..."
-            className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all"
+            className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-navy-600 focus:ring-2 focus:ring-navy-100 transition-all"
           />
         </div>
       </FilterField>
@@ -68,7 +68,7 @@ export default function UserSearchBar({
         <select
           value={careerFilter || ''}
           onChange={(e) => navigate(query, e.target.value || undefined)}
-          className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700 outline-none focus:bg-white focus:border-emerald-500 appearance-none cursor-pointer"
+          className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700 outline-none focus:bg-white focus:border-navy-600 appearance-none cursor-pointer"
         >
           <option value="">Todas</option>
           {careers.map((c) => (

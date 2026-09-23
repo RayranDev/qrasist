@@ -14,7 +14,7 @@ import CreateFormToggle from '@/components/CreateFormToggle'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 
 const inputClass =
-  'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all shadow-sm'
+  'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-navy-600 focus:ring-2 focus:ring-navy-100 transition-all shadow-sm'
 
 interface Professor {
   id: string
@@ -84,7 +84,7 @@ export function CreateSubjectForm({ periods }: { periods: Period[] }) {
     >
       <div className="flex items-center justify-between gap-3 mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+          <div className="w-10 h-10 rounded-full bg-navy-50 flex items-center justify-center text-navy-700">
             <Plus className="w-5 h-5" strokeWidth={2} />
           </div>
           <h3 className="text-xl font-bold text-gray-900">Crear Nueva Materia</h3>
@@ -204,7 +204,7 @@ export function CreateSubjectForm({ periods }: { periods: Period[] }) {
         <button
           disabled={loading}
           type="submit"
-          className="py-2.5 px-6 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition shadow-xs active:scale-95 flex items-center justify-center shrink-0 cursor-pointer"
+          className="py-2.5 px-6 bg-navy-800 text-white rounded-xl text-sm font-bold hover:bg-navy-900 transition shadow-xs active:scale-95 flex items-center justify-center shrink-0 cursor-pointer"
         >
           {loading ? 'Guardando...' : 'Crear Materia'}
         </button>
@@ -431,7 +431,7 @@ export function SubjectActionButtons({
             <button
               disabled={loading}
               onClick={handleSave}
-              className="flex-1 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition"
+              className="flex-1 py-2 bg-navy-800 text-white rounded-xl text-sm font-bold hover:bg-navy-900 transition"
             >
               {loading ? 'Guardando...' : 'Guardar'}
             </button>
@@ -460,7 +460,7 @@ export function SubjectActionButtons({
           <button
             onClick={() => setIsEditing(true)}
             disabled={loading}
-            className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+            className="p-1.5 text-gray-400 hover:text-navy-700 hover:bg-navy-50 rounded-lg transition"
             title="Editar"
           >
             <Pencil className="w-5 h-5" strokeWidth={2} />
@@ -478,7 +478,7 @@ export function SubjectActionButtons({
         <button
           onClick={handleReactivate}
           disabled={loading}
-          className="px-3 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition disabled:opacity-50"
+          className="px-3 py-1 text-xs font-bold text-navy-700 bg-navy-50 hover:bg-navy-100 rounded-lg transition disabled:opacity-50"
           title="Reactivar materia"
         >
           {loading ? '...' : 'Reactivar'}
@@ -586,7 +586,7 @@ export function SubjectCareerAssignment({
             type="button"
             onClick={handleAdd}
             disabled={loading || !careerId}
-            className="px-2 py-1 text-xs font-bold bg-emerald-600 text-white rounded-lg disabled:opacity-50"
+            className="px-2 py-1 text-xs font-bold bg-navy-800 text-white rounded-lg disabled:opacity-50"
           >
             {loading ? '...' : 'OK'}
           </button>

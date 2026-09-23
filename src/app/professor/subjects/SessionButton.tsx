@@ -39,8 +39,8 @@ export default function SessionButton({ subjectId }: { subjectId: string }) {
         aria-expanded={showOptions}
         className={`w-full flex items-center justify-between gap-1.5 px-3 py-2 mb-2 text-xs font-bold rounded-lg border transition ${
           showOptions
-            ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
-            : 'text-gray-600 bg-gray-50 border-gray-200 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700'
+            ? 'text-navy-800 bg-navy-50 border-navy-200'
+            : 'text-gray-600 bg-gray-50 border-gray-200 hover:border-navy-200 hover:bg-navy-50 hover:text-navy-700'
         }`}
       >
         <span className="flex items-center gap-1.5">
@@ -65,7 +65,7 @@ export default function SessionButton({ subjectId }: { subjectId: string }) {
               max={MAX_ROTATION_SECONDS}
               value={rotationSeconds}
               onChange={(e) => setRotationSeconds(Number(e.target.value))}
-              className="w-20 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 font-semibold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+              className="w-20 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 font-semibold outline-none focus:border-navy-600 focus:ring-2 focus:ring-navy-100"
             />
             <p className="text-xs text-gray-500">
               El código se renueva cada tantos segundos. Entre {MIN_ROTATION_SECONDS} y{' '}
@@ -79,7 +79,7 @@ export default function SessionButton({ subjectId }: { subjectId: string }) {
       <button
         onClick={handleCreate}
         disabled={loading}
-        className="w-full py-3 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 transition shadow-sm active:scale-95 disabled:opacity-50"
+        className="w-full py-3 bg-navy-800 text-white font-medium rounded-xl hover:bg-navy-900 transition shadow-sm active:scale-95 disabled:opacity-50"
       >
         {loading ? 'Generando...' : 'Iniciar Sesión (Generar QR)'}
       </button>

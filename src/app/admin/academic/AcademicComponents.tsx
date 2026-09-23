@@ -18,7 +18,7 @@ import CreateFormToggle from '@/components/CreateFormToggle'
 import { Pencil, Trash2 } from 'lucide-react'
 
 const inputClass =
-  'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all shadow-sm'
+  'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-navy-600 focus:ring-2 focus:ring-navy-100 transition-all shadow-sm'
 
 interface Career {
   id: string
@@ -98,7 +98,7 @@ export function CreateCareerForm() {
       <button
         disabled={loading}
         type="submit"
-        className="mt-4 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition disabled:opacity-50"
+        className="mt-4 px-5 py-2.5 bg-navy-800 text-white rounded-xl text-sm font-bold hover:bg-navy-900 transition disabled:opacity-50"
       >
         {loading ? 'Guardando...' : 'Agregar Carrera'}
       </button>
@@ -199,7 +199,7 @@ export function CareerList({ careers }: { careers: Career[] }) {
               <button
                 disabled={loadingId === editing.id}
                 onClick={handleSaveEdit}
-                className="flex-1 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition"
+                className="flex-1 py-2 bg-navy-800 text-white rounded-xl text-sm font-bold hover:bg-navy-900 transition"
               >
                 {loadingId === editing.id ? 'Guardando...' : 'Guardar'}
               </button>
@@ -244,7 +244,7 @@ export function CareerList({ careers }: { careers: Career[] }) {
                 <button
                   disabled={loadingId === c.id}
                   onClick={() => openEdit(c)}
-                  className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                  className="p-1.5 text-gray-400 hover:text-navy-700 hover:bg-navy-50 rounded-lg transition"
                   title="Editar"
                 >
                   <Pencil className="w-4 h-4" strokeWidth={2} />
@@ -350,7 +350,7 @@ export function CreatePeriodForm() {
       <button
         disabled={loading}
         type="submit"
-        className="mt-4 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition disabled:opacity-50"
+        className="mt-4 px-5 py-2.5 bg-navy-800 text-white rounded-xl text-sm font-bold hover:bg-navy-900 transition disabled:opacity-50"
       >
         {loading ? 'Guardando...' : 'Agregar Período'}
       </button>
@@ -473,7 +473,7 @@ export function PeriodList({ periods }: { periods: Period[] }) {
               <button
                 disabled={loadingId === editing.id}
                 onClick={handleSaveEdit}
-                className="flex-1 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition"
+                className="flex-1 py-2 bg-navy-800 text-white rounded-xl text-sm font-bold hover:bg-navy-900 transition"
               >
                 {loadingId === editing.id ? 'Guardando...' : 'Guardar'}
               </button>
@@ -509,7 +509,7 @@ export function PeriodList({ periods }: { periods: Period[] }) {
                 <button
                   disabled={loadingId === p.id}
                   onClick={() => openEdit(p)}
-                  className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                  className="p-1.5 text-gray-400 hover:text-navy-700 hover:bg-navy-50 rounded-lg transition"
                   title="Editar"
                 >
                   <Pencil className="w-4 h-4" strokeWidth={2} />

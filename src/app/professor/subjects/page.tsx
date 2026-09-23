@@ -5,6 +5,7 @@ import Link from 'next/link'
 import ProfileModal from './ProfileModal'
 import EnrollmentCodeSection from './EnrollmentCodeSection'
 import { Users, BookOpen } from 'lucide-react'
+import InstitutionMark from '@/components/brand/InstitutionMark'
 
 export default async function ProfessorSubjectsPage() {
   const supabase = await createClient()
@@ -32,34 +33,37 @@ export default async function ProfessorSubjectsPage() {
     <div className="min-h-screen bg-surface">
       <div className="p-4 md:p-8">
         <div className="max-w-6xl mx-auto">
-          <header className="flex flex-col sm:flex-row justify-between gap-4 items-start sm:items-center mb-8">
-            <div>
-              <p className="text-sm font-semibold text-emerald-600 mb-0.5">Portal Docente</p>
-              <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">
-                Hola, {firstName}
-              </h1>
-              <p className="text-gray-500 mt-1 text-sm">
-                {subjects?.length === 1
-                  ? '1 materia asignada'
-                  : `${subjects?.length ?? 0} materias asignadas`}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3 items-center">
-              <ProfileModal
-                currentFirstName={profile?.first_name || ''}
-                currentLastName={profile?.last_name || ''}
-              />
-              <Link
-                href="/professor/history"
-                className="px-4 py-2 text-sm font-bold text-emerald-700 bg-emerald-50 rounded-xl hover:bg-emerald-100 transition"
-              >
-                Historial
-              </Link>
-              <form action="/auth/signout" method="post">
-                <button className="px-4 py-2 text-sm font-bold text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition">
-                  Cerrar Sesión
-                </button>
-              </form>
+          <header className="mb-8 pb-6 border-b border-gray-100 border-t-4 border-t-brand-700 -mt-4 pt-4 md:-mt-8 md:pt-6 flex flex-col gap-4">
+            <InstitutionMark size="sm" />
+            <div className="flex flex-col sm:flex-row justify-between gap-4 items-start sm:items-center">
+              <div>
+                <p className="text-sm font-semibold text-navy-700 mb-0.5">Portal Docente</p>
+                <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">
+                  Hola, {firstName}
+                </h1>
+                <p className="text-gray-500 mt-1 text-sm">
+                  {subjects?.length === 1
+                    ? '1 materia asignada'
+                    : `${subjects?.length ?? 0} materias asignadas`}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3 items-center">
+                <ProfileModal
+                  currentFirstName={profile?.first_name || ''}
+                  currentLastName={profile?.last_name || ''}
+                />
+                <Link
+                  href="/professor/history"
+                  className="px-4 py-2 text-sm font-bold text-navy-700 bg-navy-50 rounded-xl hover:bg-navy-100 transition"
+                >
+                  Historial
+                </Link>
+                <form action="/auth/signout" method="post">
+                  <button className="px-4 py-2 text-sm font-bold text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition">
+                    Cerrar Sesión
+                  </button>
+                </form>
+              </div>
             </div>
           </header>
 
@@ -78,7 +82,7 @@ export default async function ProfessorSubjectsPage() {
                     className="bg-white p-6 border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition flex flex-col gap-4"
                   >
                     <div>
-                      <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg mb-3 inline-block">
+                      <span className="px-3 py-1 bg-navy-50 text-navy-700 text-xs font-bold rounded-lg mb-3 inline-block">
                         {sub.code}
                       </span>
                       <h3 className="text-xl font-bold text-gray-900">{sub.name}</h3>

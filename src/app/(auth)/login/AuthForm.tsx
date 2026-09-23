@@ -156,7 +156,7 @@ export default function AuthForm({
             setIsLogin(!isLogin)
             setCodeError(undefined)
           }}
-          className="text-xs text-emerald-600 font-bold hover:text-emerald-700 hover:underline transition"
+          className="text-xs text-navy-700 font-bold hover:text-navy-900 hover:underline transition"
         >
           {isLogin ? 'Regístrate aquí' : 'Inicia Sesión aquí'}
         </button>
