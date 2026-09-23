@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { checkAdmin } from '@/lib/actions/authGuards'
 import { buildWorkbook } from '@/lib/excel/exportWorkbook'
+import { fetchAllRows } from '@/lib/supabase/fetchAll'
 import {
   buildPeriodAttendanceReport,
   type PeriodReportSubjectInput,
@@ -91,33 +92,50 @@ export async function GET(request: NextRequest) {
 
   const subjectIds = subjects.map((s) => s.id)
 
-  const { data: activeSessions } = await supabase
-    .from('sessions')
-    .select('id, subject_id')
-    .eq('is_active', true)
-    .in('subject_id', subjectIds)
+  // Un período completo fácilmente supera las 1000 filas que PostgREST
+  // devuelve por defecto (db-max-rows) en sesiones, asistencias o
+  // justificaciones -- `fetchAllRows` pagina con `.range()` hasta traer
+  // todo, en vez de truncar el reporte en silencio.
+  const { data: activeSessions } = await fetchAllRows<{ id: string; subject_id: string }>(
+    (from, to) =>
+      supabase
+        .from('sessions')
+        .select('id, subject_id')
+        .eq('is_active', true)
+        .in('subject_id', subjectIds)
+        .range(from, to)
+  )
 
   const sessionsHeldBySubject = new Map<string, number>()
   const subjectIdBySessionId = new Map<string, string>()
-  for (const s of activeSessions || []) {
+  for (const s of activeSessions) {
     sessionsHeldBySubject.set(s.subject_id, (sessionsHeldBySubject.get(s.subject_id) || 0) + 1)
     subjectIdBySessionId.set(s.id, s.subject_id)
   }
 
-  const sessionIds = (activeSessions || []).map((s) => s.id)
+  const sessionIds = activeSessions.map((s) => s.id)
   const { data: attendanceRecords } =
     sessionIds.length > 0
-      ? await supabase
-          .from('attendances')
-          .select('student_id, status, session_id')
-          .in('session_id', sessionIds)
+      ? await fetchAllRows<{ student_id: string; status: string; session_id: string }>((from, to) =>
+          supabase
+            .from('attendances')
+            .select('student_id, status, session_id')
+            .in('session_id', sessionIds)
+            .range(from, to)
+        )
       : { data: [] as { student_id: string; status: string; session_id: string }[] }
 
-  const { data: approvedJustifications } = await supabase
-    .from('absence_justifications')
-    .select('student_id, subject_id')
-    .eq('status', 'APPROVED')
-    .in('subject_id', subjectIds)
+  const { data: approvedJustifications } = await fetchAllRows<{
+    student_id: string
+    subject_id: string
+  }>((from, to) =>
+    supabase
+      .from('absence_justifications')
+      .select('student_id, subject_id')
+      .eq('status', 'APPROVED')
+      .in('subject_id', subjectIds)
+      .range(from, to)
+  )
 
   // key = `${studentId}_${subjectId}`
   const attendancesByKey = new Map<string, number>()

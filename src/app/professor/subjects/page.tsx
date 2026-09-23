@@ -7,6 +7,7 @@ import EnrollmentCodeSection from './EnrollmentCodeSection'
 import { Users, BookOpen, AlertTriangle } from 'lucide-react'
 import InstitutionMark from '@/components/brand/InstitutionMark'
 import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
+import { fetchAllRows } from '@/lib/supabase/fetchAll'
 
 export default async function ProfessorSubjectsPage() {
   const supabase = await createClient()
@@ -46,29 +47,38 @@ export default async function ProfessorSubjectsPage() {
   // por estudiante, que no escalaría con materias grandes.
   const subjectIds = (subjects || []).map((s) => s.id)
 
+  // PostgREST trunca a 1000 filas por defecto sin avisar -- con varias
+  // materias grandes, sesiones o asistencias pueden superar eso, así
+  // que se pagina con fetchAllRows en vez de confiar en una sola página.
   const { data: activeSessions } =
     subjectIds.length > 0
-      ? await supabase
-          .from('sessions')
-          .select('id, subject_id')
-          .eq('is_active', true)
-          .in('subject_id', subjectIds)
+      ? await fetchAllRows<{ id: string; subject_id: string }>((from, to) =>
+          supabase
+            .from('sessions')
+            .select('id, subject_id')
+            .eq('is_active', true)
+            .in('subject_id', subjectIds)
+            .range(from, to)
+        )
       : { data: [] as { id: string; subject_id: string }[] }
 
   const sessionsHeldBySubject = new Map<string, number>()
   const subjectIdBySessionId = new Map<string, string>()
-  for (const s of activeSessions || []) {
+  for (const s of activeSessions) {
     sessionsHeldBySubject.set(s.subject_id, (sessionsHeldBySubject.get(s.subject_id) || 0) + 1)
     subjectIdBySessionId.set(s.id, s.subject_id)
   }
 
-  const sessionIds = (activeSessions || []).map((s) => s.id)
+  const sessionIds = activeSessions.map((s) => s.id)
   const { data: attendanceRecords } =
     sessionIds.length > 0
-      ? await supabase
-          .from('attendances')
-          .select('student_id, status, session_id')
-          .in('session_id', sessionIds)
+      ? await fetchAllRows<{ student_id: string; status: string; session_id: string }>((from, to) =>
+          supabase
+            .from('attendances')
+            .select('student_id, status, session_id')
+            .in('session_id', sessionIds)
+            .range(from, to)
+        )
       : { data: [] as { student_id: string; status: string; session_id: string }[] }
 
   // key = `${studentId}_${subjectId}`
