@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Sliders, CheckCircle2, AlertCircle, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { updateGlobalAbsencePolicy } from '@/lib/actions/adminAcademicPolicy'
@@ -40,6 +40,15 @@ export default function GlobalAbsencePolicyModal({
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(
     null
   )
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen])
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -89,7 +98,7 @@ export default function GlobalAbsencePolicyModal({
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-neutral-700 bg-white border border-neutral-200/80 hover:bg-neutral-50 hover:border-neutral-300 rounded-lg shadow-2xs transition-all cursor-pointer"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-neutral-700 bg-white border border-neutral-200/80 hover:bg-neutral-50 hover:border-neutral-300 rounded-lg shadow-2xs transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
       >
         <Sliders className="w-3.5 h-3.5 text-neutral-500 stroke-[1.75]" />
         <span>Configurar Política</span>
@@ -101,6 +110,7 @@ export default function GlobalAbsencePolicyModal({
             className="w-full max-w-lg bg-white rounded-2xl border border-neutral-200 shadow-xl overflow-hidden animate-in zoom-in-95 duration-150"
             role="dialog"
             aria-modal="true"
+            aria-labelledby="policy-modal-title"
           >
             {/* Cabecera */}
             <div className="px-6 py-4 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/50">
@@ -109,7 +119,7 @@ export default function GlobalAbsencePolicyModal({
                   <Sliders className="w-4 h-4 stroke-[1.75]" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-neutral-900">
+                  <h3 id="policy-modal-title" className="text-sm font-bold text-neutral-900">
                     Política Institucional de Asistencias
                   </h3>
                   <p className="text-xs text-neutral-500">
@@ -120,7 +130,7 @@ export default function GlobalAbsencePolicyModal({
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="text-neutral-400 hover:text-neutral-600 p-1.5 rounded-lg hover:bg-neutral-100 transition-colors"
+                className="text-neutral-400 hover:text-neutral-600 p-1.5 rounded-lg hover:bg-neutral-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
                 aria-label="Cerrar modal"
               >
                 <X className="w-4 h-4" />

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   createSubject,
   deleteSubject,
@@ -264,6 +264,15 @@ export function SubjectActionButtons({
   subjectCareerIds: string[]
 }) {
   const [isEditing, setIsEditing] = useState(false)
+
+  useEffect(() => {
+    if (!isEditing) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsEditing(false)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isEditing])
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [name, setName] = useState(subject.name)
@@ -350,8 +359,15 @@ export function SubjectActionButtons({
   if (isEditing) {
     return (
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-        <div className="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">Editar Materia</h3>
+        <div
+          className="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-subject-title"
+        >
+          <h3 id="edit-subject-title" className="text-lg font-bold text-gray-900 mb-4">
+            Editar Materia
+          </h3>
           <div className="space-y-4 mb-6 text-left">
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">Nombre</label>
@@ -541,16 +557,18 @@ export function SubjectActionButtons({
           <button
             onClick={() => setIsEditing(true)}
             disabled={loading}
-            className="p-1.5 text-gray-400 hover:text-navy-700 hover:bg-navy-50 rounded-lg transition"
+            className="p-1.5 text-gray-400 hover:text-navy-700 hover:bg-navy-50 rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
             title="Editar"
+            aria-label={`Editar ${subject.name}`}
           >
             <Pencil className="w-5 h-5" strokeWidth={2} />
           </button>
           <button
             onClick={() => setShowDeleteConfirm(true)}
             disabled={loading}
-            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
             title="Eliminar materia"
+            aria-label={`Eliminar ${subject.name}`}
           >
             <Trash2 className="w-5 h-5" strokeWidth={2} />
           </button>
@@ -631,8 +649,9 @@ export function SubjectCareerAssignment({
               type="button"
               onClick={() => handleRemove(a)}
               disabled={removingId === a.id}
-              className="text-sky-400 hover:text-sky-700 disabled:opacity-50"
+              className="text-sky-400 hover:text-sky-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600 rounded"
               title="Quitar de esta carrera"
+              aria-label={`Quitar de ${a.career.name}`}
             >
               ×
             </button>

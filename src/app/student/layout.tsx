@@ -46,7 +46,8 @@ export default async function StudentLayout({ children }: { children: React.Reac
               <button
                 type="submit"
                 title="Cerrar sesión"
-                className="w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 transition"
+                aria-label="Cerrar sesión"
+                className="w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
               >
                 <LogOut className="w-4.5 h-4.5" strokeWidth={2} />
               </button>
