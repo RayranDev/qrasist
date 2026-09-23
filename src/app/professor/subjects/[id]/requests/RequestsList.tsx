@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { UserPlus } from 'lucide-react'
 import { approveEnrollmentRequest, rejectEnrollmentRequest } from '@/lib/actions/enrollmentRequests'
 import { useToast } from '@/components/toast/ToastProvider'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 interface Request {
   id: string
@@ -35,8 +37,12 @@ export default function RequestsList({ requests }: { requests: Request[] }) {
 
   if (items.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center">
-        <p className="text-gray-400 italic">No hay solicitudes pendientes.</p>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10">
+        <EmptyState
+          icon={<UserPlus className="w-5 h-5" />}
+          title="No hay solicitudes pendientes"
+          description="Cuando un estudiante pida inscribirse con el código de esta materia, va a aparecer acá."
+        />
       </div>
     )
   }
