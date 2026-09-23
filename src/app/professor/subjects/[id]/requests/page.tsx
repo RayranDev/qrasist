@@ -14,14 +14,23 @@ export default async function SubjectRequestsPage({ params }: { params: Promise<
 
   if (!user) redirect('/login')
 
-  const { data: subject } = await supabase
-    .from('subjects')
-    .select('id, name, code')
-    .eq('id', subjectId)
-    .eq('professor_id', user.id)
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
     .single()
+  const isAdmin = profile?.role === 'ADMIN'
 
-  if (!subject) redirect('/professor/subjects')
+  // Un admin puede revisar solicitudes de cualquier materia (mismo
+  // permiso que ya usa la server action `approveEnrollmentRequest` vía
+  // `checkAdminOrSubjectProfessor`) -- solo el profesor dueño queda
+  // restringido a las suyas.
+  const subjectQuery = supabase.from('subjects').select('id, name, code').eq('id', subjectId)
+  const { data: subject } = isAdmin
+    ? await subjectQuery.single()
+    : await subjectQuery.eq('professor_id', user.id).single()
+
+  if (!subject) redirect(isAdmin ? '/admin/subjects' : '/professor/subjects')
 
   // enrollment_requests tiene dos FK hacia profiles (student_id y
   // reviewed_by) -- hay que decirle a PostgREST cual usar para el
@@ -45,10 +54,10 @@ export default async function SubjectRequestsPage({ params }: { params: Promise<
       <div className="p-4 md:p-8">
         <div className="max-w-3xl mx-auto">
           <Link
-            href="/professor/subjects"
+            href={isAdmin ? '/admin/subjects' : '/professor/subjects'}
             className="text-navy-700 hover:text-navy-900 font-medium text-sm flex items-center gap-1 mb-2"
           >
-            ← Volver a Mis Materias
+            ← Volver a {isAdmin ? 'Materias' : 'Mis Materias'}
           </Link>
           <h1 className="text-3xl font-bold text-gray-900 mb-1">Solicitudes de Inscripción</h1>
           <p className="text-gray-500 mb-8">

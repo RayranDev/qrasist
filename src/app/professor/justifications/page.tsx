@@ -14,10 +14,21 @@ export default async function ProfessorJustificationsPage() {
 
   if (!user) redirect('/login')
 
-  const { data: subjects } = await supabase
-    .from('subjects')
-    .select('id, name, code')
-    .eq('professor_id', user.id)
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+  const isAdmin = profile?.role === 'ADMIN'
+
+  // Un admin revisa justificaciones de toda la institución (mismo
+  // permiso que ya usa `reviewJustification` vía
+  // `checkAdminOrSubjectProfessor`); el profesor sigue viendo solo las
+  // materias que dicta.
+  const subjectsQuery = supabase.from('subjects').select('id, name, code')
+  const { data: subjects } = isAdmin
+    ? await subjectsQuery.eq('is_active', true)
+    : await subjectsQuery.eq('professor_id', user.id)
 
   const subjectIds = (subjects || []).map((s) => s.id)
 
@@ -59,16 +70,18 @@ export default async function ProfessorJustificationsPage() {
             <InstitutionMark size="sm" />
             <div>
               <Link
-                href="/professor/subjects"
+                href={isAdmin ? '/admin/dashboard' : '/professor/subjects'}
                 className="text-navy-700 hover:text-navy-900 font-semibold text-sm inline-flex items-center gap-1 mb-2"
               >
-                ← Volver a Mis Materias
+                ← Volver {isAdmin ? 'al Dashboard' : 'a Mis Materias'}
               </Link>
               <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">
                 Justificaciones de Inasistencia
               </h1>
               <p className="text-gray-500 mt-1 text-sm">
-                Revisa y decide las justificaciones enviadas por tus estudiantes
+                {isAdmin
+                  ? 'Revisa y decide las justificaciones enviadas en toda la institución'
+                  : 'Revisa y decide las justificaciones enviadas por tus estudiantes'}
               </p>
             </div>
           </header>
