@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   computeStudentSubjectRisks,
   filterAtRiskSubjects,
+  formatSubjectStatusLine,
   type EnrolledSubjectCounts,
 } from './studentSummaries'
 
@@ -67,5 +68,31 @@ describe('filterAtRiskSubjects', () => {
   it('returns an empty array when nothing is at risk', () => {
     const risks = computeStudentSubjectRisks([baseRow()])
     expect(filterAtRiskSubjects(risks)).toEqual([])
+  })
+})
+
+describe('formatSubjectStatusLine', () => {
+  it('shows only the absences segment when nothing else applies', () => {
+    const [risk] = computeStudentSubjectRisks([baseRow({ sessionsHeld: 5, attendancesCount: 5 })])
+    expect(formatSubjectStatusLine(risk.summary)).toBe('0 faltas de 3 permitidas')
+  })
+
+  it('adds justified and late segments only when present', () => {
+    const [risk] = computeStudentSubjectRisks([
+      baseRow({ sessionsHeld: 10, attendancesCount: 7, lateCount: 2, justifiedCount: 1 }),
+    ])
+    // 3 real absences - 1 justified = 2 counted absences
+    expect(formatSubjectStatusLine(risk.summary)).toBe(
+      '2 faltas de 3 permitidas · 1 justificada · 2 tardes'
+    )
+  })
+
+  it('uses singular wording for a count of exactly 1', () => {
+    const [risk] = computeStudentSubjectRisks([
+      baseRow({ sessionsHeld: 10, attendancesCount: 9, lateCount: 1, justifiedCount: 1 }),
+    ])
+    expect(formatSubjectStatusLine(risk.summary)).toBe(
+      '0 faltas de 3 permitidas · 1 justificada · 1 tarde'
+    )
   })
 })
