@@ -23,11 +23,21 @@ export default async function ProfessorSubjectsPage() {
 
   const { data: subjects } = await supabase
     .from('subjects')
-    .select('*, enrollments(student_id), enrollment_requests(id, status)')
+    .select(
+      '*, enrollments(student_id), enrollment_requests(id, status), absence_justifications(id, status)'
+    )
     .eq('professor_id', user.id)
     .eq('is_active', true)
 
   const firstName = profile?.first_name || 'Profe'
+  const pendingJustificationsTotal = (subjects || []).reduce(
+    (total, sub) =>
+      total +
+      ((sub.absence_justifications as { id: string; status: string }[] | null)?.filter(
+        (j) => j.status === 'PENDING'
+      ).length ?? 0),
+    0
+  )
 
   return (
     <div className="min-h-screen bg-surface">
@@ -53,6 +63,17 @@ export default async function ProfessorSubjectsPage() {
                   currentLastName={profile?.last_name || ''}
                 />
                 <Link
+                  href="/professor/justifications"
+                  className="relative px-4 py-2 text-sm font-bold text-navy-700 bg-navy-50 rounded-xl hover:bg-navy-100 transition"
+                >
+                  Justificaciones
+                  {pendingJustificationsTotal > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold text-white bg-red-600 rounded-full">
+                      {pendingJustificationsTotal}
+                    </span>
+                  )}
+                </Link>
+                <Link
                   href="/professor/history"
                   className="px-4 py-2 text-sm font-bold text-navy-700 bg-navy-50 rounded-xl hover:bg-navy-100 transition"
                 >
@@ -76,6 +97,10 @@ export default async function ProfessorSubjectsPage() {
                   (sub.enrollment_requests as { id: string; status: string }[] | null)?.filter(
                     (r) => r.status === 'pending'
                   ).length ?? 0
+                const pendingJustificationsCount =
+                  (sub.absence_justifications as { id: string; status: string }[] | null)?.filter(
+                    (j) => j.status === 'PENDING'
+                  ).length ?? 0
                 return (
                   <div
                     key={sub.id}
@@ -91,6 +116,16 @@ export default async function ProfessorSubjectsPage() {
                         <span className="font-semibold text-gray-600">{studentCount}</span>{' '}
                         estudiante{studentCount !== 1 ? 's' : ''} inscritos
                       </p>
+                      {pendingJustificationsCount > 0 && (
+                        <Link
+                          href="/professor/justifications"
+                          className="inline-flex items-center gap-1 mt-2 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-100 px-2 py-1 rounded-lg hover:bg-amber-100 transition"
+                        >
+                          {pendingJustificationsCount} justificación
+                          {pendingJustificationsCount > 1 ? 'es' : ''} pendiente
+                          {pendingJustificationsCount > 1 ? 's' : ''}
+                        </Link>
+                      )}
                     </div>
                     <EnrollmentCodeSection
                       subjectId={sub.id}
