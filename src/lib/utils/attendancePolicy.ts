@@ -21,6 +21,7 @@ export interface StudentAttendanceSummary {
   sessionsHeld: number
   attendancesCount: number
   lateCount: number
+  justifiedCount: number
   absencesCount: number
   absencePercentage: number
   maxAbsencesAllowed: number
@@ -33,7 +34,8 @@ export function computeAttendanceSummary(
   sessionsHeld: number,
   attendancesCount: number,
   config: AbsencePolicyConfig = {},
-  lateCount: number = 0
+  lateCount: number = 0,
+  justifiedCount: number = 0
 ): StudentAttendanceSummary {
   const ruleType = config.ruleType || 'PERCENTAGE'
   const maxPercentage = config.maxPercentage ?? 20
@@ -47,12 +49,18 @@ export function computeAttendanceSummary(
 
   // Faltas "reales" (sesiones dictadas sin ningún registro) más la
   // penalización de tardanzas acumuladas: cada `latesPerAbsence`
-  // tardanzas se contabiliza como 1 falta adicional.
+  // tardanzas se contabiliza como 1 falta adicional. Las
+  // justificaciones APROBADAS descuentan de las faltas reales (nunca
+  // de la penalización por tardanzas: llegar tarde reiteradamente no
+  // se "justifica", es un patrón aparte) y nunca pueden hacer que las
+  // faltas bajen de 0.
   const baseAbsencesCount = Math.max(0, cleanSessionsHeld - validAttendances)
+  const cleanJustifiedCount = Math.min(baseAbsencesCount, Math.max(0, justifiedCount))
+  const realAbsencesCount = baseAbsencesCount - cleanJustifiedCount
   const latePenaltyAbsences = config.latesPerAbsence
     ? Math.floor(cleanLateCount / config.latesPerAbsence)
     : 0
-  const absencesCount = baseAbsencesCount + latePenaltyAbsences
+  const absencesCount = realAbsencesCount + latePenaltyAbsences
 
   const absencePercentage =
     cleanSessionsHeld > 0 ? Math.round((absencesCount / cleanSessionsHeld) * 1000) / 10 : 0
@@ -88,6 +96,7 @@ export function computeAttendanceSummary(
     sessionsHeld: cleanSessionsHeld,
     attendancesCount: validAttendances,
     lateCount: cleanLateCount,
+    justifiedCount: cleanJustifiedCount,
     absencesCount,
     absencePercentage,
     maxAbsencesAllowed,
