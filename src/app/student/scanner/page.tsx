@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import QRScanner from '@/components/qr/QRScanner'
 import LocalTime from '@/components/LocalTime'
+import RiskBanner from '@/components/student/RiskBanner'
+import { getStudentSubjectRisks, filterAtRiskSubjects } from '@/lib/attendance/studentSummaries'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,25 +22,30 @@ export default async function StudentScannerPage() {
 
   if (!user) redirect('/login')
 
-  const { data: lastAttendance } = await supabase
-    .from('attendances')
-    .select(
-      `
+  const [{ data: lastAttendance }, risks] = await Promise.all([
+    supabase
+      .from('attendances')
+      .select(
+        `
       scanned_at,
       session:sessions (
         subject:subjects ( name, code )
       )
     `
-    )
-    .eq('student_id', user.id)
-    .order('scanned_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+      )
+      .eq('student_id', user.id)
+      .order('scanned_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    getStudentSubjectRisks(supabase, user.id),
+  ])
 
   const last = lastAttendance as unknown as LastAttendance | null
+  const atRiskSubjects = filterAtRiskSubjects(risks)
 
   return (
     <div className="pt-2">
+      <RiskBanner risks={atRiskSubjects} />
       <QRScanner />
 
       {last?.session?.subject && (

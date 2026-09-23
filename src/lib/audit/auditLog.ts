@@ -26,6 +26,7 @@ export type AuditAction =
   | 'policy.update_global_absence'
   | 'justification.approve'
   | 'justification.reject'
+  | 'auth.password_reset'
 
 interface LogAuditInput {
   actorId: string | null

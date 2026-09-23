@@ -15,6 +15,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'policy.update_global_absence': 'Actualizó la política global de inasistencias',
   'justification.approve': 'Aprobó una justificación',
   'justification.reject': 'Rechazó una justificación',
+  'auth.password_reset': 'Restableció su contraseña por enlace de correo',
 }
 
 export function auditActionLabel(action: string): string {

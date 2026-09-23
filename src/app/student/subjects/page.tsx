@@ -2,9 +2,14 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import SubjectBrowser, { SubjectItem } from './SubjectBrowser'
 import JoinByCode from './JoinByCode'
-import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
 import { isSessionAlreadyHeld, isWithinJustificationWindow } from '@/lib/justifications/eligibility'
 import type { JustificationStatus, MissedSessionItem } from './missedSessions'
+import RiskBanner from '@/components/student/RiskBanner'
+import {
+  computeStudentSubjectRisks,
+  filterAtRiskSubjects,
+  type EnrolledSubjectCounts,
+} from '@/lib/attendance/studentSummaries'
 
 export const dynamic = 'force-dynamic'
 
@@ -171,28 +176,37 @@ export default async function StudentSubjectsPage() {
     }
   }
 
+  // Resumen de riesgo de las materias inscritas: se reusa la misma
+  // lógica que /student/scanner (computeStudentSubjectRisks), pero
+  // alimentada con los conteos que esta página ya trajo arriba -- así
+  // no se dispara una segunda ronda de queries para los mismos datos.
+  const enrolledCounts: EnrolledSubjectCounts[] = available
+    .filter((r) => enrolledIds.has(r.subject!.id))
+    .map((r) => ({
+      subjectId: r.subject!.id,
+      subjectCode: r.subject!.code,
+      subjectName: r.subject!.name,
+      policy: {
+        ruleType: r.subject!.absence_rule_type,
+        maxPercentage: r.subject!.max_absence_percentage,
+        maxCount: r.subject!.max_absence_count,
+        totalPlannedSessions: r.subject!.total_planned_sessions,
+        latesPerAbsence: r.subject!.lates_per_absence,
+      },
+      sessionsHeld: activeSessionsCountBySubject.get(r.subject!.id) || 0,
+      attendancesCount: studentAttendancesBySubject.get(r.subject!.id) || 0,
+      lateCount: studentLateCountBySubject.get(r.subject!.id) || 0,
+      justifiedCount: justifiedCountBySubject.get(r.subject!.id) || 0,
+    }))
+  const risksBySubjectId = new Map(
+    computeStudentSubjectRisks(enrolledCounts).map((risk) => [risk.subjectId, risk])
+  )
+  const atRiskSubjects = filterAtRiskSubjects(Array.from(risksBySubjectId.values()))
+
   const items: SubjectItem[] = available.map((r) => {
     const isEnrolled = enrolledIds.has(r.subject!.id)
-    const sessionsHeld = activeSessionsCountBySubject.get(r.subject!.id) || 0
-    const attended = studentAttendancesBySubject.get(r.subject!.id) || 0
-    const lateCount = studentLateCountBySubject.get(r.subject!.id) || 0
-    const justifiedCount = justifiedCountBySubject.get(r.subject!.id) || 0
 
-    const attendanceSummary = isEnrolled
-      ? computeAttendanceSummary(
-          sessionsHeld,
-          attended,
-          {
-            ruleType: r.subject!.absence_rule_type,
-            maxPercentage: r.subject!.max_absence_percentage,
-            maxCount: r.subject!.max_absence_count,
-            totalPlannedSessions: r.subject!.total_planned_sessions,
-            latesPerAbsence: r.subject!.lates_per_absence,
-          },
-          lateCount,
-          justifiedCount
-        )
-      : undefined
+    const attendanceSummary = isEnrolled ? risksBySubjectId.get(r.subject!.id)?.summary : undefined
 
     const missedSessions: MissedSessionItem[] = isEnrolled
       ? (availableSubjectSessions || [])
@@ -246,6 +260,8 @@ export default async function StudentSubjectsPage() {
   return (
     <div className="pt-2 flex flex-col gap-4">
       <h1 className="text-lg font-black text-gray-900">Mis Materias</h1>
+
+      <RiskBanner risks={atRiskSubjects} />
 
       {careerIds.length === 0 ? (
         <div className="bg-white rounded-2xl p-6 text-center border border-gray-200">
