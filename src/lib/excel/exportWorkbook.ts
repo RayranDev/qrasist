@@ -19,12 +19,14 @@ const HEADER_FILL: ExcelJS.Fill = {
 }
 
 /**
- * Arma un workbook .xlsx y dispara la descarga en el navegador.
- * exceljs corre tanto en Node como en el browser -- acá se usa
- * client-side, sin round-trip al servidor, porque los datos ya
- * llegaron renderizados desde el Server Component.
+ * Arma el workbook con el estilo institucional (header navy) sin nada
+ * de DOM -- exceljs corre igual en Node que en el browser, así que
+ * esto lo puede llamar tanto `downloadWorkbook` (client-side) como un
+ * route handler que genera el .xlsx en el servidor (ej. el reporte de
+ * período, que necesita consultas que no tiene sentido mandar al
+ * cliente).
  */
-export async function downloadWorkbook(filename: string, sheets: ExportSheet[]) {
+export async function buildWorkbook(sheets: ExportSheet[]): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook()
   workbook.creator = 'QR-Asist'
   workbook.created = new Date()
@@ -44,6 +46,17 @@ export async function downloadWorkbook(filename: string, sheets: ExportSheet[]) 
 
     sheet.addRows(sheetDef.rows)
   }
+
+  return workbook
+}
+
+/**
+ * Arma un workbook .xlsx y dispara la descarga en el navegador.
+ * Se usa client-side, sin round-trip al servidor, cuando los datos ya
+ * llegaron renderizados desde el Server Component.
+ */
+export async function downloadWorkbook(filename: string, sheets: ExportSheet[]) {
+  const workbook = await buildWorkbook(sheets)
 
   const buffer = await workbook.xlsx.writeBuffer()
   const blob = new Blob([buffer], {

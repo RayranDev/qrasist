@@ -4,6 +4,7 @@ import Link from 'next/link'
 import AdminHeader from '@/components/admin/AdminHeader'
 import PaginatedConsolidatedBoard from '@/components/admin/PaginatedConsolidatedBoard'
 import GlobalAbsencePolicyModal from '@/components/admin/GlobalAbsencePolicyModal'
+import PeriodReportExport from '@/components/admin/PeriodReportExport'
 import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
 import {
   Layers,
@@ -72,6 +73,11 @@ export default async function AdminDashboardPage() {
     .select('id, name, code')
     .eq('is_active', true)
     .order('name')
+
+  const { data: periods } = await supabase
+    .from('periods')
+    .select('id, name')
+    .order('name', { ascending: false })
 
   const { data: studentCareerLinks } = await supabase
     .from('student_careers')
@@ -439,6 +445,16 @@ export default async function AdminDashboardPage() {
               </div>
             </div>
           </div>
+
+          {/* ==================== REPORTE DE PERÍODO ==================== */}
+          {periods && periods.length > 0 && (
+            <div>
+              <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-3">
+                Reporte de Asistencia por Período
+              </h2>
+              <PeriodReportExport periods={periods} />
+            </div>
+          )}
 
           {/* ==================== BLOQUE 2: ENTIDADES ACADÉMICAS ==================== */}
           <div>
