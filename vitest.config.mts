@@ -8,7 +8,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.mts'],
     globals: true,
-    exclude: ['node_modules', '.next', 'supabase'],
+    exclude: ['node_modules', '.next', 'supabase', 'e2e', 'playwright-report', 'test-results'],
   },
   resolve: {
     alias: {
