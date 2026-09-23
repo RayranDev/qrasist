@@ -56,7 +56,7 @@ export default async function ProfessorHistoryPage() {
           status,
           marked_by,
           manual_reason,
-          student:profiles (
+          student:profiles!attendances_student_id_fkey (
             name,
             student_code
           )
