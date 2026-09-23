@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { login, signup } from './actions'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -133,6 +134,14 @@ export default function AuthForm({
             minLength={6}
             placeholder="••••••••"
           />
+          {isLogin && (
+            <Link
+              href="/forgot-password"
+              className="block text-right text-xs text-navy-700 font-bold hover:text-navy-900 hover:underline transition mt-1.5"
+            >
+              ¿Olvidaste tu contraseña?
+            </Link>
+          )}
         </div>
 
         <Button
