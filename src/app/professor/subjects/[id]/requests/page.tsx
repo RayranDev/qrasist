@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { checkAdmin } from '@/lib/actions/authGuards'
 import Link from 'next/link'
 import RequestsList from './RequestsList'
 
@@ -14,12 +15,9 @@ export default async function SubjectRequestsPage({ params }: { params: Promise<
 
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-  const isAdmin = profile?.role === 'ADMIN'
+  // checkAdmin exige cuenta activa: un admin desactivado con sesion viva
+  // no debe ver datos de toda la institucion.
+  const isAdmin = await checkAdmin(supabase, user.id)
 
   // Un admin puede revisar solicitudes de cualquier materia (mismo
   // permiso que ya usa la server action `approveEnrollmentRequest` vía
