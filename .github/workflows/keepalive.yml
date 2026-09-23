@@ -1,0 +1,22 @@
+name: Keepalive
+
+# Weekly ping to /login (which reads the `careers` table server-side,
+# see src/app/(auth)/login/page.tsx) so the free-tier Supabase project
+# doesn't get auto-paused after 7 days without any database activity.
+# No secrets needed: it's an unauthenticated GET against the public
+# production URL.
+on:
+  schedule:
+    - cron: '0 12 * * 1' # every Monday at 12:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping production login page
+        run: curl --fail --show-error --silent --max-time 20 https://qrasist.vercel.app/login -o /dev/null
