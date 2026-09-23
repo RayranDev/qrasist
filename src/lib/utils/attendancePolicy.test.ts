@@ -112,4 +112,63 @@ describe('computeAttendanceSummary', () => {
       expect(res.absencesCount).toBe(0)
     })
   })
+
+  describe('justified absences (approved absence_justifications)', () => {
+    it('subtracts approved justifications from real absences', () => {
+      // 8 sessions held, 6 attended = 2 real absences, 1 justified.
+      const res = computeAttendanceSummary(
+        8,
+        6,
+        { ruleType: 'PERCENTAGE', maxPercentage: 20, totalPlannedSessions: 16 },
+        0,
+        1
+      )
+
+      expect(res.justifiedCount).toBe(1)
+      expect(res.absencesCount).toBe(1)
+    })
+
+    it('never lets absences go negative when justified exceeds real absences', () => {
+      // 5 sessions held, 5 attended = 0 real absences; a stale caller
+      // reports 3 justified -- must clamp to 0, not go negative.
+      const res = computeAttendanceSummary(5, 5, {}, 0, 3)
+
+      expect(res.justifiedCount).toBe(0)
+      expect(res.absencesCount).toBe(0)
+    })
+
+    it('does not apply justification to the late-to-absence penalty', () => {
+      // 10 held, 10 attended (0 real absences), 6 lates with
+      // latesPerAbsence 3 -> +2 penalty absences. 5 "justified" have
+      // nothing real to discount, and must never touch the penalty.
+      const res = computeAttendanceSummary(10, 10, { latesPerAbsence: 3 }, 6, 5)
+
+      expect(res.justifiedCount).toBe(0)
+      expect(res.absencesCount).toBe(2)
+    })
+
+    it('combines real absences, justification discount and late penalty together', () => {
+      // FIXED_COUNT max 4. 10 held, 6 attended = 4 real absences, 2
+      // justified -> 2 real remain. 6 lates, latesPerAbsence 3 -> +2
+      // penalty. Total = 4, exceeds max of... equals max, so NORMAL/WARNING boundary.
+      const res = computeAttendanceSummary(
+        10,
+        6,
+        { ruleType: 'FIXED_COUNT', maxCount: 4, latesPerAbsence: 3 },
+        6,
+        2
+      )
+
+      expect(res.justifiedCount).toBe(2)
+      expect(res.absencesCount).toBe(4)
+      expect(res.status).not.toBe('NORMAL')
+    })
+
+    it('defaults justifiedCount to 0 when not provided', () => {
+      const res = computeAttendanceSummary(8, 6, {})
+
+      expect(res.justifiedCount).toBe(0)
+      expect(res.absencesCount).toBe(2)
+    })
+  })
 })

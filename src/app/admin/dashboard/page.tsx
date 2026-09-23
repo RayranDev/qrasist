@@ -171,6 +171,18 @@ export default async function AdminDashboardPage() {
     .from('attendances')
     .select('student_id, session_id, status, session:sessions(subject_id)')
 
+  // Justificaciones aprobadas: descuentan la falta en computeAttendanceSummary
+  const { data: allApprovedJustifications } = await supabase
+    .from('absence_justifications')
+    .select('student_id, subject_id')
+    .eq('status', 'APPROVED')
+
+  const studentSubjectJustifiedCounts = new Map<string, number>()
+  for (const j of allApprovedJustifications || []) {
+    const key = `${j.student_id}_${j.subject_id}`
+    studentSubjectJustifiedCounts.set(key, (studentSubjectJustifiedCounts.get(key) || 0) + 1)
+  }
+
   // Mapeamos sesiones dictadas por materia
   const sessionsCountBySubject = new Map<string, number>()
   for (const sess of allActiveSessions || []) {
@@ -221,6 +233,7 @@ export default async function AdminDashboardPage() {
       const key = `${e.student_id}_${s.id}`
       const studentAtt = studentSubjectAttendances.get(key) || 0
       const studentLateCount = studentSubjectLateCounts.get(key) || 0
+      const studentJustifiedCount = studentSubjectJustifiedCounts.get(key) || 0
       const summary = computeAttendanceSummary(
         sessionsHeld,
         studentAtt,
@@ -231,7 +244,8 @@ export default async function AdminDashboardPage() {
           totalPlannedSessions: s.total_planned_sessions,
           latesPerAbsence: s.lates_per_absence,
         },
-        studentLateCount
+        studentLateCount,
+        studentJustifiedCount
       )
 
       if (summary.status === 'WARNING' || summary.status === 'FAILED_ATTENDANCE') {

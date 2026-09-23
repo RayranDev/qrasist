@@ -101,6 +101,7 @@ interface Subject {
   lates_per_absence?: number | null
   enrollments: Enrollment[]
   sessions: Session[]
+  absence_justifications?: { student_id: string; status: string }[]
 }
 
 export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) {
@@ -412,9 +413,16 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
       }
     }
 
+    const justifiedCountMap = new Map<string, number>()
+    for (const j of selectedSubject.absence_justifications || []) {
+      if (j.status !== 'APPROVED') continue
+      justifiedCountMap.set(j.student_id, (justifiedCountMap.get(j.student_id) || 0) + 1)
+    }
+
     const studentMetrics = enrolledStudents.map((st) => {
       const attended = attendanceCountMap.get(st.id) || 0
       const lateCount = lateCountMap.get(st.id) || 0
+      const justifiedCount = justifiedCountMap.get(st.id) || 0
       const summary = computeAttendanceSummary(
         activeSessions.length,
         attended,
@@ -425,7 +433,8 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
           totalPlannedSessions: selectedSubject.total_planned_sessions,
           latesPerAbsence: selectedSubject.lates_per_absence,
         },
-        lateCount
+        lateCount,
+        justifiedCount
       )
       return {
         student: st,
@@ -816,6 +825,11 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
                           </td>
                           <td className="px-6 py-3.5 text-xs font-bold text-gray-900">
                             {summary.absencesCount}
+                            {summary.justifiedCount > 0 && (
+                              <span className="ml-1.5 text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200/60 rounded px-1 py-0.5 align-middle">
+                                {summary.justifiedCount} justif.
+                              </span>
+                            )}
                           </td>
                           <td className="px-6 py-3.5 text-xs font-mono font-bold">
                             {summary.absencePercentage}%
@@ -895,6 +909,12 @@ export default function HistoryDrillDown({ subjects }: { subjects: Subject[] }) 
                           <span className="font-bold text-red-700">
                             {summary.absencesCount} ({summary.absencePercentage}%)
                           </span>
+                          {summary.justifiedCount > 0 && (
+                            <span className="block text-[10px] font-semibold text-blue-700 mt-0.5">
+                              {summary.justifiedCount} justificada
+                              {summary.justifiedCount > 1 ? 's' : ''}
+                            </span>
+                          )}
                         </div>
                         <div className="bg-gray-50 p-2 rounded-xl">
                           <span className="text-[10px] text-gray-400 block uppercase font-bold">
