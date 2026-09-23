@@ -6,7 +6,12 @@ import BackLink from '@/components/BackLink'
 
 export const dynamic = 'force-dynamic'
 
-export default async function ProfessorHistoryPage() {
+export default async function ProfessorHistoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ subjectId?: string }>
+}) {
+  const { subjectId } = await searchParams
   const supabase = await createClient()
   const {
     data: { user },
@@ -123,6 +128,7 @@ export default async function ProfessorHistoryPage() {
             subjects={
               (subjects || []) as unknown as Parameters<typeof HistoryDrillDown>[0]['subjects']
             }
+            initialSubjectId={subjectId}
           />
         </div>
       </div>
