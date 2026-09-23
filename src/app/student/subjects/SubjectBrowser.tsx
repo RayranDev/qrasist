@@ -12,7 +12,9 @@ import {
   AlertOctagon,
   CheckCircle2,
   FileWarning,
+  SearchX,
 } from 'lucide-react'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import type { StudentAttendanceSummary } from '@/lib/utils/attendancePolicy'
@@ -127,8 +129,12 @@ export default function SubjectBrowser({
       </FilterPanel>
 
       {visible.length === 0 ? (
-        <div className="bg-white rounded-2xl p-8 text-center border border-gray-200 text-gray-500 text-xs font-medium">
-          No hay materias para el filtro seleccionado.
+        <div className="bg-white rounded-2xl p-8 border border-gray-200">
+          <EmptyState
+            icon={<SearchX className="w-5 h-5" />}
+            title="No hay materias para el filtro seleccionado"
+            description="Probá con otro filtro o carrera."
+          />
         </div>
       ) : (
         <div className="space-y-3">

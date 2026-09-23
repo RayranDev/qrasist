@@ -11,6 +11,8 @@ import MobileWarningBanner from '@/components/MobileWarningBanner'
 import AdminHeader from '@/components/admin/AdminHeader'
 import BulkImportButton from '@/components/admin/BulkImportButton'
 import SubjectFilters from './SubjectFilters'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { BookMarked } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -158,7 +160,9 @@ export default async function AdminSubjectsPage({
             activeHref="/admin/subjects"
           />
 
-          <CreateSubjectForm periods={periods || []} />
+          <div id="crear-materia">
+            <CreateSubjectForm periods={periods || []} />
+          </div>
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
@@ -253,9 +257,21 @@ export default async function AdminSubjectsPage({
                 )
               })}
               {subjects?.length === 0 && (
-                <p className="col-span-full text-center text-gray-400 italic py-10">
-                  Ninguna materia coincide con estos filtros.
-                </p>
+                <div className="col-span-full">
+                  <EmptyState
+                    icon={<BookMarked className="w-5 h-5" />}
+                    title="Ninguna materia coincide con estos filtros"
+                    description="Probá ajustando los filtros, o creá una materia nueva."
+                    action={
+                      <a
+                        href="#crear-materia"
+                        className="text-sm font-bold text-navy-700 hover:text-navy-900 underline underline-offset-2"
+                      >
+                        Crear materia
+                      </a>
+                    }
+                  />
+                </div>
               )}
             </div>
 

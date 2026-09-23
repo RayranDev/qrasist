@@ -6,6 +6,8 @@ import MobileWarningBanner from '@/components/MobileWarningBanner'
 import { formatBogotaDateTime } from '@/lib/utils/bogotaDay'
 import { AUDIT_ACTION_LABELS, auditActionLabel, summarizeAuditDetails } from './auditDisplay'
 import AuditFilters from './AuditFilters'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { ClipboardList } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,6 +69,7 @@ export default async function AdminAuditPage({
   if (!profile || profile.role !== 'ADMIN') redirect('/login')
 
   const currentPage = Math.max(1, parseInt(params.page || '1', 10) || 1)
+  const hasActiveFilters = Boolean(params.action || params.actor || params.from || params.to)
   const from = (currentPage - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
 
@@ -186,8 +189,26 @@ export default async function AdminAuditPage({
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center text-gray-400 italic">
-                        No hay eventos registrados con estos filtros.
+                      <td colSpan={6} className="px-6 py-10">
+                        <EmptyState
+                          icon={<ClipboardList className="w-5 h-5" />}
+                          title="No hay eventos registrados con estos filtros"
+                          description={
+                            hasActiveFilters
+                              ? 'Probá ampliando el rango de fechas o quitando algún filtro.'
+                              : 'Los eventos aparecen acá a medida que se realizan acciones en el sistema.'
+                          }
+                          action={
+                            hasActiveFilters ? (
+                              <Link
+                                href="/admin/audit"
+                                className="text-sm font-bold text-navy-700 hover:text-navy-900 underline underline-offset-2"
+                              >
+                                Limpiar filtros
+                              </Link>
+                            ) : undefined
+                          }
+                        />
                       </td>
                     </tr>
                   )}

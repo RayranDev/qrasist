@@ -38,11 +38,11 @@ export default async function AdminAcademicPage() {
           />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div>
+            <div id="crear-carrera">
               <CreateCareerForm />
               <CareerList careers={careers || []} />
             </div>
-            <div>
+            <div id="crear-periodo">
               <CreatePeriodForm />
               <PeriodList periods={periods || []} />
             </div>

@@ -15,7 +15,8 @@ import {
 import { useToast } from '@/components/toast/ToastProvider'
 import ConfirmModal from '@/components/ConfirmModal'
 import CreateFormToggle from '@/components/CreateFormToggle'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2, Layers, CalendarRange } from 'lucide-react'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 const inputClass =
   'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-navy-600 focus:ring-2 focus:ring-navy-100 transition-all shadow-sm'
@@ -166,12 +167,25 @@ export function CareerList({ careers }: { careers: Career[] }) {
     <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
       {editing && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full animate-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Editar Carrera</h3>
+          <div
+            className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full animate-in zoom-in-95 duration-200"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-career-title"
+          >
+            <h3 id="edit-career-title" className="text-lg font-bold text-gray-900 mb-4">
+              Editar Carrera
+            </h3>
             <div className="space-y-4 mb-6 text-left">
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Nombre</label>
+                <label
+                  htmlFor="edit-career-name"
+                  className="block text-xs font-bold text-gray-700 mb-1"
+                >
+                  Nombre
+                </label>
                 <input
+                  id="edit-career-name"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   type="text"
@@ -179,8 +193,14 @@ export function CareerList({ careers }: { careers: Career[] }) {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Código</label>
+                <label
+                  htmlFor="edit-career-code"
+                  className="block text-xs font-bold text-gray-700 mb-1"
+                >
+                  Código
+                </label>
                 <input
+                  id="edit-career-code"
                   value={editCode}
                   onChange={(e) => setEditCode(e.target.value)}
                   type="text"
@@ -192,14 +212,14 @@ export function CareerList({ careers }: { careers: Career[] }) {
               <button
                 disabled={loadingId === editing.id}
                 onClick={() => setEditing(null)}
-                className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition"
+                className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
               >
                 Cancelar
               </button>
               <button
                 disabled={loadingId === editing.id}
                 onClick={handleSaveEdit}
-                className="flex-1 py-2 bg-navy-800 text-white rounded-xl text-sm font-bold hover:bg-navy-900 transition"
+                className="flex-1 py-2 bg-navy-800 text-white rounded-xl text-sm font-bold hover:bg-navy-900 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
               >
                 {loadingId === editing.id ? 'Guardando...' : 'Guardar'}
               </button>
@@ -244,8 +264,9 @@ export function CareerList({ careers }: { careers: Career[] }) {
                 <button
                   disabled={loadingId === c.id}
                   onClick={() => openEdit(c)}
-                  className="p-1.5 text-gray-400 hover:text-navy-700 hover:bg-navy-50 rounded-lg transition"
+                  className="p-1.5 text-gray-400 hover:text-navy-700 hover:bg-navy-50 rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
                   title="Editar"
+                  aria-label={`Editar ${c.name}`}
                 >
                   <Pencil className="w-4 h-4" strokeWidth={2} />
                 </button>
@@ -253,8 +274,9 @@ export function CareerList({ careers }: { careers: Career[] }) {
                   <button
                     disabled={loadingId === c.id}
                     onClick={() => setDeleting(c)}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
                     title="Eliminar carrera"
+                    aria-label={`Eliminar ${c.name}`}
                   >
                     <Trash2 className="w-4 h-4" strokeWidth={2} />
                   </button>
@@ -272,9 +294,19 @@ export function CareerList({ careers }: { careers: Career[] }) {
           ))}
         </div>
       ) : (
-        <p className="px-6 py-6 text-sm text-gray-400 italic text-center">
-          Sin carreras registradas.
-        </p>
+        <EmptyState
+          icon={<Layers className="w-5 h-5" />}
+          title="Sin carreras registradas"
+          description="Usá el formulario de arriba para crear la primera carrera."
+          action={
+            <a
+              href="#crear-carrera"
+              className="text-sm font-bold text-navy-700 hover:text-navy-900 underline underline-offset-2"
+            >
+              Crear carrera
+            </a>
+          }
+        />
       )}
     </div>
   )
@@ -428,12 +460,25 @@ export function PeriodList({ periods }: { periods: Period[] }) {
     <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
       {editing && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full animate-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Editar Período</h3>
+          <div
+            className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full animate-in zoom-in-95 duration-200"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-period-title"
+          >
+            <h3 id="edit-period-title" className="text-lg font-bold text-gray-900 mb-4">
+              Editar Período
+            </h3>
             <div className="space-y-4 mb-6 text-left">
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Período</label>
+                <label
+                  htmlFor="edit-period-name"
+                  className="block text-xs font-bold text-gray-700 mb-1"
+                >
+                  Período
+                </label>
                 <input
+                  id="edit-period-name"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   type="text"
@@ -442,10 +487,14 @@ export function PeriodList({ periods }: { periods: Period[] }) {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">
+                <label
+                  htmlFor="edit-period-start"
+                  className="block text-xs font-bold text-gray-700 mb-1"
+                >
                   Inicio (opcional)
                 </label>
                 <input
+                  id="edit-period-start"
                   value={editStart}
                   onChange={(e) => setEditStart(e.target.value)}
                   type="date"
@@ -453,8 +502,14 @@ export function PeriodList({ periods }: { periods: Period[] }) {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Fin (opcional)</label>
+                <label
+                  htmlFor="edit-period-end"
+                  className="block text-xs font-bold text-gray-700 mb-1"
+                >
+                  Fin (opcional)
+                </label>
                 <input
+                  id="edit-period-end"
                   value={editEnd}
                   onChange={(e) => setEditEnd(e.target.value)}
                   type="date"
@@ -466,14 +521,14 @@ export function PeriodList({ periods }: { periods: Period[] }) {
               <button
                 disabled={loadingId === editing.id}
                 onClick={() => setEditing(null)}
-                className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition"
+                className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
               >
                 Cancelar
               </button>
               <button
                 disabled={loadingId === editing.id}
                 onClick={handleSaveEdit}
-                className="flex-1 py-2 bg-navy-800 text-white rounded-xl text-sm font-bold hover:bg-navy-900 transition"
+                className="flex-1 py-2 bg-navy-800 text-white rounded-xl text-sm font-bold hover:bg-navy-900 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
               >
                 {loadingId === editing.id ? 'Guardando...' : 'Guardar'}
               </button>
@@ -509,8 +564,9 @@ export function PeriodList({ periods }: { periods: Period[] }) {
                 <button
                   disabled={loadingId === p.id}
                   onClick={() => openEdit(p)}
-                  className="p-1.5 text-gray-400 hover:text-navy-700 hover:bg-navy-50 rounded-lg transition"
+                  className="p-1.5 text-gray-400 hover:text-navy-700 hover:bg-navy-50 rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
                   title="Editar"
+                  aria-label={`Editar ${p.name}`}
                 >
                   <Pencil className="w-4 h-4" strokeWidth={2} />
                 </button>
@@ -518,8 +574,9 @@ export function PeriodList({ periods }: { periods: Period[] }) {
                   <button
                     disabled={loadingId === p.id}
                     onClick={() => setDeleting(p)}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
                     title="Eliminar período"
+                    aria-label={`Eliminar ${p.name}`}
                   >
                     <Trash2 className="w-4 h-4" strokeWidth={2} />
                   </button>
@@ -537,9 +594,19 @@ export function PeriodList({ periods }: { periods: Period[] }) {
           ))}
         </div>
       ) : (
-        <p className="px-6 py-6 text-sm text-gray-400 italic text-center">
-          Sin períodos registrados.
-        </p>
+        <EmptyState
+          icon={<CalendarRange className="w-5 h-5" />}
+          title="Sin períodos registrados"
+          description="Usá el formulario de arriba para crear el primer período."
+          action={
+            <a
+              href="#crear-periodo"
+              className="text-sm font-bold text-navy-700 hover:text-navy-900 underline underline-offset-2"
+            >
+              Crear período
+            </a>
+          }
+        />
       )}
     </div>
   )
