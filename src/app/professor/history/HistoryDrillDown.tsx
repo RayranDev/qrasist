@@ -639,8 +639,9 @@ export default function HistoryDrillDown({
                       setShowConfirm(true)
                     }}
                     disabled={actionLoading}
-                    className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition"
+                    className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
                     title="Archivar sesión"
+                    aria-label="Archivar sesión"
                   >
                     <Archive className="w-4 h-4" strokeWidth={2} />
                   </button>

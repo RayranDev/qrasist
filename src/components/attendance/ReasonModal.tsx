@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 
 interface ReasonModalProps {
@@ -27,14 +27,25 @@ export default function ReasonModal({
   const [reason, setReason] = useState('')
   const isValid = reason.trim().length >= MIN_REASON_LENGTH
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onCancel])
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in duration-150">
       <div
         role="dialog"
         aria-modal="true"
+        aria-labelledby="reason-modal-title"
         className="w-full max-w-sm bg-white rounded-2xl border border-neutral-200 shadow-xl p-6 animate-in zoom-in-95 duration-150"
       >
-        <h3 className="text-sm font-bold text-gray-900 mb-1">{title}</h3>
+        <h3 id="reason-modal-title" className="text-sm font-bold text-gray-900 mb-1">
+          {title}
+        </h3>
         {description && <p className="text-xs text-gray-500 mb-4">{description}</p>}
 
         <label
