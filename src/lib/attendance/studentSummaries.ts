@@ -4,6 +4,7 @@ import {
   type AbsencePolicyConfig,
   type StudentAttendanceSummary,
 } from '@/lib/utils/attendancePolicy'
+import { fetchAllRows } from '@/lib/supabase/fetchAll'
 
 export interface EnrolledSubjectCounts {
   subjectId: string
@@ -95,33 +96,62 @@ export async function getStudentSubjectRisks(
   const subjectIds = subjects.map((s) => s.id)
   const subjectIdSet = new Set(subjectIds)
 
+  // PostgREST trunca a 1000 filas por defecto sin avisar -- un
+  // estudiante con muchos semestres encima puede acumular más
+  // asistencias que eso, así que se pagina con fetchAllRows en vez de
+  // confiar en una sola página.
+  interface ActiveSessionRow {
+    id: string
+    subject_id: string
+  }
+  interface AttendanceRow {
+    status: string
+    // Supabase infiere el embed `session:sessions(subject_id)` como
+    // array (no puede saber la cardinalidad de la FK sin generics
+    // explícitos) -- se deja `unknown` acá y se castea al leerlo, igual
+    // que hacía el código antes de paginar con fetchAllRows.
+    session: unknown
+  }
+  interface ApprovedJustificationRow {
+    subject_id: string
+  }
+
   const [{ data: activeSessions }, { data: attendances }, { data: approvedJustifications }] =
     await Promise.all([
-      supabase
-        .from('sessions')
-        .select('id, subject_id')
-        .eq('is_active', true)
-        .in('subject_id', subjectIds),
-      supabase
-        .from('attendances')
-        .select('status, session:sessions(subject_id)')
-        .eq('student_id', studentId),
-      supabase
-        .from('absence_justifications')
-        .select('subject_id')
-        .eq('student_id', studentId)
-        .eq('status', 'APPROVED')
-        .in('subject_id', subjectIds),
+      fetchAllRows<ActiveSessionRow>((from, to) =>
+        supabase
+          .from('sessions')
+          .select('id, subject_id')
+          .eq('is_active', true)
+          .in('subject_id', subjectIds)
+          .range(from, to)
+      ),
+      fetchAllRows<AttendanceRow>((from, to) =>
+        supabase
+          .from('attendances')
+          .select('status, session:sessions(subject_id)')
+          .eq('student_id', studentId)
+          .range(from, to)
+      ),
+      fetchAllRows<ApprovedJustificationRow>((from, to) =>
+        supabase
+          .from('absence_justifications')
+          .select('subject_id')
+          .eq('student_id', studentId)
+          .eq('status', 'APPROVED')
+          .in('subject_id', subjectIds)
+          .range(from, to)
+      ),
     ])
 
   const sessionsHeldBySubject = new Map<string, number>()
-  for (const s of activeSessions || []) {
+  for (const s of activeSessions) {
     sessionsHeldBySubject.set(s.subject_id, (sessionsHeldBySubject.get(s.subject_id) || 0) + 1)
   }
 
   const attendedBySubject = new Map<string, number>()
   const lateBySubject = new Map<string, number>()
-  for (const a of attendances || []) {
+  for (const a of attendances) {
     const subjectId = (a.session as unknown as { subject_id: string } | null)?.subject_id
     if (!subjectId || !subjectIdSet.has(subjectId)) continue
     attendedBySubject.set(subjectId, (attendedBySubject.get(subjectId) || 0) + 1)
@@ -131,7 +161,7 @@ export async function getStudentSubjectRisks(
   }
 
   const justifiedBySubject = new Map<string, number>()
-  for (const j of approvedJustifications || []) {
+  for (const j of approvedJustifications) {
     justifiedBySubject.set(j.subject_id, (justifiedBySubject.get(j.subject_id) || 0) + 1)
   }
 
