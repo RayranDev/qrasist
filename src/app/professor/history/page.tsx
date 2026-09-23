@@ -51,7 +51,7 @@ export default async function ProfessorHistoryPage() {
           ip_address,
           latitude,
           longitude,
-          student:profiles (
+          student:profiles!attendances_student_id_fkey (
             name,
             student_code
           )
