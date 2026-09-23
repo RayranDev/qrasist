@@ -25,7 +25,8 @@ export default async function ProfessorJustificationsPage() {
   // reviewed_by, ver migración 024) -- se pinea explícitamente cuál
   // usar para el embed, igual que ya se hace con enrollment_requests
   // en RequestsList, para no chocar con la ambigüedad PGRST201.
-  const { data: justifications, error } = (await subjectIds.length)
+  const hasSubjects = subjectIds.length > 0
+  const { data: justifications, error } = hasSubjects
     ? await supabase
         .from('absence_justifications')
         .select(
