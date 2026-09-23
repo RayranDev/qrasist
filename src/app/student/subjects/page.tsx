@@ -10,6 +10,8 @@ import {
   filterAtRiskSubjects,
   type EnrolledSubjectCounts,
 } from '@/lib/attendance/studentSummaries'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { GraduationCap } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -264,13 +266,12 @@ export default async function StudentSubjectsPage() {
       <RiskBanner risks={atRiskSubjects} />
 
       {careerIds.length === 0 ? (
-        <div className="bg-white rounded-2xl p-6 text-center border border-gray-200">
-          <p className="text-sm text-gray-600 font-medium">
-            Todavía no tenés una carrera asignada.
-          </p>
-          <p className="text-xs text-gray-400 mt-1">
-            Contactá a coordinación académica para que te asignen tu carrera.
-          </p>
+        <div className="bg-white rounded-2xl p-6 border border-gray-200">
+          <EmptyState
+            icon={<GraduationCap className="w-5 h-5" />}
+            title="Todavía no tenés una carrera asignada"
+            description="Contactá a coordinación académica para que te asignen tu carrera."
+          />
         </div>
       ) : (
         <SubjectBrowser careers={careers} items={items} />

@@ -1,9 +1,10 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Paperclip, Clock, CheckCircle2, X } from 'lucide-react'
+import { Paperclip, Clock, CheckCircle2, X, FileCheck2 } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { useToast } from '@/components/toast/ToastProvider'
 import ReasonModal from '@/components/attendance/ReasonModal'
 import { reviewJustification, getJustificationAttachmentUrl } from '@/lib/actions/justifications'
@@ -140,8 +141,31 @@ export default function JustificationsList({
       </p>
 
       {sorted.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center">
-          <p className="text-gray-400 italic">No hay justificaciones para mostrar.</p>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10">
+          <EmptyState
+            icon={<FileCheck2 className="w-5 h-5" />}
+            title={
+              subjectFilter
+                ? 'Ninguna justificación para esta materia'
+                : 'No hay justificaciones para mostrar'
+            }
+            description={
+              subjectFilter
+                ? undefined
+                : 'Las justificaciones enviadas por tus estudiantes van a aparecer acá.'
+            }
+            action={
+              subjectFilter ? (
+                <button
+                  type="button"
+                  onClick={() => setSubjectFilter('')}
+                  className="text-sm font-bold text-navy-700 hover:text-navy-900 underline underline-offset-2"
+                >
+                  Ver todas las materias
+                </button>
+              ) : undefined
+            }
+          />
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">

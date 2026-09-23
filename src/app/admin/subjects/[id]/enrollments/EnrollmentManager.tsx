@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { addEnrollment, removeEnrollment } from '@/lib/actions/enrollments'
 import { useToast } from '@/components/toast/ToastProvider'
 import ConfirmModal from '@/components/ConfirmModal'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { Users, UserCheck } from 'lucide-react'
 
 interface Student {
   id: string
@@ -31,9 +33,16 @@ export default function EnrollmentManager({
   const showToast = useToast()
 
   const enrolledIds = new Set(enrolledStudents.map((e) => e.student.id))
-  const availableStudents = allStudents.filter(
-    (s) => !enrolledIds.has(s.id) && s.careerIds.some((id) => subjectCareerIds.includes(id))
+  // Se distinguen los dos motivos por los que puede no haber
+  // disponibles: ninguno comparte carrera con la materia (nadie
+  // elegible) vs. todos los elegibles ya están inscritos -- antes el
+  // mensaje siempre decía "ya están inscritos" incluso cuando la
+  // causa real era la falta de carrera en común.
+  const eligibleStudents = allStudents.filter((s) =>
+    s.careerIds.some((id) => subjectCareerIds.includes(id))
   )
+  const availableStudents = eligibleStudents.filter((s) => !enrolledIds.has(s.id))
+  const hasEligibleStudents = eligibleStudents.length > 0
 
   const handleAdd = async (studentId: string, studentName: string) => {
     setLoadingId(studentId)
@@ -102,9 +111,13 @@ export default function EnrollmentManager({
               </div>
             ))
           ) : (
-            <p className="text-gray-500 text-sm italic text-center p-4 bg-gray-50 rounded-xl">
-              No hay estudiantes inscritos en esta materia.
-            </p>
+            <div className="p-4 bg-gray-50 rounded-xl">
+              <EmptyState
+                icon={<UserCheck className="w-5 h-5" />}
+                title="No hay estudiantes inscritos en esta materia"
+                description="Agregalos desde la lista de estudiantes disponibles."
+              />
+            </div>
           )}
         </div>
       </div>
@@ -131,9 +144,21 @@ export default function EnrollmentManager({
               </div>
             ))
           ) : (
-            <p className="text-gray-500 text-sm italic text-center p-4 bg-gray-50 rounded-xl">
-              Todos los estudiantes ya están inscritos en esta materia.
-            </p>
+            <div className="p-4 bg-gray-50 rounded-xl">
+              <EmptyState
+                icon={<Users className="w-5 h-5" />}
+                title={
+                  hasEligibleStudents
+                    ? 'Todos los estudiantes de esta carrera ya están inscritos'
+                    : 'Ningún estudiante activo pertenece a la carrera de esta materia'
+                }
+                description={
+                  hasEligibleStudents
+                    ? undefined
+                    : 'Asigná estudiantes a la carrera correspondiente antes de inscribirlos aquí.'
+                }
+              />
+            </div>
           )}
         </div>
       </div>

@@ -11,9 +11,10 @@ import {
   StudentCareersModal,
   ProfessorCareersModal,
 } from './UserComponents'
-import { ClipboardList, GraduationCap } from 'lucide-react'
+import { ClipboardList, GraduationCap, UserX } from 'lucide-react'
 import UserSearchBar from './UserSearchBar'
 import FilterPanel, { FilterField } from '@/components/FilterPanel'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 type FilterRole = 'ALL' | 'ADMIN' | 'PROFESSOR' | 'STUDENT'
 type FilterStatus = 'active' | 'inactive'
@@ -99,7 +100,9 @@ export default function AdminUserList({
 
   return (
     <>
-      <CreateUserForm />
+      <div id="crear-usuario">
+        <CreateUserForm />
+      </div>
 
       {historyUser && (
         <StudentHistoryModal
@@ -312,11 +315,23 @@ export default function AdminUserList({
             </div>
           ))
         ) : (
-          <div className="p-8 text-center bg-white rounded-2xl border border-gray-200 text-gray-500 text-sm">
-            {statusFilter === 'inactive'
-              ? 'No hay usuarios inactivos.'
-              : 'No hay usuarios con este rol.'}
-          </div>
+          <EmptyState
+            icon={<UserX className="w-5 h-5" />}
+            title={
+              statusFilter === 'inactive'
+                ? 'No hay usuarios inactivos'
+                : 'No hay usuarios con este rol'
+            }
+            description="Probá cambiando los filtros, o creá un usuario nuevo."
+            action={
+              <a
+                href="#crear-usuario"
+                className="text-sm font-bold text-navy-700 hover:text-navy-900 underline underline-offset-2"
+              >
+                Crear usuario
+              </a>
+            }
+          />
         )}
       </div>
 
@@ -416,10 +431,24 @@ export default function AdminUserList({
               ))
             ) : (
               <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-gray-500 italic">
-                  {statusFilter === 'inactive'
-                    ? 'No hay usuarios inactivos.'
-                    : 'No hay usuarios con este rol.'}
+                <td colSpan={4} className="px-6 py-8">
+                  <EmptyState
+                    icon={<UserX className="w-5 h-5" />}
+                    title={
+                      statusFilter === 'inactive'
+                        ? 'No hay usuarios inactivos'
+                        : 'No hay usuarios con este rol'
+                    }
+                    description="Probá cambiando los filtros, o creá un usuario nuevo."
+                    action={
+                      <a
+                        href="#crear-usuario"
+                        className="text-sm font-bold text-navy-700 hover:text-navy-900 underline underline-offset-2"
+                      >
+                        Crear usuario
+                      </a>
+                    }
+                  />
                 </td>
               </tr>
             )}

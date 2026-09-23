@@ -45,13 +45,28 @@ function DeactivateConfirmModal({
   const [typed, setTyped] = useState('')
   const match = typed === userName
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onCancel])
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full animate-in zoom-in-95 duration-200">
+      <div
+        className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full animate-in zoom-in-95 duration-200"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="deactivate-user-title"
+      >
         <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4">
           <Ban className="w-6 h-6 text-amber-500" strokeWidth={2} />
         </div>
-        <h3 className="text-lg font-bold text-gray-900 text-center mb-1">Desactivar usuario</h3>
+        <h3 id="deactivate-user-title" className="text-lg font-bold text-gray-900 text-center mb-1">
+          Desactivar usuario
+        </h3>
         <p className="text-sm text-gray-500 text-center mb-1">
           El usuario no podrá iniciar sesión. Sus datos e historial se conservan.
         </p>
@@ -63,20 +78,21 @@ function DeactivateConfirmModal({
           onChange={(e) => setTyped(e.target.value)}
           type="text"
           placeholder="Escribe el nombre exacto..."
+          aria-label="Nombre del usuario a desactivar, para confirmar"
           className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:bg-white focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all mb-4"
         />
         <div className="flex gap-3">
           <button
             onClick={onCancel}
             disabled={loading}
-            className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition"
+            className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
           >
             Cancelar
           </button>
           <button
             onClick={onConfirm}
             disabled={!match || loading}
-            className="flex-1 py-2.5 bg-amber-500 text-white rounded-xl text-sm font-bold hover:bg-amber-600 transition disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex-1 py-2.5 bg-amber-500 text-white rounded-xl text-sm font-bold hover:bg-amber-600 transition disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
           >
             {loading ? 'Desactivando...' : 'Desactivar'}
           </button>
@@ -110,17 +126,33 @@ export function StudentHistoryModal({
     })
   }, [userId])
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white p-6 rounded-2xl shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200">
+      <div
+        className="bg-white p-6 rounded-2xl shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="student-history-title"
+      >
         <div className="flex justify-between items-start mb-4">
           <div>
-            <h3 className="text-lg font-bold text-gray-900">Historial de Asistencias</h3>
+            <h3 id="student-history-title" className="text-lg font-bold text-gray-900">
+              Historial de Asistencias
+            </h3>
             <p className="text-sm text-gray-500 mt-0.5">{studentName}</p>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
+            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
+            aria-label="Cerrar"
           >
             <X className="w-5 h-5" />
           </button>
@@ -201,6 +233,14 @@ export function StudentCareersModal({
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const showToast = useToast()
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
   const handleToggle = async (career: Career) => {
     const isChecked = checked.has(career.id)
     setLoadingId(career.id)
@@ -224,15 +264,23 @@ export function StudentCareersModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200">
+      <div
+        className="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="student-careers-title"
+      >
         <div className="flex justify-between items-start mb-4">
           <div>
-            <h3 className="text-lg font-bold text-gray-900">Carreras del Estudiante</h3>
+            <h3 id="student-careers-title" className="text-lg font-bold text-gray-900">
+              Carreras del Estudiante
+            </h3>
             <p className="text-sm text-gray-500 mt-0.5">{studentName}</p>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
+            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
+            aria-label="Cerrar"
           >
             <X className="w-5 h-5" />
           </button>
@@ -295,6 +343,14 @@ export function ProfessorCareersModal({
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const showToast = useToast()
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
   const handleToggle = async (career: Career) => {
     const isChecked = checked.has(career.id)
     setLoadingId(career.id)
@@ -318,15 +374,23 @@ export function ProfessorCareersModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200">
+      <div
+        className="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="professor-careers-title"
+      >
         <div className="flex justify-between items-start mb-4">
           <div>
-            <h3 className="text-lg font-bold text-gray-900">Carreras del Profesor</h3>
+            <h3 id="professor-careers-title" className="text-lg font-bold text-gray-900">
+              Carreras del Profesor
+            </h3>
             <p className="text-sm text-gray-500 mt-0.5">{professorName}</p>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
+            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
+            aria-label="Cerrar"
           >
             <X className="w-5 h-5" />
           </button>
@@ -603,6 +667,15 @@ export function ActionButtons({
   const currentName = `${currentFirstName} ${currentLastName}`.trim()
   const isStudent = currentRole === 'STUDENT'
 
+  useEffect(() => {
+    if (!isEditing) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsEditing(false)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isEditing])
+
   const handleDeactivate = async () => {
     setLoading(true)
     const result = await deleteUserAccount(userId)
@@ -664,8 +737,15 @@ export function ActionButtons({
   if (isEditing) {
     return (
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-        <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full animate-in zoom-in-95 duration-200 text-left">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">Editar Usuario</h3>
+        <div
+          className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full animate-in zoom-in-95 duration-200 text-left"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-user-title"
+        >
+          <h3 id="edit-user-title" className="text-lg font-bold text-gray-900 mb-4">
+            Editar Usuario
+          </h3>
           <div className="space-y-4 mb-6">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -796,15 +876,17 @@ export function ActionButtons({
           <>
             <button
               onClick={() => setIsEditing(true)}
-              className="p-1.5 text-gray-500 bg-gray-50 border border-gray-200 rounded-lg hover:border-navy-300 hover:bg-navy-50 hover:text-navy-700 transition"
+              className="p-1.5 text-gray-500 bg-gray-50 border border-gray-200 rounded-lg hover:border-navy-300 hover:bg-navy-50 hover:text-navy-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
               title="Editar"
+              aria-label={`Editar ${currentName}`}
             >
               <Pencil className="w-4.5 h-4.5" strokeWidth={2} />
             </button>
             <button
               onClick={() => setIsDeactivating(true)}
-              className="p-1.5 text-gray-500 bg-gray-50 border border-gray-200 rounded-lg hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 transition"
+              className="p-1.5 text-gray-500 bg-gray-50 border border-gray-200 rounded-lg hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
               title="Desactivar"
+              aria-label={`Desactivar ${currentName}`}
             >
               <Ban className="w-4.5 h-4.5" strokeWidth={2} />
             </button>

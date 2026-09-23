@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { assignSubjectToCareer, removeSubjectFromCareer } from '@/lib/actions/academic'
 import { useToast } from '@/components/toast/ToastProvider'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { BookMarked } from 'lucide-react'
 
 const inputClass =
   'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-navy-600 focus:ring-2 focus:ring-navy-100 transition-all shadow-sm'
@@ -60,10 +62,14 @@ export function AssignSubjectForm({
       <h3 className="text-lg font-bold text-gray-900 mb-4">Agregar Materia al Pénsum</h3>
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
         <div className="sm:col-span-2">
-          <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">
+          <label
+            htmlFor="pensum-subject-id"
+            className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider"
+          >
             Materia
           </label>
           <select
+            id="pensum-subject-id"
             required
             name="subject_id"
             className={`${inputClass} appearance-none cursor-pointer`}
@@ -77,10 +83,14 @@ export function AssignSubjectForm({
           </select>
         </div>
         <div>
-          <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">
+          <label
+            htmlFor="pensum-level"
+            className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider"
+          >
             Semestre
           </label>
           <input
+            id="pensum-level"
             required
             name="level"
             type="number"
@@ -126,8 +136,12 @@ export function PensumByLevel({ careerId, entries }: { careerId: string; entries
 
   if (entries.length === 0) {
     return (
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 text-center">
-        <p className="text-gray-400 italic">Esta carrera todavía no tiene materias en el pénsum.</p>
+      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
+        <EmptyState
+          icon={<BookMarked className="w-5 h-5" />}
+          title="Esta carrera todavía no tiene materias en el pénsum"
+          description="Usá el formulario de arriba para agregar la primera materia."
+        />
       </div>
     )
   }

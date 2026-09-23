@@ -1,28 +1,27 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import AdminHeader from '@/components/admin/AdminHeader'
 import PaginatedConsolidatedBoard from '@/components/admin/PaginatedConsolidatedBoard'
 import GlobalAbsencePolicyModal from '@/components/admin/GlobalAbsencePolicyModal'
 import PeriodReportExport from '@/components/admin/PeriodReportExport'
+import AttentionArea from '@/components/admin/dashboard/AttentionArea'
+import AttendanceSummary from '@/components/admin/dashboard/AttendanceSummary'
+import OnboardingChecklist from '@/components/admin/dashboard/OnboardingChecklist'
 import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
 import {
-  Layers,
-  ShieldCheck,
-  UserCheck,
-  Users,
-  BookMarked,
-  Activity,
-  ArrowUpRight,
-  Percent,
-  CheckCircle2,
-  AlertTriangle,
-  Sliders,
-} from 'lucide-react'
+  buildAttentionItems,
+  computeOnboardingSteps,
+  isOnboardingComplete,
+} from '@/lib/admin/dashboardAttention'
 
 export const dynamic = 'force-dynamic'
 
-export default async function AdminDashboardPage() {
+export default async function AdminDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>
+}) {
+  const params = await searchParams
   const supabase = await createClient()
   const {
     data: { user },
@@ -38,19 +37,16 @@ export default async function AdminDashboardPage() {
 
   // Conteos generales (solo activos) + Asistencias y Sesiones
   const [
-    { count: totalAdmins },
     { count: totalProfessors },
     { count: totalStudents },
     { count: totalSubjects },
     { count: totalCareers },
     { count: totalAttendances },
     { count: totalSessions },
+    { count: periodsActiveCount },
+    { count: pendingJustificationsTotal },
+    { count: openSessionsNow },
   ] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select('*', { count: 'exact', head: true })
-      .eq('role', 'ADMIN')
-      .eq('is_active', true),
     supabase
       .from('profiles')
       .select('*', { count: 'exact', head: true })
@@ -65,6 +61,18 @@ export default async function AdminDashboardPage() {
     supabase.from('careers').select('*', { count: 'exact', head: true }).eq('is_active', true),
     supabase.from('attendances').select('*', { count: 'exact', head: true }),
     supabase.from('sessions').select('*', { count: 'exact', head: true }).eq('is_active', true),
+    supabase.from('periods').select('*', { count: 'exact', head: true }).eq('is_active', true),
+    supabase
+      .from('absence_justifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'PENDING'),
+    // Ventanas de QR abiertas en este momento (no todas las sesiones
+    // historicas no archivadas).
+    supabase
+      .from('sessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_active', true)
+      .gt('expires_at', new Date().toISOString()),
   ])
 
   // Desglose por carrera
@@ -99,17 +107,30 @@ export default async function AdminDashboardPage() {
     }))
     .sort((a, b) => b.studentCount - a.studentCount)
 
-  // Sesiones activas del día
-  const todayStart = new Date()
-  todayStart.setHours(0, 0, 0, 0)
-  const todayEnd = new Date()
-  todayEnd.setHours(23, 59, 59, 999)
-  const { count: sessionsToday } = await supabase
-    .from('sessions')
-    .select('*', { count: 'exact', head: true })
-    .eq('is_active', true)
-    .gte('date', todayStart.toISOString())
-    .lte('date', todayEnd.toISOString())
+  // Solicitudes de inscripción pendientes (institución completa) --
+  // se agrupan por materia para poder llevar al admin directo a la
+  // que más solicitudes acumula.
+  const { data: pendingRequests } = await supabase
+    .from('enrollment_requests')
+    .select('subject_id')
+    .eq('status', 'pending')
+
+  const pendingRequestsBySubject = new Map<string, number>()
+  for (const r of pendingRequests || []) {
+    pendingRequestsBySubject.set(
+      r.subject_id,
+      (pendingRequestsBySubject.get(r.subject_id) || 0) + 1
+    )
+  }
+  let topRequestSubjectId: string | null = null
+  let topRequestCount = 0
+  for (const [subjectId, count] of pendingRequestsBySubject) {
+    if (count > topRequestCount) {
+      topRequestCount = count
+      topRequestSubjectId = subjectId
+    }
+  }
+  const pendingEnrollmentRequestsTotal = pendingRequests?.length ?? 0
 
   // Docentes activos con materias
   const { data: professors } = await supabase
@@ -122,7 +143,7 @@ export default async function AdminDashboardPage() {
   const { data: allSubjects } = await supabase
     .from('subjects')
     .select(
-      'id, name, code, professor_id, absence_rule_type, max_absence_percentage, max_absence_count, total_planned_sessions, late_after_minutes, lates_per_absence, enrollments(student_id)'
+      'id, name, code, professor_id, period_id, absence_rule_type, max_absence_percentage, max_absence_count, total_planned_sessions, late_after_minutes, lates_per_absence, enrollments(student_id)'
     )
     .eq('is_active', true)
     .order('name')
@@ -145,6 +166,12 @@ export default async function AdminDashboardPage() {
       maxAbsencePercentage: s.max_absence_percentage,
     }))
     .sort((a, b) => b.studentCount - a.studentCount)
+
+  // Materias asignadas a la vez a un período y a una carrera -- paso
+  // de onboarding "Crear materias", ver dashboardAttention.ts
+  const assignedSubjectsCount = (allSubjects || []).filter(
+    (s) => !!s.period_id && (subjectCareerLinks || []).some((l) => l.subject_id === s.id)
+  ).length
 
   // Estudiantes con conteo de materias inscritas
   const { data: students } = await supabase
@@ -271,49 +298,42 @@ export default async function AdminDashboardPage() {
   const defaultLateAfterMinutes = sampleSubject?.late_after_minutes ?? 15
   const defaultLatesPerAbsence = sampleSubject?.lates_per_absence ?? null
 
-  const policyDisplayValue =
-    defaultRuleType === 'FIXED_COUNT' ? `Máx ${defaultCount} fallas` : `Máx ${defaultPercentage}%`
-  const policyDisplaySub = `${defaultPlanned} sesiones planificadas`
+  // ==================== BLOQUE "HOY": QUÉ NECESITA ACCIÓN ====================
+  const attentionItems = buildAttentionItems(
+    {
+      pendingEnrollmentRequests: pendingEnrollmentRequestsTotal,
+      pendingJustifications: pendingJustificationsTotal ?? 0,
+      atRiskStudents: studentsAtRiskCount,
+      activeSessionsNow: openSessionsNow ?? 0,
+    },
+    {
+      enrollmentRequestsHref: topRequestSubjectId
+        ? `/professor/subjects/${topRequestSubjectId}/requests`
+        : null,
+      justificationsHref: '/professor/justifications',
+      atRiskStudentsHref: '/admin/dashboard?tab=students#consolidado',
+      activeSessionsHref: '/admin/dashboard#consolidado',
+    }
+  )
 
-  // Tarjetas de entidades académicas
-  const entityCards = [
-    {
-      label: 'Carreras',
-      value: totalCareers ?? 0,
-      icon: Layers,
-      href: '/admin/academic',
-    },
-    {
-      label: 'Administradores',
-      value: totalAdmins ?? 0,
-      icon: ShieldCheck,
-      href: '/admin/users?role=ADMIN',
-    },
-    {
-      label: 'Docentes',
-      value: totalProfessors ?? 0,
-      icon: UserCheck,
-      href: '/admin/users?role=PROFESSOR',
-    },
-    {
-      label: 'Estudiantes',
-      value: totalStudents ?? 0,
-      icon: Users,
-      href: '/admin/users?role=STUDENT',
-    },
-    {
-      label: 'Materias',
-      value: totalSubjects ?? 0,
-      icon: BookMarked,
-      href: '/admin/subjects',
-    },
-    {
-      label: 'Sesiones hoy',
-      value: sessionsToday ?? 0,
-      icon: Activity,
-      href: null,
-    },
-  ]
+  // ==================== PRIMEROS PASOS (ONBOARDING) ====================
+  const onboardingSteps = computeOnboardingSteps({
+    hasActivePeriod: (periodsActiveCount ?? 0) > 0,
+    careersCount: totalCareers ?? 0,
+    assignedSubjectsCount,
+    professorsCount: totalProfessors ?? 0,
+    studentsCount: totalStudents ?? 0,
+    enrollmentsCount: allEnrollments?.length ?? 0,
+  })
+  const showOnboarding = !isOnboardingComplete(onboardingSteps)
+
+  const consolidatedInitialTab =
+    params.tab === 'students' ||
+    params.tab === 'subjects' ||
+    params.tab === 'careers' ||
+    params.tab === 'professors'
+      ? params.tab
+      : 'all'
 
   return (
     <div className="min-h-screen bg-[#FAFAFA]">
@@ -326,186 +346,40 @@ export default async function AdminDashboardPage() {
             activeHref="/admin/dashboard"
           />
 
-          {/* ==================== BLOQUE 1: KPIS DE ASISTENCIA Y POLÍTICA ==================== */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-500">
-                Métricas de Asistencia y Política Institucional
-              </h2>
-              <GlobalAbsencePolicyModal
-                initialRuleType={defaultRuleType}
-                initialPercentage={defaultPercentage}
-                initialCount={defaultCount}
-                initialPlannedSessions={defaultPlanned}
-                initialLateAfterMinutes={defaultLateAfterMinutes}
-                initialLatesPerAbsence={defaultLatesPerAbsence}
-                totalSubjectsCount={totalSubjects ?? 0}
-              />
-            </div>
+          <AttentionArea items={attentionItems} />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-              {/* Presentismo Global */}
-              <div className="bg-white rounded-xl border border-neutral-200/80 p-4 shadow-2xs">
-                <div className="flex items-center justify-between mb-2.5">
-                  <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
-                    Presentismo Global
-                  </span>
-                  <Percent className="w-4 h-4 text-neutral-400 stroke-[1.75]" />
-                </div>
-                <div className="flex items-baseline justify-between">
-                  <span className="text-2xl sm:text-3xl font-bold font-mono text-neutral-900 tracking-tight">
-                    {attendanceRate}%
-                  </span>
-                  <span className="text-xs font-mono text-neutral-500">
-                    {totalExpectedAttendances > 0 ? 'Institucional' : 'Sin sesiones'}
-                  </span>
-                </div>
-                <div className="mt-2 text-[11px] text-neutral-400 font-mono">
-                  {totalAttendances ?? 0} marcas registradas
-                </div>
-              </div>
+          <AttendanceSummary
+            attendanceRate={attendanceRate}
+            totalAttendances={totalAttendances ?? 0}
+            totalSessions={totalSessions ?? 0}
+            hasExpectedAttendances={totalExpectedAttendances > 0 || (totalAttendances ?? 0) > 0}
+          />
 
-              {/* Total Asistencias */}
-              <div className="bg-white rounded-xl border border-neutral-200/80 p-4 shadow-2xs">
-                <div className="flex items-center justify-between mb-2.5">
-                  <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
-                    Total Asistencias
-                  </span>
-                  <CheckCircle2 className="w-4 h-4 text-neutral-400 stroke-[1.75]" />
-                </div>
-                <div className="flex items-baseline justify-between">
-                  <span className="text-2xl sm:text-3xl font-bold font-mono text-neutral-900 tracking-tight">
-                    {totalAttendances ?? 0}
-                  </span>
-                  <span className="text-xs font-mono text-neutral-500">
-                    {totalSessions ?? 0} clases
-                  </span>
-                </div>
-                <div className="mt-2 text-[11px] text-neutral-400 font-mono">
-                  En {totalSubjects ?? 0} materias activas
-                </div>
-              </div>
+          {showOnboarding && <OnboardingChecklist steps={onboardingSteps} />}
 
-              {/* Alumnos en Riesgo */}
-              <div className="bg-white rounded-xl border border-neutral-200/80 p-4 shadow-2xs">
-                <div className="flex items-center justify-between mb-2.5">
-                  <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
-                    Alumnos en Riesgo
-                  </span>
-                  <AlertTriangle
-                    className={`w-4 h-4 stroke-[1.75] ${
-                      studentsAtRiskCount > 0 ? 'text-amber-500' : 'text-neutral-400'
-                    }`}
-                  />
-                </div>
-                <div className="flex items-baseline justify-between">
-                  <span
-                    className={`text-2xl sm:text-3xl font-bold font-mono tracking-tight ${
-                      studentsAtRiskCount > 0 ? 'text-amber-600' : 'text-neutral-900'
-                    }`}
-                  >
-                    {studentsAtRiskCount}
-                  </span>
-                  <span
-                    className={`text-xs font-mono px-1.5 py-0.5 rounded-md ${
-                      studentsAtRiskCount > 0
-                        ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
-                        : 'bg-neutral-100 text-neutral-600'
-                    }`}
-                  >
-                    {studentsAtRiskCount > 0 ? 'Atención' : 'Normal'}
-                  </span>
-                </div>
-                <div className="mt-2 text-[11px] text-neutral-400 font-mono">
-                  Alerta o pérdida por inasistencias
-                </div>
-              </div>
-
-              {/* Política Institucional */}
-              <div className="bg-white rounded-xl border border-neutral-200/80 p-4 shadow-2xs flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-2.5">
-                    <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
-                      Política Activa
-                    </span>
-                    <Sliders className="w-4 h-4 text-neutral-400 stroke-[1.75]" />
-                  </div>
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-xl sm:text-2xl font-bold font-mono text-neutral-900 tracking-tight">
-                      {policyDisplayValue}
-                    </span>
-                    <span className="text-xs font-mono text-neutral-500">
-                      {defaultRuleType === 'FIXED_COUNT' ? 'Fija' : 'Porcentual'}
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-2 text-[11px] text-neutral-400 font-mono">
-                  {policyDisplaySub}
-                </div>
-              </div>
-            </div>
+          {/* ==================== HERRAMIENTAS INSTITUCIONALES ==================== */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 flex-wrap">
+            <GlobalAbsencePolicyModal
+              initialRuleType={defaultRuleType}
+              initialPercentage={defaultPercentage}
+              initialCount={defaultCount}
+              initialPlannedSessions={defaultPlanned}
+              initialLateAfterMinutes={defaultLateAfterMinutes}
+              initialLatesPerAbsence={defaultLatesPerAbsence}
+              totalSubjectsCount={totalSubjects ?? 0}
+            />
+            {periods && periods.length > 0 && <PeriodReportExport periods={periods} />}
           </div>
 
-          {/* ==================== REPORTE DE PERÍODO ==================== */}
-          {periods && periods.length > 0 && (
-            <div>
-              <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-3">
-                Reporte de Asistencia por Período
-              </h2>
-              <PeriodReportExport periods={periods} />
-            </div>
-          )}
-
-          {/* ==================== BLOQUE 2: ENTIDADES ACADÉMICAS ==================== */}
-          <div>
-            <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-3">
-              Estructura Institucional
-            </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
-              {entityCards.map((card) => {
-                const content = (
-                  <div className="flex flex-col justify-between h-full">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
-                        {card.label}
-                      </span>
-                      <card.icon className="w-4 h-4 text-neutral-400 stroke-[1.75]" />
-                    </div>
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-2xl sm:text-3xl font-bold font-mono text-neutral-900 tracking-tight">
-                        {card.value}
-                      </span>
-                      {card.href && (
-                        <ArrowUpRight className="w-3.5 h-3.5 text-neutral-400 group-hover:text-neutral-700 transition-colors" />
-                      )}
-                    </div>
-                  </div>
-                )
-
-                const cardClasses =
-                  'bg-white rounded-xl border border-neutral-200/80 p-4 shadow-2xs hover:border-neutral-300 transition-all group'
-
-                return card.href ? (
-                  <Link key={card.label} href={card.href} className={cardClasses}>
-                    {content}
-                  </Link>
-                ) : (
-                  <div key={card.label} className={cardClasses}>
-                    {content}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* ==================== BLOQUE 3: TABLERO CONSOLIDADO PAGINADO CON SLIDE ==================== */}
-          <div>
+          {/* ==================== TABLERO CONSOLIDADO PAGINADO CON SLIDE ==================== */}
+          <div id="consolidado">
             <div className="mb-3">
               <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-500">
                 Consolidados Académicos en Vivo
               </h2>
               <p className="text-xs text-neutral-400 mt-0.5">
-                Navegación paginada y filtrado reactivo para 95 materias y cientos de estudiantes
+                Navegación paginada y filtrado reactivo para {totalSubjects ?? 0} materias y cientos
+                de estudiantes
               </p>
             </div>
 
@@ -514,6 +388,7 @@ export default async function AdminDashboardPage() {
               professors={professorStats}
               subjects={subjectStats}
               students={studentStats}
+              initialTab={consolidatedInitialTab}
             />
           </div>
         </div>

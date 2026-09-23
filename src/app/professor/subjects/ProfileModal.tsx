@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { updateOwnProfile } from '@/lib/actions/profile'
 import { User, Eye, EyeOff } from 'lucide-react'
 
@@ -68,6 +68,15 @@ export default function ProfileModal({
   const signOutFormRef = useRef<HTMLFormElement>(null)
 
   const wantsPasswordChange = newPassword.trim() !== '' || currentPassword.trim() !== ''
+
+  useEffect(() => {
+    if (!open) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open])
 
   const resetPasswordFields = () => {
     setCurrentPassword('')
@@ -141,8 +150,15 @@ export default function ProfileModal({
 
       {open && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full animate-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-black text-gray-900 mb-5">Mi Perfil</h3>
+          <div
+            className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full animate-in zoom-in-95 duration-200"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="profile-modal-title"
+          >
+            <h3 id="profile-modal-title" className="text-lg font-black text-gray-900 mb-5">
+              Mi Perfil
+            </h3>
 
             <div className="space-y-4 mb-5">
               <div className="grid grid-cols-2 gap-3">

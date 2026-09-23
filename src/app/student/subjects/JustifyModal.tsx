@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X, Paperclip } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
@@ -32,6 +32,14 @@ export default function JustifyModal({
 
   const isResubmit = session.justification?.status === 'REJECTED'
   const isValidReason = reason.trim().length >= MIN_REASON && reason.trim().length <= MAX_REASON
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0] || null
@@ -112,16 +120,17 @@ export default function JustifyModal({
       <div
         role="dialog"
         aria-modal="true"
+        aria-labelledby="justify-modal-title"
         className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl border border-neutral-200 shadow-xl p-5 max-h-[90vh] overflow-y-auto"
       >
         <div className="flex items-start justify-between mb-1">
-          <h3 className="text-sm font-bold text-gray-900">
+          <h3 id="justify-modal-title" className="text-sm font-bold text-gray-900">
             {isResubmit ? 'Volver a enviar justificación' : 'Justificar inasistencia'}
           </h3>
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-700 p-1 -mr-1 -mt-1"
+            className="text-gray-400 hover:text-gray-700 p-1 -mr-1 -mt-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600 rounded"
             aria-label="Cerrar"
           >
             <X className="w-4 h-4" />
@@ -138,10 +147,14 @@ export default function JustifyModal({
           </div>
         )}
 
-        <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+        <label
+          htmlFor="justify-reason"
+          className="block text-xs font-semibold text-gray-700 mb-1.5"
+        >
           Motivo (10 a 1000 caracteres)
         </label>
         <textarea
+          id="justify-reason"
           value={reason}
           onChange={(e) => setReason(e.target.value.slice(0, MAX_REASON))}
           rows={4}
@@ -152,19 +165,23 @@ export default function JustifyModal({
           {reason.trim().length}/{MAX_REASON}
         </p>
 
-        <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+        <label
+          htmlFor="justify-attachment"
+          className="block text-xs font-semibold text-gray-700 mb-1.5"
+        >
           Adjunto (opcional, PDF/JPG/PNG/WEBP, máx. 5MB)
         </label>
         <div className="mb-1">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-600 bg-gray-50 border border-dashed border-gray-300 rounded-xl hover:bg-gray-100 transition"
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-600 bg-gray-50 border border-dashed border-gray-300 rounded-xl hover:bg-gray-100 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
           >
             <Paperclip className="w-3.5 h-3.5" />
             {file ? file.name : 'Seleccionar archivo'}
           </button>
           <input
+            id="justify-attachment"
             ref={fileInputRef}
             type="file"
             accept={ALLOWED_ATTACHMENT_MIME_TYPES.join(',')}

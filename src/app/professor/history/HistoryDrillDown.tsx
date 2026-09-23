@@ -13,9 +13,11 @@ import {
   TriangleAlert,
   CheckCircle2,
   FileSpreadsheet,
+  CalendarX2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
 import AttendanceRowActions from '@/components/attendance/AttendanceRowActions'
 
@@ -637,8 +639,9 @@ export default function HistoryDrillDown({
                       setShowConfirm(true)
                     }}
                     disabled={actionLoading}
-                    className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition"
+                    className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
                     title="Archivar sesión"
+                    aria-label="Archivar sesión"
                   >
                     <Archive className="w-4 h-4" strokeWidth={2} />
                   </button>
@@ -755,9 +758,13 @@ export default function HistoryDrillDown({
         {subjectTab === 'sessions' && (
           <div>
             {activeSessions.length === 0 && archivedSessions.length === 0 ? (
-              <p className="text-gray-500 italic p-8 text-center bg-gray-50 rounded-2xl text-xs">
-                Esta materia aún no tiene clases registradas.
-              </p>
+              <div className="p-8 bg-gray-50 rounded-2xl">
+                <EmptyState
+                  icon={<CalendarX2 className="w-5 h-5" />}
+                  title="Esta materia aún no tiene clases registradas"
+                  description="Iniciá una sesión desde Mis Materias para empezar a tomar asistencia."
+                />
+              </div>
             ) : (
               <>
                 {activeSessions.length > 0 && (
@@ -788,13 +795,21 @@ export default function HistoryDrillDown({
         {subjectTab === 'absences' && (
           <div>
             {displayedStudents.length === 0 ? (
-              <div className="p-8 text-center bg-gray-50 rounded-2xl border border-gray-100">
-                <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-                <p className="text-sm font-bold text-gray-900">
-                  {onlyRiskStudents
-                    ? '¡Excelente! Ningún estudiante está en riesgo de pérdida por inasistencia.'
-                    : 'No hay estudiantes inscritos en esta materia.'}
-                </p>
+              <div className="p-8 bg-gray-50 rounded-2xl border border-gray-100">
+                <EmptyState
+                  icon={
+                    onlyRiskStudents ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                    ) : (
+                      <Users className="w-5 h-5" />
+                    )
+                  }
+                  title={
+                    onlyRiskStudents
+                      ? '¡Excelente! Ningún estudiante está en riesgo de pérdida por inasistencia'
+                      : 'No hay estudiantes inscritos en esta materia'
+                  }
+                />
               </div>
             ) : (
               <>
@@ -1018,8 +1033,12 @@ export default function HistoryDrillDown({
           )
         })
       ) : (
-        <div className="col-span-full bg-white p-12 text-center rounded-2xl border border-gray-200 text-gray-500 text-sm">
-          Aún no tienes materias asignadas o clases registradas.
+        <div className="col-span-full bg-white p-12 rounded-2xl border border-gray-200">
+          <EmptyState
+            icon={<BookOpen className="w-5 h-5" />}
+            title="Aún no tienes materias asignadas o clases registradas"
+            description="Cuando tengas materias asignadas y dictes tu primera clase, el reporte va a aparecer acá."
+          />
         </div>
       )}
     </div>
