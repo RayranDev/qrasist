@@ -2,6 +2,7 @@ import Image from 'next/image'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import ResetPasswordForm from './ResetPasswordForm'
+import { hasValidRecoveryCookie } from '@/lib/auth/recoveryCookie'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,24 @@ export default async function ResetPasswordPage() {
   // Esta página solo tiene sentido con la sesión de recuperación que
   // crea /auth/confirm al validar el enlace del correo -- sin sesión no
   // hay nada que actualizar.
-  if (!user) redirect('/login')
+  if (!user) {
+    redirect(
+      '/login?error=' +
+        encodeURIComponent('Tu sesión de recuperación expiró. Solicitá un nuevo enlace.')
+    )
+  }
+
+  // Tener sesión activa no alcanza: sin la cookie de recuperación (que
+  // solo pone /auth/confirm al validar un enlace de recuperación real,
+  // firmada para que no se pueda falsificar a mano), cualquier sesión
+  // normal podría entrar acá y cambiar la contraseña sin conocer la
+  // actual -- algo que el cambio de contraseña desde el perfil sí exige.
+  // Si ya hay sesión, se manda a /dashboard en vez de a /login (no tiene
+  // sentido decirle "iniciá sesión" a alguien que ya lo hizo).
+  const hasRecovery = await hasValidRecoveryCookie(user.id)
+  if (!hasRecovery) {
+    redirect('/dashboard')
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface px-4">
