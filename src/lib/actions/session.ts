@@ -9,17 +9,43 @@ interface Coords {
   longitude: number
 }
 
+export type SessionModality = 'PRESENCIAL' | 'VIRTUAL'
+
+export interface SessionExtras {
+  modality?: SessionModality
+  isMakeup?: boolean
+  makeupReason?: string
+}
+
+const MIN_MAKEUP_REASON_LENGTH = 5
+
 export async function createSession(
   subjectId: string,
   durationMinutes: number = 15,
   coords?: Coords,
-  rotationSeconds: number = DEFAULT_ROTATION_SECONDS
+  rotationSeconds: number = DEFAULT_ROTATION_SECONDS,
+  extras?: SessionExtras
 ) {
   const parsed = sessionConfigSchema.safeParse({ durationMinutes, rotationSeconds })
   if (!parsed.success) {
     return {
       success: false,
       error: parsed.error.issues[0]?.message || 'Parámetros de sesión inválidos.',
+    }
+  }
+
+  const modality: SessionModality | null =
+    extras?.modality === 'PRESENCIAL' || extras?.modality === 'VIRTUAL' ? extras.modality : null
+  const isMakeup = extras?.isMakeup === true
+  const makeupReason = (extras?.makeupReason || '').trim()
+
+  // Nunca confiar solo en la validación del cliente: una reposición sin
+  // motivo real no debe poder crearse, ni saltándose el toggle del UI
+  // ni llamando a esta acción directamente.
+  if (isMakeup && makeupReason.length < MIN_MAKEUP_REASON_LENGTH) {
+    return {
+      success: false,
+      error: `El motivo de la reposición debe tener al menos ${MIN_MAKEUP_REASON_LENGTH} caracteres.`,
     }
   }
 
@@ -54,6 +80,9 @@ export async function createSession(
       latitude: coords?.latitude ?? null,
       longitude: coords?.longitude ?? null,
       qr_rotation_seconds: parsed.data.rotationSeconds,
+      modality,
+      is_makeup: isMakeup,
+      makeup_reason: isMakeup ? makeupReason : null,
     })
     .select('id, qr_token, expires_at')
     .single()
