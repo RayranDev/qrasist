@@ -98,7 +98,10 @@ CREATE POLICY subject_schedules_select ON public.subject_schedules
 
 -- A propósito no hay policies de INSERT/UPDATE/DELETE: todas las
 -- escrituras pasan por src/lib/actions/adminSubjects.ts con el
--- cliente service-role, después de checkAdminOrSubjectProfessor().
+-- cliente service-role, después de checkAdmin() -- hoy el horario solo
+-- lo gestiona el admin (no hay UI de autogestión para el profesor);
+-- el SELECT de arriba sí deja leer al profesor dueño, para cuando
+-- la UI se extienda.
 
 -- ------------------------------------------------------------
 -- 3. sessions: modalidad + reposición
