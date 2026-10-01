@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
   createCareer,
@@ -12,10 +12,17 @@ import {
   deletePeriod,
   setPeriodActive,
 } from '@/lib/actions/academic'
+import {
+  listPeriodCuts,
+  createPeriodCut,
+  updatePeriodCut,
+  deletePeriodCut,
+  type PeriodCut,
+} from '@/lib/actions/periodCuts'
 import { useToast } from '@/components/toast/ToastProvider'
 import ConfirmModal from '@/components/ConfirmModal'
 import CreateFormToggle from '@/components/CreateFormToggle'
-import { Pencil, Trash2, Layers, CalendarRange } from 'lucide-react'
+import { Pencil, Trash2, Layers, CalendarRange, Scissors } from 'lucide-react'
 import { EmptyState } from '@/components/ui/EmptyState'
 
 const inputClass =
@@ -461,7 +468,7 @@ export function PeriodList({ periods }: { periods: Period[] }) {
       {editing && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div
-            className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full animate-in zoom-in-95 duration-200"
+            className="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
             role="dialog"
             aria-modal="true"
             aria-labelledby="edit-period-title"
@@ -517,7 +524,16 @@ export function PeriodList({ periods }: { periods: Period[] }) {
                 />
               </div>
             </div>
-            <div className="flex gap-3">
+
+            <div className="pt-4 mt-4 border-t border-gray-100 text-left">
+              <PeriodCutsManager
+                periodId={editing.id}
+                periodStart={editStart}
+                periodEnd={editEnd}
+              />
+            </div>
+
+            <div className="flex gap-3 mt-6">
               <button
                 disabled={loadingId === editing.id}
                 onClick={() => setEditing(null)}
@@ -607,6 +623,245 @@ export function PeriodList({ periods }: { periods: Period[] }) {
             </a>
           }
         />
+      )}
+    </div>
+  )
+}
+
+// ------------------------------------------------------------
+// Cortes (parciales) de un período -- desglose informativo de
+// asistencia, no afecta el veredicto semestral (computeAttendanceSummary).
+// ------------------------------------------------------------
+
+function PeriodCutsManager({
+  periodId,
+  periodStart,
+  periodEnd,
+}: {
+  periodId: string
+  periodStart: string
+  periodEnd: string
+}) {
+  const [cuts, setCuts] = useState<PeriodCut[] | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [adding, setAdding] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [savingId, setSavingId] = useState<string | null>(null)
+  const [name, setName] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const showToast = useToast()
+
+  useEffect(() => {
+    listPeriodCuts(periodId).then((result) => {
+      if (result.success) {
+        setCuts(result.cuts || [])
+      } else {
+        showToast(result.error || 'No se pudieron cargar los cortes.', 'error')
+      }
+      setLoading(false)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodId])
+
+  const reload = async () => {
+    setLoading(true)
+    const result = await listPeriodCuts(periodId)
+    if (result.success) {
+      setCuts(result.cuts || [])
+    } else {
+      showToast(result.error || 'No se pudieron cargar los cortes.', 'error')
+    }
+    setLoading(false)
+  }
+
+  const resetForm = () => {
+    setAdding(false)
+    setEditingId(null)
+    setName('')
+    setStartDate('')
+    setEndDate('')
+  }
+
+  const openAdd = () => {
+    resetForm()
+    setAdding(true)
+  }
+
+  const openEdit = (cut: PeriodCut) => {
+    setAdding(false)
+    setEditingId(cut.id)
+    setName(cut.name)
+    setStartDate(cut.start_date)
+    setEndDate(cut.end_date)
+  }
+
+  const handleCreate = async () => {
+    setSavingId('new')
+    const result = await createPeriodCut(periodId, { name, startDate, endDate })
+    if (result.success) {
+      showToast('Corte creado.', 'success')
+      resetForm()
+      await reload()
+    } else {
+      showToast(result.error || 'No se pudo crear el corte.', 'error')
+    }
+    setSavingId(null)
+  }
+
+  const handleUpdate = async () => {
+    if (!editingId) return
+    setSavingId(editingId)
+    const result = await updatePeriodCut(editingId, { name, startDate, endDate })
+    if (result.success) {
+      showToast('Corte actualizado.', 'success')
+      resetForm()
+      await reload()
+    } else {
+      showToast(result.error || 'No se pudo actualizar el corte.', 'error')
+    }
+    setSavingId(null)
+  }
+
+  const handleDelete = async (cutId: string) => {
+    setSavingId(cutId)
+    const result = await deletePeriodCut(cutId)
+    if (result.success) {
+      showToast('Corte eliminado.', 'success')
+      await reload()
+    } else {
+      showToast(result.error || 'No se pudo eliminar el corte.', 'error')
+    }
+    setSavingId(null)
+    setDeletingId(null)
+  }
+
+  const cutBeingDeleted = cuts?.find((c) => c.id === deletingId) || null
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+          <Scissors className="w-3.5 h-3.5" strokeWidth={2} />
+          Cortes
+        </p>
+        {!adding && !editingId && (
+          <button
+            type="button"
+            onClick={openAdd}
+            className="text-xs font-bold text-navy-700 hover:text-navy-900 underline underline-offset-2"
+          >
+            + Agregar corte
+          </button>
+        )}
+      </div>
+
+      {deletingId && cutBeingDeleted && (
+        <ConfirmModal
+          title="Eliminar corte"
+          message={`¿Eliminar el corte "${cutBeingDeleted.name}"? Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          loadingLabel="Eliminando..."
+          loading={savingId === deletingId}
+          icon={Trash2}
+          onConfirm={() => handleDelete(deletingId)}
+          onCancel={() => setDeletingId(null)}
+        />
+      )}
+
+      {loading ? (
+        <p className="text-xs text-gray-400">Cargando cortes...</p>
+      ) : (
+        <div className="space-y-2 mb-3">
+          {(cuts || [])
+            .slice()
+            .sort((a, b) => a.sequence - b.sequence)
+            .map((cut) => (
+              <div
+                key={cut.id}
+                className="flex items-center justify-between px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl"
+              >
+                <div>
+                  <p className="text-sm font-bold text-gray-900">{cut.name}</p>
+                  <p className="text-[11px] text-gray-500">
+                    {cut.start_date} → {cut.end_date}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => openEdit(cut)}
+                    className="p-1.5 text-gray-400 hover:text-navy-700 hover:bg-navy-50 rounded-lg transition"
+                    title="Editar corte"
+                    aria-label={`Editar ${cut.name}`}
+                  >
+                    <Pencil className="w-3.5 h-3.5" strokeWidth={2} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeletingId(cut.id)}
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                    title="Eliminar corte"
+                    aria-label={`Eliminar ${cut.name}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          {(cuts || []).length === 0 && !adding && (
+            <p className="text-xs text-gray-400">Este período todavía no tiene cortes.</p>
+          )}
+        </div>
+      )}
+
+      {(adding || editingId) && (
+        <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-2">
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            type="text"
+            placeholder="Ej. Primer corte"
+            className={`${inputClass} text-xs`}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              type="date"
+              min={periodStart || undefined}
+              max={periodEnd || undefined}
+              className={`${inputClass} text-xs`}
+            />
+            <input
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              type="date"
+              min={periodStart || undefined}
+              max={periodEnd || undefined}
+              className={`${inputClass} text-xs`}
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={resetForm}
+              disabled={savingId !== null}
+              className="flex-1 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-200 transition"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={editingId ? handleUpdate : handleCreate}
+              disabled={savingId !== null || !name.trim() || !startDate || !endDate}
+              className="flex-1 py-1.5 bg-navy-800 text-white rounded-lg text-xs font-bold hover:bg-navy-900 transition disabled:opacity-50"
+            >
+              {savingId !== null ? 'Guardando...' : editingId ? 'Guardar' : 'Agregar'}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )

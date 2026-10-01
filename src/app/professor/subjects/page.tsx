@@ -26,7 +26,7 @@ export default async function ProfessorSubjectsPage() {
   const { data: subjects } = await supabase
     .from('subjects')
     .select(
-      '*, enrollments(student_id), enrollment_requests(id, status), absence_justifications(student_id, status)'
+      '*, enrollments(student_id), enrollment_requests(id, status), absence_justifications(student_id, status), subject_schedules(day_of_week, modality)'
     )
     .eq('professor_id', user.id)
     .eq('is_active', true)
@@ -237,7 +237,14 @@ export default async function ProfessorSubjectsPage() {
                       code={sub.enrollment_code}
                       pendingCount={pendingCount}
                     />
-                    <SessionButton subjectId={sub.id} />
+                    <SessionButton
+                      subjectId={sub.id}
+                      schedules={
+                        (sub.subject_schedules as
+                          { day_of_week: number; modality: 'PRESENCIAL' | 'VIRTUAL' }[] | null) ||
+                        []
+                      }
+                    />
                   </div>
                 )
               })}

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createSession } from '@/lib/actions/session'
+import { createSession, type SessionModality } from '@/lib/actions/session'
 import {
   DEFAULT_ROTATION_SECONDS,
   MIN_ROTATION_SECONDS,
@@ -12,17 +12,58 @@ import { useToast } from '@/components/toast/ToastProvider'
 import { getBestEffortLocation } from '@/lib/utils/geolocation'
 import { Settings2, ChevronDown } from 'lucide-react'
 
-export default function SessionButton({ subjectId }: { subjectId: string }) {
+const MIN_MAKEUP_REASON_LENGTH = 5
+
+export interface ScheduleBlock {
+  day_of_week: number
+  modality: SessionModality
+}
+
+/** Modalidad habitual de la materia hoy, según su horario semanal --
+ * solo un valor inicial sugerido, el profesor puede cambiarlo antes de
+ * generar la sesión. Si hoy no coincide con ningún bloque (ej. clase
+ * fuera de horario), el default es PRESENCIAL. */
+function defaultModalityForToday(schedules: ScheduleBlock[]): SessionModality {
+  const today = new Date().getDay() // 0 = domingo ... 6 = sábado, igual que day_of_week
+  return schedules.find((s) => s.day_of_week === today)?.modality || 'PRESENCIAL'
+}
+
+export default function SessionButton({
+  subjectId,
+  schedules = [],
+}: {
+  subjectId: string
+  schedules?: ScheduleBlock[]
+}) {
   const [loading, setLoading] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
   const [rotationSeconds, setRotationSeconds] = useState(DEFAULT_ROTATION_SECONDS)
+  const [modality, setModality] = useState<SessionModality>(() =>
+    defaultModalityForToday(schedules)
+  )
+  const [isMakeup, setIsMakeup] = useState(false)
+  const [makeupReason, setMakeupReason] = useState('')
   const router = useRouter()
   const showToast = useToast()
 
+  const trimmedMakeupReason = makeupReason.trim()
+  const makeupReasonTooShort = isMakeup && trimmedMakeupReason.length < MIN_MAKEUP_REASON_LENGTH
+
   const handleCreate = async () => {
+    if (makeupReasonTooShort) {
+      showToast(
+        `El motivo de la reposición debe tener al menos ${MIN_MAKEUP_REASON_LENGTH} caracteres.`,
+        'error'
+      )
+      return
+    }
     setLoading(true)
     const coords = await getBestEffortLocation()
-    const res = await createSession(subjectId, 15, coords || undefined, rotationSeconds)
+    const res = await createSession(subjectId, 15, coords || undefined, rotationSeconds, {
+      modality,
+      isMakeup,
+      makeupReason: isMakeup ? trimmedMakeupReason : undefined,
+    })
     if (res.success) {
       router.push(`/professor/session/${res.sessionId}`)
     } else {
@@ -33,6 +74,52 @@ export default function SessionButton({ subjectId }: { subjectId: string }) {
 
   return (
     <div>
+      <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
+        <div>
+          <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+            Modalidad de la clase
+          </label>
+          <select
+            value={modality}
+            onChange={(e) => setModality(e.target.value as SessionModality)}
+            className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 font-semibold outline-none focus:border-navy-600 focus:ring-2 focus:ring-navy-100 appearance-none cursor-pointer"
+          >
+            <option value="PRESENCIAL">Presencial</option>
+            <option value="VIRTUAL">Virtual</option>
+          </select>
+        </div>
+
+        <label className="flex items-center gap-2 text-xs font-bold text-gray-700 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isMakeup}
+            onChange={(e) => setIsMakeup(e.target.checked)}
+            className="w-4 h-4 rounded border-gray-300 text-navy-700 focus:ring-navy-600"
+          />
+          Es una reposición
+        </label>
+
+        {isMakeup && (
+          <div>
+            <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+              Motivo de la reposición
+            </label>
+            <textarea
+              value={makeupReason}
+              onChange={(e) => setMakeupReason(e.target.value)}
+              rows={2}
+              placeholder="Ej. Clase perdida por paro de transporte el 10/03"
+              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 outline-none focus:border-navy-600 focus:ring-2 focus:ring-navy-100"
+            />
+            {makeupReasonTooShort && (
+              <p className="text-[11px] text-red-600 mt-1">
+                Mínimo {MIN_MAKEUP_REASON_LENGTH} caracteres.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
       <button
         type="button"
         onClick={() => setShowOptions((v) => !v)}
@@ -78,7 +165,7 @@ export default function SessionButton({ subjectId }: { subjectId: string }) {
 
       <button
         onClick={handleCreate}
-        disabled={loading}
+        disabled={loading || makeupReasonTooShort}
         className="w-full py-3 bg-navy-800 text-white font-medium rounded-xl hover:bg-navy-900 transition shadow-sm active:scale-95 disabled:opacity-50"
       >
         {loading ? 'Generando...' : 'Iniciar Sesión (Generar QR)'}
