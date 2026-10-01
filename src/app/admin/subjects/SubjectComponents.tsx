@@ -6,12 +6,19 @@ import {
   deleteSubject,
   updateSubject,
   reactivateSubject,
+  listSubjectSchedules,
+  addSubjectSchedule,
+  removeSubjectSchedule,
+  type SubjectSchedule,
 } from '@/lib/actions/adminSubjects'
 import { assignSubjectToCareer, removeSubjectFromCareer } from '@/lib/actions/academic'
 import { useToast } from '@/components/toast/ToastProvider'
 import ConfirmModal from '@/components/ConfirmModal'
 import CreateFormToggle from '@/components/CreateFormToggle'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Calendar } from 'lucide-react'
+import { computePlannedSessions } from '@/lib/utils/plannedSessions'
+
+const DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 
 const inputClass =
   'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-navy-600 focus:ring-2 focus:ring-navy-100 transition-all shadow-sm'
@@ -25,6 +32,8 @@ interface Professor {
 interface Period {
   id: string
   name: string
+  start_date?: string | null
+  end_date?: string | null
 }
 
 interface Career {
@@ -516,6 +525,15 @@ export function SubjectActionButtons({
                 </div>
               </div>
             </div>
+
+            <div className="pt-3 border-t border-gray-100">
+              <SubjectScheduleManager
+                subjectId={subject.id}
+                periodStart={periods.find((p) => p.id === periodId)?.start_date}
+                periodEnd={periods.find((p) => p.id === periodId)?.end_date}
+                onCalculate={(total) => setTotalPlannedSessions(total)}
+              />
+            </div>
           </div>
           <div className="flex gap-3">
             <button
@@ -707,6 +725,227 @@ export function SubjectCareerAssignment({
           + Carrera
         </button>
       ) : null}
+    </div>
+  )
+}
+
+// ------------------------------------------------------------
+// Horario semanal (subject_schedules) -- usado por
+// "Calcular sesiones planificadas" para estimar total_planned_sessions
+// a partir de bloques x semanas del período, sin dejar de ser editable.
+// ------------------------------------------------------------
+
+function SubjectScheduleManager({
+  subjectId,
+  periodStart,
+  periodEnd,
+  onCalculate,
+}: {
+  subjectId: string
+  periodStart?: string | null
+  periodEnd?: string | null
+  onCalculate: (total: number) => void
+}) {
+  const [schedules, setSchedules] = useState<SubjectSchedule[] | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [adding, setAdding] = useState(false)
+  const [dayOfWeek, setDayOfWeek] = useState('1')
+  const [startTime, setStartTime] = useState('07:00')
+  const [endTime, setEndTime] = useState('09:00')
+  const [modality, setModality] = useState<'PRESENCIAL' | 'VIRTUAL'>('PRESENCIAL')
+  const [savingAdd, setSavingAdd] = useState(false)
+  const [removingId, setRemovingId] = useState<string | null>(null)
+  const showToast = useToast()
+
+  useEffect(() => {
+    listSubjectSchedules(subjectId).then((result) => {
+      if (result.success) {
+        setSchedules(result.schedules || [])
+      } else {
+        showToast(result.error || 'No se pudo cargar el horario.', 'error')
+      }
+      setLoading(false)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subjectId])
+
+  const reload = async () => {
+    setLoading(true)
+    const result = await listSubjectSchedules(subjectId)
+    if (result.success) setSchedules(result.schedules || [])
+    else showToast(result.error || 'No se pudo cargar el horario.', 'error')
+    setLoading(false)
+  }
+
+  const handleAdd = async () => {
+    setSavingAdd(true)
+    const result = await addSubjectSchedule(subjectId, {
+      dayOfWeek: Number(dayOfWeek),
+      startTime,
+      endTime,
+      modality,
+    })
+    if (result.success) {
+      showToast('Bloque de horario agregado.', 'success')
+      setAdding(false)
+      await reload()
+    } else {
+      showToast(result.error || 'No se pudo agregar el bloque.', 'error')
+    }
+    setSavingAdd(false)
+  }
+
+  const handleRemove = async (scheduleId: string) => {
+    setRemovingId(scheduleId)
+    const result = await removeSubjectSchedule(scheduleId, subjectId)
+    if (result.success) {
+      showToast('Bloque de horario eliminado.', 'success')
+      await reload()
+    } else {
+      showToast(result.error || 'No se pudo quitar el bloque.', 'error')
+    }
+    setRemovingId(null)
+  }
+
+  const handleCalculate = () => {
+    const count = schedules?.length || 0
+    const total = computePlannedSessions(count, periodStart, periodEnd)
+    if (total === null) {
+      showToast(
+        count === 0
+          ? 'Agregá al menos un bloque de horario para poder calcular.'
+          : 'El período seleccionado no tiene fechas de inicio y fin válidas.',
+        'error'
+      )
+      return
+    }
+    onCalculate(total)
+    showToast(`Clases planificadas calculadas: ${total}.`, 'success')
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+          <Calendar className="w-3.5 h-3.5" strokeWidth={2} />
+          Horario
+        </p>
+        {!adding && (
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="text-[11px] font-bold text-navy-700 hover:text-navy-900 underline underline-offset-2"
+          >
+            + Agregar bloque
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <p className="text-xs text-gray-400">Cargando horario...</p>
+      ) : (
+        <div className="space-y-1.5 mb-2">
+          {(schedules || []).map((s) => (
+            <div
+              key={s.id}
+              className="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs"
+            >
+              <span className="font-semibold text-gray-700">
+                {DAY_NAMES[s.day_of_week]} {s.start_time.slice(0, 5)}–{s.end_time.slice(0, 5)}
+              </span>
+              <span
+                className={`px-1.5 py-0.5 rounded-md font-bold ${
+                  s.modality === 'PRESENCIAL'
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'bg-sky-50 text-sky-700'
+                }`}
+              >
+                {s.modality === 'PRESENCIAL' ? 'Presencial' : 'Virtual'}
+              </span>
+              <button
+                type="button"
+                onClick={() => handleRemove(s.id)}
+                disabled={removingId === s.id}
+                className="text-gray-400 hover:text-red-600 disabled:opacity-50 shrink-0"
+                title="Quitar bloque"
+                aria-label="Quitar bloque de horario"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          {(schedules || []).length === 0 && !adding && (
+            <p className="text-xs text-gray-400">Sin bloques de horario definidos.</p>
+          )}
+        </div>
+      )}
+
+      {adding && (
+        <div className="p-2.5 bg-gray-50 border border-gray-200 rounded-lg space-y-2 mb-2">
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={dayOfWeek}
+              onChange={(e) => setDayOfWeek(e.target.value)}
+              className={`${inputClass} text-xs appearance-none cursor-pointer`}
+            >
+              {DAY_NAMES.map((d, i) => (
+                <option key={d} value={i}>
+                  {d}
+                </option>
+              ))}
+            </select>
+            <select
+              value={modality}
+              onChange={(e) => setModality(e.target.value as 'PRESENCIAL' | 'VIRTUAL')}
+              className={`${inputClass} text-xs appearance-none cursor-pointer`}
+            >
+              <option value="PRESENCIAL">Presencial</option>
+              <option value="VIRTUAL">Virtual</option>
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              className={`${inputClass} text-xs`}
+            />
+            <input
+              type="time"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+              className={`${inputClass} text-xs`}
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setAdding(false)}
+              disabled={savingAdd}
+              className="flex-1 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-200 transition"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleAdd}
+              disabled={savingAdd}
+              className="flex-1 py-1.5 bg-navy-800 text-white rounded-lg text-xs font-bold hover:bg-navy-900 transition disabled:opacity-50"
+            >
+              {savingAdd ? 'Guardando...' : 'Agregar'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={handleCalculate}
+        className="w-full py-1.5 text-xs font-bold text-navy-700 bg-navy-50 hover:bg-navy-100 rounded-lg transition"
+        title="Usa la cantidad de bloques de horario x semanas del período seleccionado"
+      >
+        Calcular sesiones planificadas
+      </button>
     </div>
   )
 }

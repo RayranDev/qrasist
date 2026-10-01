@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { revalidatePath } from 'next/cache'
 import { checkAdmin } from './authGuards'
 import { checkProfessorAssignable } from './enrollmentGuards'
@@ -210,6 +211,131 @@ export async function updateSubject(
       return { success: false, error: 'Ya existe una materia con este código' }
     return { success: false, error: 'Error al actualizar la materia' }
   }
+
+  revalidatePath('/admin/subjects')
+  return { success: true }
+}
+
+// ------------------------------------------------------------
+// Horario semanal (subject_schedules)
+// ------------------------------------------------------------
+
+export interface SubjectSchedule {
+  id: string
+  subject_id: string
+  day_of_week: number
+  start_time: string
+  end_time: string
+  modality: 'PRESENCIAL' | 'VIRTUAL'
+}
+
+const DAY_OF_WEEK_MIN = 0
+const DAY_OF_WEEK_MAX = 6
+
+interface ScheduleInput {
+  dayOfWeek: number
+  startTime: string
+  endTime: string
+  modality: 'PRESENCIAL' | 'VIRTUAL'
+}
+
+function validateScheduleInput(data: ScheduleInput): string | null {
+  if (
+    !Number.isInteger(data.dayOfWeek) ||
+    data.dayOfWeek < DAY_OF_WEEK_MIN ||
+    data.dayOfWeek > DAY_OF_WEEK_MAX
+  ) {
+    return 'Día de la semana inválido'
+  }
+  if (!data.startTime || !data.endTime) {
+    return 'La hora de inicio y fin son obligatorias'
+  }
+  if (data.startTime >= data.endTime) {
+    return 'La hora de inicio debe ser anterior a la hora de fin'
+  }
+  if (data.modality !== 'PRESENCIAL' && data.modality !== 'VIRTUAL') {
+    return 'Modalidad inválida'
+  }
+  return null
+}
+
+export async function listSubjectSchedules(
+  subjectId: string
+): Promise<{ success: boolean; schedules?: SubjectSchedule[]; error?: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user || !(await checkAdmin(supabase, user.id))) {
+    return { success: false, error: 'No autorizado' }
+  }
+
+  const { data, error } = await supabase
+    .from('subject_schedules')
+    .select('*')
+    .eq('subject_id', subjectId)
+    .order('day_of_week')
+
+  if (error) return { success: false, error: 'Error al cargar el horario' }
+  return { success: true, schedules: (data as SubjectSchedule[]) || [] }
+}
+
+export async function addSubjectSchedule(
+  subjectId: string,
+  data: ScheduleInput
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user || !(await checkAdmin(supabase, user.id))) {
+    return { success: false, error: 'No autorizado' }
+  }
+
+  const validationError = validateScheduleInput(data)
+  if (validationError) return { success: false, error: validationError }
+
+  // subject_schedules no tiene policies de INSERT/UPDATE/DELETE a
+  // propósito (ver migración 026): se escribe con service-role
+  // después del checkAdmin() de arriba.
+  const admin = getSupabaseAdmin()
+  const { error } = await admin.from('subject_schedules').insert({
+    subject_id: subjectId,
+    day_of_week: data.dayOfWeek,
+    start_time: data.startTime,
+    end_time: data.endTime,
+    modality: data.modality,
+  })
+
+  if (error) return { success: false, error: 'No se pudo agregar el bloque de horario' }
+
+  revalidatePath('/admin/subjects')
+  return { success: true }
+}
+
+export async function removeSubjectSchedule(
+  scheduleId: string,
+  subjectId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user || !(await checkAdmin(supabase, user.id))) {
+    return { success: false, error: 'No autorizado' }
+  }
+
+  const admin = getSupabaseAdmin()
+  const { error } = await admin
+    .from('subject_schedules')
+    .delete()
+    .eq('id', scheduleId)
+    .eq('subject_id', subjectId)
+
+  if (error) return { success: false, error: 'No se pudo quitar el bloque de horario' }
 
   revalidatePath('/admin/subjects')
   return { success: true }

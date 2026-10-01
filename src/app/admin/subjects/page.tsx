@@ -74,7 +74,7 @@ export default async function AdminSubjectsPage({
 
   const { data: periods } = await supabase
     .from('periods')
-    .select('id, name')
+    .select('id, name, start_date, end_date')
     .eq('is_active', true)
     .order('name', { ascending: false })
 
