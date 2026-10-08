@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { checkAdmin } from './authGuards'
 import { logAudit } from '@/lib/audit/auditLog'
+import { getAppSettings } from '@/lib/settings/appSettings'
 import {
   JUSTIFICATION_BUSINESS_DAYS,
   validateAttachmentMeta,
@@ -26,7 +27,7 @@ interface EligibleSession {
   date: string
   subject_id: string
   is_active: boolean | null
-  expires_at: string | null
+  class_ends_at: string | null
 }
 
 /**
@@ -53,13 +54,18 @@ async function checkJustificationEligibility(
 
   const { data: session } = await supabase
     .from('sessions')
-    .select('id, date, subject_id, is_active, expires_at')
+    .select('id, date, subject_id, is_active, class_ends_at')
     .eq('id', sessionId)
     .single()
 
   if (!session) return { ok: false, error: 'Sesión no encontrada.' }
 
-  if (!isSessionAlreadyHeld(session)) {
+  if (session.is_active === false) {
+    return { ok: false, error: 'Esta sesión fue archivada y no cuenta como inasistencia.' }
+  }
+
+  const { defaultClassMinutes } = await getAppSettings(supabase)
+  if (!isSessionAlreadyHeld(session, defaultClassMinutes)) {
     return { ok: false, error: 'Esta sesión todavía está en curso.' }
   }
 

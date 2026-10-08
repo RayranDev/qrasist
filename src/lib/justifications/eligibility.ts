@@ -8,6 +8,7 @@
  */
 
 import { addBusinessDaysBogota, endOfBogotaDay } from '@/lib/utils/businessDays'
+import { getEffectiveClassEnd } from '@/lib/sessions/classWindow'
 
 // Ventana de envío (RF26): hasta 3 días HÁBILES después de la fecha de
 // la sesión -- sin contar sábados, domingos ni festivos de Colombia.
@@ -81,18 +82,21 @@ export function validateAttachmentMeta({
 }
 
 /**
- * Una sesión es justificable cuando ya "pasó": el profesor la
- * archivó (is_active = false) o su ventana de QR (expires_at) ya
- * venció. Antes de eso no tiene sentido justificar una clase que
- * técnicamente todavía se puede escanear.
+ * Una sesión es justificable cuando la CLASE ya terminó: ahora es posterior
+ * al fin efectivo de la clase (class_ends_at, o date + duración por defecto
+ * en sesiones viejas). NO se usa expires_at: desde la migración 027 es solo
+ * la ventana de registro por QR (5 minutos por defecto), y con ella un
+ * estudiante figuraría como ausente a los 5 minutos de una clase de 2 horas.
+ *
+ * Las sesiones archivadas (is_active = false) no cuentan como clase dictada,
+ * así que quien llama debe descartarlas aparte.
  */
-export function isSessionAlreadyHeld(session: {
-  is_active: boolean | null
-  expires_at: string | null
-}): boolean {
-  if (session.is_active === false) return true
-  if (!session.expires_at) return false
-  return new Date(session.expires_at).getTime() < Date.now()
+export function isSessionAlreadyHeld(
+  session: { date: string | Date; class_ends_at?: string | Date | null },
+  defaultClassMinutes: number,
+  now: Date = new Date()
+): boolean {
+  return now.getTime() > getEffectiveClassEnd(session, defaultClassMinutes).getTime()
 }
 
 /**
@@ -100,7 +104,7 @@ export function isSessionAlreadyHeld(session: {
  * final (hora de Bogotá) del tercer día hábil posterior a la fecha de la
  * sesión. Se cuenta desde la fecha de la sesión (no desde que quedó
  * "held"), para que no se pueda estirar el plazo dejando pasar tiempo
- * antes de que expire el QR.
+ * antes de que termine la clase.
  */
 export function getJustificationDeadline(sessionDate: string | Date): Date {
   const deadlineDay = addBusinessDaysBogota(new Date(sessionDate), JUSTIFICATION_BUSINESS_DAYS)

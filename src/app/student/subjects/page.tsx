@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import SubjectBrowser, { SubjectItem } from './SubjectBrowser'
 import JoinByCode from './JoinByCode'
 import { isSessionAlreadyHeld, isWithinJustificationWindow } from '@/lib/justifications/eligibility'
+import { getAppSettings } from '@/lib/settings/appSettings'
 import type { JustificationStatus, MissedSessionItem } from './missedSessions'
 import RiskBanner from '@/components/student/RiskBanner'
 import {
@@ -106,7 +107,7 @@ export default async function StudentSubjectsPage() {
     availableSubjectIds.length > 0
       ? supabase
           .from('sessions')
-          .select('id, subject_id, date, is_active, expires_at')
+          .select('id, subject_id, date, is_active, class_ends_at')
           .in('subject_id', availableSubjectIds)
       : Promise.resolve({
           data: [] as {
@@ -114,10 +115,12 @@ export default async function StudentSubjectsPage() {
             subject_id: string
             date: string
             is_active: boolean
-            expires_at: string | null
+            class_ends_at: string | null
           }[],
         }),
   ])
+
+  const { defaultClassMinutes } = await getAppSettings(supabase)
 
   const enrolledIds = new Set((enrollments || []).map((e) => e.subject_id))
   const requestStatusBySubject = new Map(
@@ -213,7 +216,7 @@ export default async function StudentSubjectsPage() {
     const missedSessions: MissedSessionItem[] = isEnrolled
       ? (availableSubjectSessions || [])
           .filter((s) => s.subject_id === r.subject!.id)
-          .filter((s) => isSessionAlreadyHeld(s))
+          .filter((s) => s.is_active !== false && isSessionAlreadyHeld(s, defaultClassMinutes))
           .filter((s) => !attendedSessionIds.has(s.id))
           .map((s) => {
             const j = justificationBySession.get(s.id)

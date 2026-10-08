@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { checkAdmin } from './authGuards'
 import { logAudit } from '@/lib/audit/auditLog'
+import { getAppSettings } from '@/lib/settings/appSettings'
 import {
   isSessionAlreadyHeld,
   validateAttachmentMeta,
@@ -112,13 +113,16 @@ export async function listStudentAbsences(
   }
   if (subjects.size === 0) return { success: true, absences: [] }
 
+  const { defaultClassMinutes } = await getAppSettings(supabase)
+  const now = new Date()
+
   const [{ data: sessions }, { data: attendances }, { data: justifications }] = await Promise.all([
     supabase
       .from('sessions')
-      .select('id, subject_id, date, is_active, expires_at')
+      .select('id, subject_id, date, class_ends_at')
       .in('subject_id', Array.from(subjects.keys()))
       .eq('is_active', true)
-      .lt('expires_at', new Date().toISOString())
+      .lte('date', now.toISOString())
       .order('date', { ascending: false })
       .limit(150),
     supabase.from('attendances').select('session_id').eq('student_id', studentId).limit(2000),
@@ -136,6 +140,8 @@ export async function listStudentAbsences(
 
   const absences: StudentAbsenceOption[] = []
   for (const s of sessions || []) {
+    // La clase tiene que haber terminado (no solo la ventana de registro).
+    if (!isSessionAlreadyHeld(s, defaultClassMinutes, now)) continue
     if (attended.has(s.id)) continue
     const status = justificationBySession.get(s.id)
     if (status === 'APPROVED') continue
@@ -184,14 +190,15 @@ async function checkAbsenceEligibility(
 
   const { data: session } = await supabase
     .from('sessions')
-    .select('id, subject_id, is_active, expires_at')
+    .select('id, subject_id, date, is_active, class_ends_at')
     .eq('id', sessionId)
     .maybeSingle()
   if (!session) return { ok: false, error: 'Sesión no encontrada.' }
   if (session.is_active === false) {
     return { ok: false, error: 'Esta sesión está archivada y no cuenta como inasistencia.' }
   }
-  if (!isSessionAlreadyHeld(session)) {
+  const { defaultClassMinutes } = await getAppSettings(supabase)
+  if (!isSessionAlreadyHeld(session, defaultClassMinutes)) {
     return { ok: false, error: 'Esta sesión todavía está en curso.' }
   }
 

@@ -22,6 +22,10 @@ const mockUpdate = vi.fn()
 const mockUpdateSelect = vi.fn()
 const mockLogAudit = vi.fn()
 
+vi.mock('@/lib/settings/appSettings', () => ({
+  getAppSettings: async () => ({ registrationWindowMinutes: 5, defaultClassMinutes: 120 }),
+}))
+
 vi.mock('./authGuards', () => ({
   checkAdmin: (...args: unknown[]) => mockCheckAdmin(...args),
 }))
@@ -75,7 +79,8 @@ function arrangeEligibleAbsence() {
       id: 'session-1',
       subject_id: 'subject-1',
       is_active: true,
-      expires_at: '2026-01-01T10:15:00Z',
+      date: '2026-01-01T10:00:00Z',
+      class_ends_at: '2026-01-01T12:00:00Z',
     },
   })
   reads.enrollments.mockResolvedValue({ data: { id: 'enrollment-1' } })
@@ -124,6 +129,53 @@ describe('registerExcuse', () => {
 
   it('rejects a session the student actually attended', async () => {
     reads.attendances.mockResolvedValue({ data: { id: 'att-1' } })
+
+    const result = await registerExcuse({
+      studentId: 'student-1',
+      sessionId: 'session-1',
+      reason: REASON,
+      attachmentPath: PATH,
+    })
+
+    expect(result.success).toBe(false)
+    expect(mockInsert).not.toHaveBeenCalled()
+  })
+
+  it('rejects a class whose registration window closed but is still in progress', async () => {
+    // The QR window (expires_at) is only minutes long; the class itself is not over.
+    const now = Date.now()
+    reads.sessions.mockResolvedValue({
+      data: {
+        id: 'session-1',
+        subject_id: 'subject-1',
+        is_active: true,
+        date: new Date(now - 30 * 60_000).toISOString(),
+        class_ends_at: new Date(now + 90 * 60_000).toISOString(),
+      },
+    })
+
+    const result = await registerExcuse({
+      studentId: 'student-1',
+      sessionId: 'session-1',
+      reason: REASON,
+      attachmentPath: PATH,
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/en curso/i)
+    expect(mockInsert).not.toHaveBeenCalled()
+  })
+
+  it('rejects an archived session (it does not count as an absence)', async () => {
+    reads.sessions.mockResolvedValue({
+      data: {
+        id: 'session-1',
+        subject_id: 'subject-1',
+        is_active: false,
+        date: '2026-01-01T10:00:00Z',
+        class_ends_at: '2026-01-01T12:00:00Z',
+      },
+    })
 
     const result = await registerExcuse({
       studentId: 'student-1',

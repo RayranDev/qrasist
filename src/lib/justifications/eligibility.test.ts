@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   JUSTIFICATION_BUSINESS_DAYS,
   getJustificationDeadline,
+  isSessionAlreadyHeld,
   isWithinJustificationWindow,
   validateAttachmentMeta,
 } from './eligibility'
@@ -42,6 +43,28 @@ describe('justification window (RF26: 3 business days)', () => {
   it('accepts Date objects as well as ISO strings', () => {
     const session = new Date('2026-03-02T13:00:00Z')
     expect(isWithinJustificationWindow(session, new Date('2026-03-04T12:00:00Z'))).toBe(true)
+  })
+})
+
+describe('isSessionAlreadyHeld', () => {
+  const date = '2026-03-02T13:00:00Z' // 08:00 Bogota
+
+  it('is false while the class is running even though the 5-minute QR window already closed', () => {
+    const session = { date, class_ends_at: '2026-03-02T15:00:00Z' }
+    // 20 minutes in: registration window (5 min) is over, class is not
+    expect(isSessionAlreadyHeld(session, 120, new Date('2026-03-02T13:20:00Z'))).toBe(false)
+  })
+
+  it('becomes true only after the class end', () => {
+    const session = { date, class_ends_at: '2026-03-02T15:00:00Z' }
+    expect(isSessionAlreadyHeld(session, 120, new Date('2026-03-02T15:00:00Z'))).toBe(false)
+    expect(isSessionAlreadyHeld(session, 120, new Date('2026-03-02T15:00:01Z'))).toBe(true)
+  })
+
+  it('falls back to date + default minutes when class_ends_at is missing', () => {
+    const legacy = { date, class_ends_at: null }
+    expect(isSessionAlreadyHeld(legacy, 120, new Date('2026-03-02T14:59:00Z'))).toBe(false)
+    expect(isSessionAlreadyHeld(legacy, 120, new Date('2026-03-02T15:01:00Z'))).toBe(true)
   })
 })
 
