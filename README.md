@@ -98,7 +98,7 @@ npm start          # servidor de producción
 
 - Saludo personalizado con nombre y conteo de estudiantes por materia
 - Edición de propio perfil (nombre, contraseña)
-- Generación de QR por sesión (15 min default) con countdown en tiempo real
+- Generación de QR por sesión (ventana de registro configurable por coordinación, 5 min por defecto) con countdown en tiempo real
 - Historial drill-down: Materias → Sesiones → Asistentes (regulares + invitados)
 - Exportar lista de asistencia a CSV por sesión
 - Eliminar sesiones erróneas
