@@ -6,6 +6,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'attendance.remove': 'Quitó asistencia',
   'attendance.relocate': 'Reubicó asistencia de otra sesión',
   'session.register_past': 'Registró una clase pasada',
+  'session.archive': 'Archivó una clase',
+  'session.reactivate': 'Reactivó una clase',
   'enrollment_request.approve': 'Aprobó solicitud de inscripción',
   'enrollment_request.reject': 'Rechazó solicitud de inscripción',
   'user.role_change': 'Cambió el rol de un usuario',

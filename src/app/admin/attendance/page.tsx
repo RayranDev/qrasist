@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { formatBogotaDateTime } from '@/lib/utils/bogotaDay'
 import SubjectPicker from './SubjectPicker'
 import PastClassModal from './PastClassModal'
+import SessionActiveToggle from './SessionActiveToggle'
 
 export const dynamic = 'force-dynamic'
 
@@ -195,7 +196,7 @@ export default async function AdminAttendancePage({
                         s.is_active !== false && !!s.expires_at && new Date(s.expires_at) > now
                       const isSelected = s.id === selectedSession?.id
                       return (
-                        <li key={s.id}>
+                        <li key={s.id} className="flex items-center pr-3">
                           <Link
                             href={buildHref({
                               subjectId: selectedSubject.id,
@@ -204,7 +205,7 @@ export default async function AdminAttendancePage({
                               sessionId: s.id,
                             })}
                             aria-current={isSelected ? 'true' : undefined}
-                            className={`flex items-center justify-between gap-3 px-5 py-3.5 transition ${
+                            className={`flex flex-1 min-w-0 items-center justify-between gap-3 px-5 py-3.5 transition ${
                               isSelected ? 'bg-navy-50/70' : 'hover:bg-gray-50/70'
                             }`}
                           >
@@ -245,6 +246,7 @@ export default async function AdminAttendancePage({
                               {registered} registrado{registered === 1 ? '' : 's'}
                             </p>
                           </Link>
+                          <SessionActiveToggle sessionId={s.id} isActive={s.is_active !== false} />
                         </li>
                       )
                     })}

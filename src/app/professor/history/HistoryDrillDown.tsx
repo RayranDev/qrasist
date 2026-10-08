@@ -547,6 +547,9 @@ export default function HistoryDrillDown({
       const [actionLoading, setActionLoading] = useState(false)
       const [showConfirm, setShowConfirm] = useState(false)
       const showToast = useToast()
+      // RF21: archivar/reactivar cambia el conteo de clases dictadas, así que
+      // sigue la misma ventana que editar asistencia (solo durante la clase).
+      const canManage = session.can_edit !== false
 
       const handleArchive = async () => {
         setActionLoading(true)
@@ -643,28 +646,32 @@ export default function HistoryDrillDown({
             </div>
             <div className="flex items-center gap-2">
               {archived ? (
-                <Button
-                  onClick={handleReactivate}
-                  disabled={actionLoading}
-                  variant="outline"
-                  size="sm"
-                >
-                  {actionLoading ? '...' : 'Reactivar'}
-                </Button>
+                canManage ? (
+                  <Button
+                    onClick={handleReactivate}
+                    disabled={actionLoading}
+                    variant="outline"
+                    size="sm"
+                  >
+                    {actionLoading ? '...' : 'Reactivar'}
+                  </Button>
+                ) : null
               ) : (
                 <>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setShowConfirm(true)
-                    }}
-                    disabled={actionLoading}
-                    className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
-                    title="Archivar sesión"
-                    aria-label="Archivar sesión"
-                  >
-                    <Archive className="w-4 h-4" strokeWidth={2} />
-                  </button>
+                  {canManage && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setShowConfirm(true)
+                      }}
+                      disabled={actionLoading}
+                      className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
+                      title="Archivar sesión"
+                      aria-label="Archivar sesión"
+                    >
+                      <Archive className="w-4 h-4" strokeWidth={2} />
+                    </button>
+                  )}
                   <div
                     className="text-gray-300 group-hover:text-navy-700 transition cursor-pointer p-1"
                     onClick={() => setSelectedSession(session)}

@@ -17,6 +17,8 @@ export type AuditAction =
   | 'attendance.remove'
   | 'attendance.relocate'
   | 'session.register_past'
+  | 'session.archive'
+  | 'session.reactivate'
   | 'enrollment_request.approve'
   | 'enrollment_request.reject'
   | 'user.role_change'
