@@ -267,6 +267,48 @@ describe('suspendClass', () => {
       )
     })
 
+    it('refuses a professor once the last block of today has ended (the omission path is justification)', async () => {
+      userResults.subject_schedules = {
+        list: {
+          data: [{ day_of_week: 1, start_time: '06:00', end_time: '08:00', modality: 'VIRTUAL' }],
+        },
+      }
+
+      const result = await suspendClass({ subjectId: 'subject-1', reason: 'Corte de energía' })
+
+      expect(result.success).toBe(false)
+      expect(result.error).toMatch(/ya terminó/i)
+      expect(adminWrites).toHaveLength(0)
+    })
+
+    it('refuses a professor when the schedule has no class today', async () => {
+      userResults.subject_schedules = {
+        list: {
+          data: [{ day_of_week: 3, start_time: '08:00', end_time: '10:00', modality: 'VIRTUAL' }],
+        },
+      }
+
+      const result = await suspendClass({ subjectId: 'subject-1', reason: 'Corte de energía' })
+
+      expect(result.success).toBe(false)
+      expect(result.error).toMatch(/no hay clase/i)
+      expect(adminWrites).toHaveLength(0)
+    })
+
+    it('lets an admin suspend a past scheduled day regardless of the clock', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'admin-1' } } })
+      mockResolveRole.mockResolvedValue('ADMIN')
+      userResults.subject_schedules = { list: { data: [] } }
+
+      const result = await suspendClass({
+        subjectId: 'subject-1',
+        date: '2026-02-23',
+        reason: 'Paro de transporte',
+      })
+
+      expect(result.success).toBe(true)
+    })
+
     it('does not let a professor suspend another day', async () => {
       const result = await suspendClass({
         subjectId: 'subject-1',

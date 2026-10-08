@@ -76,6 +76,39 @@ export function validateSuspensionDay({
   return null
 }
 
+/**
+ * Un profesor solo puede suspender "sin sesión previa" mientras la clase de
+ * hoy todavía no terminó: el horario debe tener un bloque hoy y el último
+ * bloque no haber acabado. Si no, bastaría con registrar una "suspensión" a
+ * las 18:00 para borrar una omisión; después de la clase el camino es
+ * justificar la clase no registrada. (Coordinación no tiene esta restricción.)
+ */
+export function validateProfessorSuspensionWindow({
+  blocks,
+  dayOfWeek,
+  isoDate,
+  now,
+}: {
+  blocks: ScheduleBlockTime[]
+  dayOfWeek: number
+  /** Fecha civil de hoy en Bogotá. */
+  isoDate: string
+  now: Date
+}): string | null {
+  const todayEnds = blocks
+    .filter((b) => b.day_of_week === dayOfWeek)
+    .map((b) => parseTimeToMinutes(b.end_time))
+    .filter((end): end is number => end !== null)
+
+  if (todayEnds.length === 0) {
+    return 'Hoy no hay clase en el horario de esta materia.'
+  }
+  if (bogotaInstant(isoDate, Math.max(...todayEnds)).getTime() <= now.getTime()) {
+    return 'La clase de hoy ya terminó. Si no se registró asistencia, justifícala desde "clases sin registrar".'
+  }
+  return null
+}
+
 export interface SuspendedSessionTimes {
   date: Date
   classEndsAt: Date

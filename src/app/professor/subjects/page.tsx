@@ -11,7 +11,7 @@ import { fetchClassOmissions } from '@/lib/attendance/classOmissionsData'
 import { canProfessorEditSession } from '@/lib/sessions/classWindow'
 import { getBogotaDayRange } from '@/lib/utils/bogotaDay'
 import { bogotaCalendarDate } from '@/lib/utils/businessDays'
-import { dayOfWeekOf } from '@/lib/sessions/suspension'
+import { dayOfWeekOf, validateProfessorSuspensionWindow } from '@/lib/sessions/suspension'
 import InstitutionMark from '@/components/brand/InstitutionMark'
 import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
 import { fetchAllRows } from '@/lib/supabase/fetchAll'
@@ -34,7 +34,7 @@ export default async function ProfessorSubjectsPage() {
   const { data: subjects } = await supabase
     .from('subjects')
     .select(
-      '*, enrollments(student_id), enrollment_requests(id, status), absence_justifications(student_id, status), subject_schedules(day_of_week, modality)'
+      '*, enrollments(student_id), enrollment_requests(id, status), absence_justifications(student_id, status), subject_schedules(day_of_week, start_time, end_time, modality)'
     )
     .eq('professor_id', user.id)
     .eq('is_active', true)
@@ -231,16 +231,25 @@ export default async function ProfessorSubjectsPage() {
                 const heldToday = todaySessions.find(
                   (t) => !t.suspended_at && t.is_active !== false
                 )
-                const hasBlockToday = (
-                  (sub.subject_schedules as { day_of_week: number }[] | null) || []
-                ).some((b) => b.day_of_week === todayDayOfWeek)
+                // Sin sesión de hoy solo se puede suspender si el horario marca hoy
+                // y la clase aún no terminó (después, se justifica la omisión).
+                const canSuspendScheduledToday =
+                  validateProfessorSuspensionWindow({
+                    blocks:
+                      (sub.subject_schedules as
+                        { day_of_week: number; start_time: string; end_time: string }[] | null) ||
+                      [],
+                    dayOfWeek: todayDayOfWeek,
+                    isoDate: bogotaCalendarDate(now),
+                    now,
+                  }) === null
                 // Con sesión de hoy: solo mientras la clase sigue en curso.
                 // Sin sesión: solo si el horario marca hoy como día de clase.
                 const canSuspendToday = suspendedToday
                   ? false
                   : heldToday
                     ? canProfessorEditSession(heldToday, defaultClassMinutes, now)
-                    : hasBlockToday
+                    : canSuspendScheduledToday
                 return (
                   <div
                     key={sub.id}
@@ -293,47 +302,47 @@ export default async function ProfessorSubjectsPage() {
                       code={sub.enrollment_code}
                       pendingCount={pendingCount}
                     />
-                    {suspendedToday ? (
-                      <div
-                        role="status"
-                        className="rounded-xl border border-red-200/80 bg-red-50/60 p-3 flex gap-2.5"
-                      >
-                        <Ban className="w-4 h-4 text-red-600 mt-0.5 shrink-0" strokeWidth={2} />
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-gray-900">
-                            La clase de hoy está suspendida
-                          </p>
-                          <p className="text-xs text-gray-600 mt-0.5 wrap-break-word">
-                            {suspendedToday.suspension_reason}
-                          </p>
-                          <p className="text-xs text-gray-400 mt-1">
-                            No se toma asistencia ni se generan inasistencias. Coordinación puede
-                            deshacerla si fue un error.
-                          </p>
+                    <div className="space-y-2">
+                      {suspendedToday && (
+                        <div
+                          role="status"
+                          className="rounded-xl border border-red-200/80 bg-red-50/60 p-3 flex gap-2.5"
+                        >
+                          <Ban className="w-4 h-4 text-red-600 mt-0.5 shrink-0" strokeWidth={2} />
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-gray-900">
+                              La clase de hoy está suspendida
+                            </p>
+                            <p className="text-xs text-gray-600 mt-0.5 wrap-break-word">
+                              {suspendedToday.suspension_reason}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              No se toma asistencia ni se generan inasistencias. Coordinación puede
+                              deshacerla si fue un error, o puedes abrir una reposición.
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <SessionButton
-                          subjectId={sub.id}
-                          registrationWindowMinutes={registrationWindowMinutes}
-                          schedules={
-                            (sub.subject_schedules as
-                              | { day_of_week: number; modality: 'PRESENCIAL' | 'VIRTUAL' }[]
-                              | null) || []
-                          }
+                      )}
+                      <SessionButton
+                        subjectId={sub.id}
+                        registrationWindowMinutes={registrationWindowMinutes}
+                        makeupOnly={!!suspendedToday}
+                        schedules={
+                          (sub.subject_schedules as
+                            { day_of_week: number; modality: 'PRESENCIAL' | 'VIRTUAL' }[] | null) ||
+                          []
+                        }
+                      />
+                      {canSuspendToday && (
+                        <SuspendClassButton
+                          sessionId={heldToday?.id}
+                          subjectId={heldToday ? undefined : sub.id}
+                          label="Suspender clase de hoy"
+                          variant="ghost"
+                          className="w-full"
                         />
-                        {canSuspendToday && (
-                          <SuspendClassButton
-                            sessionId={heldToday?.id}
-                            subjectId={heldToday ? undefined : sub.id}
-                            label="Suspender clase de hoy"
-                            variant="ghost"
-                            className="w-full"
-                          />
-                        )}
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 )
               })}

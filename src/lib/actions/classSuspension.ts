@@ -12,6 +12,7 @@ import type { ScheduleBlockTime } from '@/lib/sessions/classWindow'
 import {
   dayOfWeekOf,
   resolveSuspendedSessionTimes,
+  validateProfessorSuspensionWindow,
   validateSuspensionDay,
   validateSuspensionReason,
   type PeriodRange,
@@ -189,6 +190,24 @@ async function suspendScheduledDay(
   const dayError = validateSuspensionDay({ role, date, today, period: periodRange })
   if (dayError) return { success: false, error: dayError }
 
+  const { data: scheduleRows } = await supabase
+    .from('subject_schedules')
+    .select('day_of_week, start_time, end_time, modality')
+    .eq('subject_id', subjectId)
+  const blocks = (scheduleRows || []) as (ScheduleBlockTime & {
+    modality?: 'PRESENCIAL' | 'VIRTUAL'
+  })[]
+
+  if (role === 'PROFESSOR') {
+    const windowError = validateProfessorSuspensionWindow({
+      blocks,
+      dayOfWeek: dayOfWeekOf(date),
+      isoDate: date,
+      now,
+    })
+    if (windowError) return { success: false, error: windowError }
+  }
+
   // Una clase por materia y día (hora de Bogotá), mismo criterio que
   // createPastSession y el índice único de asistencia por día (007).
   const admin = getSupabaseAdmin()
@@ -208,16 +227,10 @@ async function suspendScheduledDay(
     }
   }
 
-  const { data: scheduleRows } = await supabase
-    .from('subject_schedules')
-    .select('day_of_week, start_time, end_time, modality')
-    .eq('subject_id', subjectId)
   const times = resolveSuspendedSessionTimes({
     isoDate: date,
     dayOfWeek: dayOfWeekOf(date),
-    blocks: (scheduleRows || []) as (ScheduleBlockTime & {
-      modality?: 'PRESENCIAL' | 'VIRTUAL'
-    })[],
+    blocks,
     now,
     today,
   })

@@ -11,6 +11,7 @@ const links: AttentionLinks = {
   enrollmentRequestsHref: '/professor/subjects/s1/requests',
   justificationsHref: '/admin/justifications?status=PENDING',
   unregisteredClassesHref: '/admin/omissions?status=unjustified',
+  recentSuspensionsHref: '/admin/omissions?status=suspended',
   atRiskStudentsHref: '/admin/dashboard#consolidado',
   activeSessionsHref: '/admin/dashboard#consolidado',
 }
@@ -21,6 +22,7 @@ describe('buildAttentionItems', () => {
       pendingEnrollmentRequests: 0,
       pendingJustifications: 0,
       unregisteredClasses: 0,
+      recentSuspensions: 0,
       atRiskStudents: 0,
       activeSessionsNow: 0,
     }
@@ -32,6 +34,7 @@ describe('buildAttentionItems', () => {
       pendingEnrollmentRequests: 2,
       pendingJustifications: 0,
       unregisteredClasses: 4,
+      recentSuspensions: 2,
       atRiskStudents: 5,
       activeSessionsNow: 1,
     }
@@ -39,6 +42,7 @@ describe('buildAttentionItems', () => {
     expect(items.map((i) => i.key)).toEqual([
       'enrollment-requests',
       'unregistered-classes',
+      'recent-suspensions',
       'at-risk',
       'active-sessions',
     ])
@@ -49,6 +53,7 @@ describe('buildAttentionItems', () => {
       pendingEnrollmentRequests: 1,
       pendingJustifications: 1,
       unregisteredClasses: 1,
+      recentSuspensions: 0,
       atRiskStudents: 1,
       activeSessionsNow: 1,
     }
@@ -68,11 +73,30 @@ describe('buildAttentionItems', () => {
     )
   })
 
+  it('surfaces recent suspensions as an informational item linked to the suspended tab', () => {
+    const counts: AttentionCounts = {
+      pendingEnrollmentRequests: 0,
+      pendingJustifications: 0,
+      unregisteredClasses: 0,
+      recentSuspensions: 1,
+      atRiskStudents: 0,
+      activeSessionsNow: 0,
+    }
+    const [item] = buildAttentionItems(counts, links)
+    expect(item).toMatchObject({
+      key: 'recent-suspensions',
+      label: 'Clase suspendida (últimos 7 días)',
+      href: '/admin/omissions?status=suspended',
+      tone: 'info',
+    })
+  })
+
   it('links unregistered classes to the omissions page and uses the plural label', () => {
     const counts: AttentionCounts = {
       pendingEnrollmentRequests: 0,
       pendingJustifications: 0,
       unregisteredClasses: 7,
+      recentSuspensions: 0,
       atRiskStudents: 0,
       activeSessionsNow: 0,
     }
@@ -91,6 +115,7 @@ describe('buildAttentionItems', () => {
       pendingEnrollmentRequests: 1,
       pendingJustifications: 1,
       unregisteredClasses: 1,
+      recentSuspensions: 0,
       atRiskStudents: 1,
       activeSessionsNow: 1,
     }
@@ -106,6 +131,7 @@ describe('buildAttentionItems', () => {
       pendingEnrollmentRequests: 3,
       pendingJustifications: 0,
       unregisteredClasses: 0,
+      recentSuspensions: 0,
       atRiskStudents: 0,
       activeSessionsNow: 0,
     }

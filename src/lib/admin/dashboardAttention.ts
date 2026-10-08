@@ -20,6 +20,8 @@ export interface AttentionCounts {
   pendingJustifications: number
   /** Clases programadas sin ninguna sesión y sin justificar (RF22). */
   unregisteredClasses: number
+  /** Clases suspendidas (RF20) en los últimos 7 días, para que coordinación las vea. */
+  recentSuspensions: number
   atRiskStudents: number
   activeSessionsNow: number
 }
@@ -28,6 +30,7 @@ export interface AttentionLinks {
   enrollmentRequestsHref: string | null
   justificationsHref: string
   unregisteredClassesHref: string
+  recentSuspensionsHref: string
   atRiskStudentsHref: string
   activeSessionsHref: string
 }
@@ -72,6 +75,16 @@ export function buildAttentionItems(
       count: counts.unregisteredClasses,
       href: links.unregisteredClassesHref,
       tone: 'warning',
+    },
+    {
+      key: 'recent-suspensions',
+      label:
+        counts.recentSuspensions === 1
+          ? 'Clase suspendida (últimos 7 días)'
+          : 'Clases suspendidas (últimos 7 días)',
+      count: counts.recentSuspensions,
+      href: links.recentSuspensionsHref,
+      tone: 'info',
     },
     {
       key: 'at-risk',

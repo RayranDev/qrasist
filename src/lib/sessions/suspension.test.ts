@@ -3,6 +3,7 @@ import {
   dayOfWeekOf,
   isValidIsoDate,
   resolveSuspendedSessionTimes,
+  validateProfessorSuspensionWindow,
   validateSuspensionDay,
   validateSuspensionReason,
 } from './suspension'
@@ -143,5 +144,41 @@ describe('resolveSuspendedSessionTimes', () => {
 
     expect(times.date.toISOString()).toBe('2026-03-04T19:00:00.000Z')
     expect(times.classEndsAt.toISOString()).toBe('2026-03-04T21:00:00.000Z')
+  })
+})
+
+describe('validateProfessorSuspensionWindow', () => {
+  const blocks = [
+    { day_of_week: 1, start_time: '08:00', end_time: '10:00' },
+    { day_of_week: 1, start_time: '14:00', end_time: '16:00' },
+  ]
+  const base = { blocks, dayOfWeek: 1, isoDate: '2026-03-02' }
+
+  it('allows it while any block of today is running or still ahead', () => {
+    expect(
+      validateProfessorSuspensionWindow({ ...base, now: new Date('2026-03-02T13:20:00Z') })
+    ).toBeNull() // 08:20
+    // between the two blocks the afternoon one has not ended
+    expect(
+      validateProfessorSuspensionWindow({ ...base, now: new Date('2026-03-02T18:00:00Z') })
+    ).toBeNull() // 13:00
+  })
+
+  it('refuses once the last block has ended', () => {
+    const msg = validateProfessorSuspensionWindow({
+      ...base,
+      now: new Date('2026-03-02T21:00:00Z'),
+    }) // 16:00
+    expect(msg).toMatch(/ya terminó/)
+  })
+
+  it('refuses when today has no block', () => {
+    expect(
+      validateProfessorSuspensionWindow({
+        ...base,
+        dayOfWeek: 2,
+        now: new Date('2026-03-03T13:00:00Z'),
+      })
+    ).toMatch(/no hay clase/)
   })
 })

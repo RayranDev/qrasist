@@ -1,27 +1,32 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { CalendarCheck } from 'lucide-react'
+import { Ban, CalendarCheck } from 'lucide-react'
 import AdminHeader from '@/components/admin/AdminHeader'
 import MobileWarningBanner from '@/components/MobileWarningBanner'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { fetchClassOmissions } from '@/lib/attendance/classOmissionsData'
+import { fetchSuspendedClasses } from '@/lib/attendance/suspendedClasses'
 import { formatBlockTime } from '@/lib/attendance/classOmissions'
 import { formatCivilDate } from '@/lib/utils/civilDate'
+import { bogotaCalendarDate } from '@/lib/utils/businessDays'
+import { formatBogotaDateTime } from '@/lib/utils/bogotaDay'
 import PastClassModal from '../attendance/PastClassModal'
 import SuspendDayModal from '../attendance/SuspendDayModal'
+import SessionSuspensionControl from '../attendance/SessionSuspensionControl'
 
 export const dynamic = 'force-dynamic'
 
 const PAGE_SIZE = 20
 
-type StatusFilter = 'unjustified' | 'justified' | 'all'
+type StatusFilter = 'unjustified' | 'justified' | 'all' | 'suspended'
 
 const STATUS_TABS: { value: StatusFilter; label: string }[] = [
   { value: 'unjustified', label: 'Sin justificar' },
   { value: 'justified', label: 'Justificadas' },
   { value: 'all', label: 'Todas' },
+  { value: 'suspended', label: 'Suspendidas' },
 ]
 
 function buildHref(status: StatusFilter, professorId: string, page = 1) {
@@ -57,32 +62,47 @@ export default async function AdminOmissionsPage({
   const professorId = params.professorId || ''
   const currentPage = Math.max(1, parseInt(params.page || '1', 10) || 1)
 
-  const [all, { count: scheduleBlocks }] = await Promise.all([
+  const [all, suspendedAll, { count: scheduleBlocks }] = await Promise.all([
     fetchClassOmissions(supabase),
+    fetchSuspendedClasses(supabase),
     supabase.from('subject_schedules').select('*', { count: 'exact', head: true }),
   ])
 
   // El filtro de docente se aplica antes de contar, para que las pestañas
   // reflejen lo que se vería al abrirlas.
   const byProfessor = professorId ? all.filter((o) => o.professorId === professorId) : all
+  const suspendedFiltered = professorId
+    ? suspendedAll.filter((c) => c.professorId === professorId)
+    : suspendedAll
   const counts: Record<StatusFilter, number> = {
+    suspended: suspendedFiltered.length,
     unjustified: byProfessor.filter((o) => !o.justified).length,
     justified: byProfessor.filter((o) => o.justified).length,
     all: byProfessor.length,
   }
-  const filtered = byProfessor.filter(
-    (o) => status === 'all' || (status === 'justified' ? o.justified : !o.justified)
-  )
+  const filtered =
+    status === 'suspended'
+      ? []
+      : byProfessor.filter(
+          (o) => status === 'all' || (status === 'justified' ? o.justified : !o.justified)
+        )
+  const suspendedRows = status === 'suspended' ? suspendedFiltered : []
 
   const professors = Array.from(
-    new Map(all.filter((o) => o.professorId).map((o) => [o.professorId as string, o.professorName]))
+    new Map(
+      [...all, ...suspendedAll]
+        .filter((o) => o.professorId)
+        .map((o) => [o.professorId as string, o.professorName])
+    )
   )
     .map(([id, name]) => ({ id, name: name || 'Sin nombre' }))
     .sort((a, b) => a.name.localeCompare(b.name))
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const listLength = status === 'suspended' ? suspendedRows.length : filtered.length
+  const totalPages = Math.max(1, Math.ceil(listLength / PAGE_SIZE))
   const page = Math.min(currentPage, totalPages)
   const rows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const suspendedPage = suspendedRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   return (
     <div className="min-h-screen bg-surface">
@@ -145,7 +165,65 @@ export default async function AdminOmissionsPage({
             )}
           </div>
 
-          {all.length === 0 ? (
+          {status === 'suspended' ? (
+            suspendedPage.length === 0 ? (
+              <EmptyState
+                icon={<Ban className="w-5 h-5" />}
+                title="No hay clases suspendidas"
+                description="Aquí aparecen las clases que un docente o coordinación suspendieron, con su motivo."
+              />
+            ) : (
+              <ul className="bg-white rounded-2xl border border-gray-200/80 shadow-xs divide-y divide-gray-100 overflow-hidden">
+                {suspendedPage.map((c) => (
+                  <li
+                    key={c.sessionId}
+                    className="p-4 md:p-5 flex flex-col md:flex-row md:items-start md:justify-between gap-3"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-bold text-gray-900 capitalize">
+                          {formatCivilDate(bogotaCalendarDate(new Date(c.date)))}
+                        </p>
+                        <Badge variant="danger" size="sm">
+                          Suspendida
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-gray-700">
+                        <span className="font-semibold">{c.subjectName}</span>{' '}
+                        <span className="text-xs font-mono text-gray-400">{c.subjectCode}</span>
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Docente: {c.professorName || 'Sin docente asignado'} · Suspendida por{' '}
+                        {c.suspendedByName || 'usuario desconocido'} el{' '}
+                        {formatBogotaDateTime(c.suspendedAt)}
+                      </p>
+                      <p className="text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 mt-2 wrap-break-word">
+                        {c.reason}
+                      </p>
+                      <p className="text-[11px] text-gray-400">
+                        {c.attendancesKept === 0
+                          ? 'Sin asistencias conservadas'
+                          : `${c.attendancesKept} ${
+                              c.attendancesKept === 1
+                                ? 'asistencia conservada'
+                                : 'asistencias conservadas'
+                            } (no cuentan)`}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Link
+                        href={`/admin/attendance?subjectId=${c.subjectId}&sessionId=${c.sessionId}`}
+                        className="px-3 py-1.5 text-xs font-bold text-navy-700 bg-navy-50 rounded-lg hover:bg-navy-100 transition"
+                      >
+                        Ver clase
+                      </Link>
+                      <SessionSuspensionControl sessionId={c.sessionId} isSuspended />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : all.length === 0 ? (
             <EmptyState
               icon={<CalendarCheck className="w-5 h-5" />}
               title="No hay clases sin registrar"
@@ -214,8 +292,7 @@ export default async function AdminOmissionsPage({
           {totalPages > 1 && (
             <div className="flex items-center justify-between">
               <p className="text-xs text-gray-500 font-medium">
-                Página {page} de {totalPages} · {filtered.length}{' '}
-                {filtered.length === 1 ? 'clase' : 'clases'}
+                Página {page} de {totalPages} · {listLength} {listLength === 1 ? 'clase' : 'clases'}
               </p>
               <div className="flex gap-2">
                 <Link
