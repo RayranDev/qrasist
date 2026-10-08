@@ -1,13 +1,18 @@
 name: Keepalive
 
-# Weekly ping to /login (which reads the `careers` table server-side,
-# see src/app/(auth)/login/page.tsx) so the free-tier Supabase project
-# doesn't get auto-paused after 7 days without any database activity.
-# No secrets needed: it's an unauthenticated GET against the public
-# production URL.
+# Pings /api/health, which runs a real query against Postgres, so the
+# free-tier Supabase project gets database activity and isn't
+# auto-paused after 7 idle days.
+#
+# Runs every 2 days: a weekly cadence left zero margin against the
+# 7-day pause, and a single delayed or failed run paused the project.
+# /api/health answers 503 when the database is down, so this job fails
+# visibly (GitHub emails the repo owner on a failed scheduled run)
+# instead of reporting success while the database is paused, which is
+# what happened when it pinged /login.
 on:
   schedule:
-    - cron: '0 12 * * 1' # every Monday at 12:00 UTC
+    - cron: '0 12 */2 * *'
   workflow_dispatch:
 
 permissions:
@@ -16,7 +21,10 @@ permissions:
 jobs:
   ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 5
     steps:
-      - name: Ping production login page
-        run: curl --fail --show-error --silent --max-time 20 https://qrasist.vercel.app/login -o /dev/null
+      - name: Ping production health endpoint
+        run: |
+          curl --fail --show-error --silent --max-time 20 \
+            --retry 3 --retry-delay 15 --retry-all-errors \
+            https://qrasist.vercel.app/api/health
