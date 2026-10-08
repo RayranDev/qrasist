@@ -31,13 +31,23 @@ async function setSessionActive(sessionId: string, active: boolean): Promise<Act
 
   const { data: session } = await supabase
     .from('sessions')
-    .select('id, subject_id, date, class_ends_at, is_active')
+    .select('id, subject_id, date, class_ends_at, is_active, suspended_at')
     .eq('id', sessionId)
     .single()
   if (!session) return { success: false, error: 'Sesión no encontrada.' }
 
   const editAuth = await authorizeAttendanceEdit(supabase, user.id, session)
   if (!editAuth.ok) return { success: false, error: editAuth.error }
+
+  // Una clase suspendida también tiene is_active = false, pero reactivarla
+  // la dejaría suspendida y dictada a la vez (la base lo rechaza). Se
+  // deshace desde coordinación con unsuspendClass.
+  if (session.suspended_at) {
+    return {
+      success: false,
+      error: 'Esta clase está suspendida. Coordinación puede deshacer la suspensión.',
+    }
+  }
 
   const alreadyActive = session.is_active !== false
   if (alreadyActive === active) {

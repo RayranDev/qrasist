@@ -7,6 +7,7 @@ import { DEFAULT_ROTATION_SECONDS } from '@/lib/qrRotation'
 import { sessionConfigSchema } from '@/lib/validations/schemas'
 import { getAppSettings } from '@/lib/settings/appSettings'
 import { computeClassEndsAt, type ScheduleBlockTime } from '@/lib/sessions/classWindow'
+import { getBogotaDayRange } from '@/lib/utils/bogotaDay'
 
 interface Coords {
   latitude: number
@@ -85,6 +86,29 @@ export async function createSession(
   ])
 
   const startedAt = new Date()
+
+  // RF20: si la clase de hoy fue suspendida no se toma asistencia (la
+  // suspensión cancela la toma). Solo coordinación puede deshacerla; una
+  // reposición sí puede abrirse el mismo día.
+  if (!isMakeup) {
+    const { start, end } = getBogotaDayRange(startedAt)
+    const { data: suspendedToday } = await supabase
+      .from('sessions')
+      .select('id')
+      .eq('subject_id', subjectId)
+      .not('suspended_at', 'is', null)
+      .gte('date', start.toISOString())
+      .lte('date', end.toISOString())
+      .limit(1)
+    if (suspendedToday && suspendedToday.length > 0) {
+      return {
+        success: false,
+        error:
+          'La clase de hoy está suspendida. Coordinación debe deshacer la suspensión para tomar asistencia.',
+      }
+    }
+  }
+
   const registrationWindowMinutes = settings.registrationWindowMinutes
   const expiresAt = new Date(startedAt.getTime() + registrationWindowMinutes * 60_000)
   const classEndsAt = computeClassEndsAt({

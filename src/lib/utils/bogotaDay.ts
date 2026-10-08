@@ -18,6 +18,15 @@ export function getBogotaDayRange(reference: Date = new Date()): { start: Date; 
 }
 
 /**
+ * Instante UTC que corresponde a `minutesOfDay` (minutos desde la
+ * medianoche) de la fecha civil de Bogotá `isoDate` ('YYYY-MM-DD').
+ */
+export function bogotaInstant(isoDate: string, minutesOfDay: number): Date {
+  const [y, m, d] = isoDate.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d, 0, minutesOfDay) + BOGOTA_OFFSET_MS)
+}
+
+/**
  * Formatea una fecha en hora de Colombia de forma explícita (no
  * depende de la zona horaria del navegador/servidor que renderiza),
  * para vistas donde el timestamp exacto importa sin ambigüedad --

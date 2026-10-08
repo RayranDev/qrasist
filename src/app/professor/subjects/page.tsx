@@ -4,7 +4,12 @@ import SessionButton from './SessionButton'
 import Link from 'next/link'
 import ProfileModal from './ProfileModal'
 import EnrollmentCodeSection from './EnrollmentCodeSection'
-import { Users, BookOpen, AlertTriangle } from 'lucide-react'
+import { Users, BookOpen, AlertTriangle, Ban } from 'lucide-react'
+import SuspendClassButton from '@/components/attendance/SuspendClassButton'
+import { canProfessorEditSession } from '@/lib/sessions/classWindow'
+import { getBogotaDayRange } from '@/lib/utils/bogotaDay'
+import { bogotaCalendarDate } from '@/lib/utils/businessDays'
+import { dayOfWeekOf } from '@/lib/sessions/suspension'
 import InstitutionMark from '@/components/brand/InstitutionMark'
 import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
 import { fetchAllRows } from '@/lib/supabase/fetchAll'
@@ -32,7 +37,7 @@ export default async function ProfessorSubjectsPage() {
     .eq('professor_id', user.id)
     .eq('is_active', true)
 
-  const { registrationWindowMinutes } = await getAppSettings(supabase)
+  const { registrationWindowMinutes, defaultClassMinutes } = await getAppSettings(supabase)
 
   const firstName = profile?.first_name || 'Profe'
 
@@ -56,6 +61,28 @@ export default async function ProfessorSubjectsPage() {
             .range(from, to)
         )
       : { data: [] as { id: string; subject_id: string }[] }
+
+  // Clase de hoy por materia (hora de Bogotá): alimenta la acción
+  // "Suspender clase" (RF20) y bloquea iniciar asistencia si ya se suspendió.
+  const now = new Date()
+  const { start: todayStart, end: todayEnd } = getBogotaDayRange(now)
+  const todayDayOfWeek = dayOfWeekOf(bogotaCalendarDate(now))
+  const { data: todaySessionRows } =
+    subjectIds.length > 0
+      ? await supabase
+          .from('sessions')
+          .select('id, subject_id, date, class_ends_at, is_active, suspended_at, suspension_reason')
+          .in('subject_id', subjectIds)
+          .gte('date', todayStart.toISOString())
+          .lte('date', todayEnd.toISOString())
+      : { data: [] }
+  const todaySessionsBySubject = new Map<string, NonNullable<typeof todaySessionRows>>()
+  for (const row of todaySessionRows || []) {
+    todaySessionsBySubject.set(row.subject_id, [
+      ...(todaySessionsBySubject.get(row.subject_id) || []),
+      row,
+    ])
+  }
 
   const sessionsHeldBySubject = new Map<string, number>()
   const subjectIdBySessionId = new Map<string, string>()
@@ -185,6 +212,22 @@ export default async function ProfessorSubjectsPage() {
                     sub.absence_justifications as { student_id: string; status: string }[] | null
                   )?.filter((j) => j.status === 'PENDING').length ?? 0
                 const atRiskCount = atRiskCountBySubject.get(sub.id) || 0
+
+                const todaySessions = todaySessionsBySubject.get(sub.id) || []
+                const suspendedToday = todaySessions.find((t) => t.suspended_at)
+                const heldToday = todaySessions.find(
+                  (t) => !t.suspended_at && t.is_active !== false
+                )
+                const hasBlockToday = (
+                  (sub.subject_schedules as { day_of_week: number }[] | null) || []
+                ).some((b) => b.day_of_week === todayDayOfWeek)
+                // Con sesión de hoy: solo mientras la clase sigue en curso.
+                // Sin sesión: solo si el horario marca hoy como día de clase.
+                const canSuspendToday = suspendedToday
+                  ? false
+                  : heldToday
+                    ? canProfessorEditSession(heldToday, defaultClassMinutes, now)
+                    : hasBlockToday
                 return (
                   <div
                     key={sub.id}
@@ -227,15 +270,47 @@ export default async function ProfessorSubjectsPage() {
                       code={sub.enrollment_code}
                       pendingCount={pendingCount}
                     />
-                    <SessionButton
-                      subjectId={sub.id}
-                      registrationWindowMinutes={registrationWindowMinutes}
-                      schedules={
-                        (sub.subject_schedules as
-                          { day_of_week: number; modality: 'PRESENCIAL' | 'VIRTUAL' }[] | null) ||
-                        []
-                      }
-                    />
+                    {suspendedToday ? (
+                      <div
+                        role="status"
+                        className="rounded-xl border border-red-200/80 bg-red-50/60 p-3 flex gap-2.5"
+                      >
+                        <Ban className="w-4 h-4 text-red-600 mt-0.5 shrink-0" strokeWidth={2} />
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-gray-900">
+                            La clase de hoy está suspendida
+                          </p>
+                          <p className="text-xs text-gray-600 mt-0.5 wrap-break-word">
+                            {suspendedToday.suspension_reason}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            No se toma asistencia ni se generan inasistencias. Coordinación puede
+                            deshacerla si fue un error.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <SessionButton
+                          subjectId={sub.id}
+                          registrationWindowMinutes={registrationWindowMinutes}
+                          schedules={
+                            (sub.subject_schedules as
+                              | { day_of_week: number; modality: 'PRESENCIAL' | 'VIRTUAL' }[]
+                              | null) || []
+                          }
+                        />
+                        {canSuspendToday && (
+                          <SuspendClassButton
+                            sessionId={heldToday?.id}
+                            subjectId={heldToday ? undefined : sub.id}
+                            label="Suspender clase de hoy"
+                            variant="ghost"
+                            className="w-full"
+                          />
+                        )}
+                      </div>
+                    )}
                   </div>
                 )
               })}

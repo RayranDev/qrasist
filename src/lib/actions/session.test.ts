@@ -9,10 +9,11 @@ const mockInsert = vi.fn()
 const mockInsertSingle = vi.fn()
 const mockSessionSingle = vi.fn()
 const mockAdminUpdate = vi.fn()
+const mockSuspendedToday = vi.fn()
 
 function chain(terminal: Record<string, unknown> = {}) {
   const c: Record<string, unknown> = {}
-  for (const method of ['select', 'eq']) {
+  for (const method of ['select', 'eq', 'not', 'gte', 'lte']) {
     c[method] = vi.fn(() => c)
   }
   return Object.assign(c, terminal)
@@ -46,7 +47,11 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
     auth: { getUser: mockGetUser },
     from: vi.fn((table: string) => {
-      if (table === 'sessions') return chain({ single: mockSessionSingle })
+      if (table === 'sessions') {
+        // `single` serves refresh/close; `limit` is the awaited tail of the
+        // "is today's class suspended?" lookup in createSession.
+        return chain({ single: mockSessionSingle, limit: () => mockSuspendedToday() })
+      }
       if (table === 'app_settings') return chain({ maybeSingle: mockSettingsMaybeSingle })
       if (table === 'subject_schedules') {
         // awaited directly after .eq(...)
@@ -71,6 +76,8 @@ describe('createSession', () => {
     mockSchedulesResult.mockReset()
     mockInsert.mockReset()
     mockInsertSingle.mockReset()
+    mockSuspendedToday.mockReset()
+    mockSuspendedToday.mockResolvedValue({ data: [] })
 
     mockGetUser.mockResolvedValue({ data: { user: { id: 'prof-1' } } })
     mockCheckSubjectProfessor.mockResolvedValue(true)
@@ -109,6 +116,28 @@ describe('createSession', () => {
 
     expect(result.success).toBe(false)
     expect(mockInsert).not.toHaveBeenCalled()
+  })
+
+  it('refuses to open attendance when the class of the day was suspended', async () => {
+    mockSuspendedToday.mockResolvedValue({ data: [{ id: 'suspended-1' }] })
+
+    const result = await createSession('subject-1')
+
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/suspendida/i)
+    expect(mockInsert).not.toHaveBeenCalled()
+  })
+
+  it('still allows a makeup class on a day whose regular class was suspended', async () => {
+    mockSuspendedToday.mockResolvedValue({ data: [{ id: 'suspended-1' }] })
+
+    const result = await createSession('subject-1', undefined, undefined, {
+      isMakeup: true,
+      makeupReason: 'Reposición de la clase suspendida',
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockInsert).toHaveBeenCalledTimes(1)
   })
 
   it('takes the registration window from app_settings, not from the caller', async () => {

@@ -206,7 +206,7 @@ export default async function AdminDashboardPage({
   // Registro de asistencias para cálculo de alumnos en riesgo
   const { data: allAttendanceRecords } = await supabase
     .from('attendances')
-    .select('student_id, session_id, status, session:sessions(subject_id)')
+    .select('student_id, session_id, status, session:sessions(subject_id, is_active)')
 
   // Justificaciones aprobadas: descuentan la falta en computeAttendanceSummary
   const { data: allApprovedJustifications } = await supabase
@@ -234,7 +234,10 @@ export default async function AdminDashboardPage({
   const studentSubjectAttendances = new Map<string, number>()
   const studentSubjectLateCounts = new Map<string, number>()
   for (const att of allAttendanceRecords || []) {
-    const subjId = (att.session as { subject_id?: string } | null)?.subject_id
+    const attSession = att.session as { subject_id?: string; is_active?: boolean | null } | null
+    // Clases archivadas o suspendidas no cuentan como dictadas, y sus
+    // asistencias tampoco.
+    const subjId = attSession?.is_active === false ? undefined : attSession?.subject_id
     if (subjId && att.student_id) {
       const key = `${att.student_id}_${subjId}`
       studentSubjectAttendances.set(key, (studentSubjectAttendances.get(key) || 0) + 1)

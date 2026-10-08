@@ -81,6 +81,9 @@ interface Session {
   date: string
   duration_minutes: number | null
   is_active: boolean
+  /** RF20: clase suspendida (también tiene is_active = false). */
+  suspended_at?: string | null
+  suspension_reason?: string | null
   latitude: number | null
   longitude: number | null
   /** false cuando la clase ya terminó (RF21): solo coordinación puede
@@ -430,7 +433,11 @@ export default function HistoryDrillDown({
   // Nivel 2: Detalle de Materia (Sesiones o Matriz de Inasistencias)
   if (selectedSubject) {
     const activeSessions = selectedSubject.sessions?.filter((s) => s.is_active !== false) || []
-    const archivedSessions = selectedSubject.sessions?.filter((s) => s.is_active === false) || []
+    // Una clase suspendida también es is_active = false, pero no es lo mismo
+    // que archivada: se muestra aparte, solo lectura, con su motivo.
+    const suspendedSessions = selectedSubject.sessions?.filter((s) => !!s.suspended_at) || []
+    const archivedSessions =
+      selectedSubject.sessions?.filter((s) => s.is_active === false && !s.suspended_at) || []
 
     // Métricas por cada alumno inscrito
     const enrolledStudents = (selectedSubject.enrollments || [])
@@ -543,7 +550,15 @@ export default function HistoryDrillDown({
       ])
     }
 
-    const SessionCard = ({ session, archived }: { session: Session; archived: boolean }) => {
+    const SessionCard = ({
+      session,
+      archived,
+      suspended = false,
+    }: {
+      session: Session
+      archived: boolean
+      suspended?: boolean
+    }) => {
       const [actionLoading, setActionLoading] = useState(false)
       const [showConfirm, setShowConfirm] = useState(false)
       const showToast = useToast()
@@ -618,14 +633,16 @@ export default function HistoryDrillDown({
           <div
             data-testid={`session-card-${session.id}`}
             className={`p-4 rounded-2xl border transition-all flex justify-between items-center group relative ${
-              archived
-                ? 'border-dashed border-gray-200 bg-gray-50/40 opacity-70'
-                : 'border-gray-200/80 bg-white hover:border-navy-300 hover:shadow-xs'
+              suspended
+                ? 'border-red-200/80 bg-red-50/30'
+                : archived
+                  ? 'border-dashed border-gray-200 bg-gray-50/40 opacity-70'
+                  : 'border-gray-200/80 bg-white hover:border-navy-300 hover:shadow-xs'
             }`}
           >
             <div
-              className={`flex-1 ${!archived ? 'cursor-pointer' : ''}`}
-              onClick={() => !archived && setSelectedSession(session)}
+              className={`flex-1 min-w-0 ${!archived && !suspended ? 'cursor-pointer' : ''}`}
+              onClick={() => !archived && !suspended && setSelectedSession(session)}
             >
               <div className="flex items-center gap-2 flex-wrap">
                 <h4
@@ -633,19 +650,30 @@ export default function HistoryDrillDown({
                 >
                   {format(new Date(session.date), "EEEE d 'de' MMMM", { locale: es })}
                 </h4>
-                {archived && (
+                {suspended && (
+                  <Badge variant="danger" size="sm">
+                    Suspendida
+                  </Badge>
+                )}
+                {archived && !suspended && (
                   <Badge variant="neutral" size="sm">
                     Archivada
                   </Badge>
                 )}
               </div>
-              <p className="text-xs font-medium text-gray-500 mt-1 flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-gray-400" strokeWidth={2} />
-                {session.attendances?.length || 0} estudiantes
-              </p>
+              {suspended ? (
+                <p className="text-xs text-gray-600 mt-1 wrap-break-word">
+                  {session.suspension_reason}
+                </p>
+              ) : (
+                <p className="text-xs font-medium text-gray-500 mt-1 flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-gray-400" strokeWidth={2} />
+                  {session.attendances?.length || 0} estudiantes
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-2">
-              {archived ? (
+              {suspended ? null : archived ? (
                 canManage ? (
                   <Button
                     onClick={handleReactivate}
@@ -784,7 +812,9 @@ export default function HistoryDrillDown({
         {/* Tab 1: Clases / Sesiones */}
         {subjectTab === 'sessions' && (
           <div>
-            {activeSessions.length === 0 && archivedSessions.length === 0 ? (
+            {activeSessions.length === 0 &&
+            archivedSessions.length === 0 &&
+            suspendedSessions.length === 0 ? (
               <div className="p-8 bg-gray-50 rounded-2xl">
                 <EmptyState
                   icon={<CalendarX2 className="w-5 h-5" />}
@@ -800,6 +830,26 @@ export default function HistoryDrillDown({
                       <SessionCard key={session.id} session={session} archived={false} />
                     ))}
                   </div>
+                )}
+                {suspendedSessions.length > 0 && (
+                  <>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+                      Suspendidas
+                    </p>
+                    <p className="text-xs text-gray-400 mb-3">
+                      No cuentan como dictadas: no generan inasistencias.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+                      {suspendedSessions.map((session) => (
+                        <SessionCard
+                          key={session.id}
+                          session={session}
+                          archived={false}
+                          suspended
+                        />
+                      ))}
+                    </div>
+                  </>
                 )}
                 {archivedSessions.length > 0 && (
                   <>
