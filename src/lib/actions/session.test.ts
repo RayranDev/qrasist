@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createSession } from './session'
 
 const mockGetUser = vi.fn()
-const mockSubjectSingle = vi.fn()
+const mockCheckSubjectProfessor = vi.fn()
 const mockSettingsMaybeSingle = vi.fn()
 const mockSchedulesResult = vi.fn()
 const mockInsert = vi.fn()
@@ -16,25 +16,36 @@ function chain(terminal: Record<string, unknown> = {}) {
   return Object.assign(c, terminal)
 }
 
+vi.mock('./authGuards', () => ({
+  checkSubjectProfessor: (...args: unknown[]) => mockCheckSubjectProfessor(...args),
+}))
+
+// Since migration 028 professors have no write policy on `sessions`, so the
+// insert must go through the service-role client, never the user client.
+vi.mock('@/lib/supabase/adminClient', () => ({
+  getSupabaseAdmin: () => ({
+    from: vi.fn((table: string) => {
+      if (table !== 'sessions') throw new Error(`unexpected admin table in test: ${table}`)
+      return {
+        insert: vi.fn((row: unknown) => {
+          mockInsert(row)
+          return { select: vi.fn(() => ({ single: mockInsertSingle })) }
+        }),
+      }
+    }),
+  }),
+}))
+
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
     auth: { getUser: mockGetUser },
     from: vi.fn((table: string) => {
-      if (table === 'subjects') return chain({ single: mockSubjectSingle })
       if (table === 'app_settings') return chain({ maybeSingle: mockSettingsMaybeSingle })
       if (table === 'subject_schedules') {
         // awaited directly after .eq(...)
         const c = chain()
         c.eq = vi.fn(() => mockSchedulesResult())
         return c
-      }
-      if (table === 'sessions') {
-        return {
-          insert: vi.fn((row: unknown) => {
-            mockInsert(row)
-            return { select: vi.fn(() => ({ single: mockInsertSingle })) }
-          }),
-        }
       }
       throw new Error(`unexpected table in test: ${table}`)
     }),
@@ -48,14 +59,14 @@ describe('createSession', () => {
     vi.useFakeTimers()
     vi.setSystemTime(NOW)
     mockGetUser.mockReset()
-    mockSubjectSingle.mockReset()
+    mockCheckSubjectProfessor.mockReset()
     mockSettingsMaybeSingle.mockReset()
     mockSchedulesResult.mockReset()
     mockInsert.mockReset()
     mockInsertSingle.mockReset()
 
     mockGetUser.mockResolvedValue({ data: { user: { id: 'prof-1' } } })
-    mockSubjectSingle.mockResolvedValue({ data: { id: 'subject-1' } })
+    mockCheckSubjectProfessor.mockResolvedValue(true)
     mockSettingsMaybeSingle.mockResolvedValue({
       data: { registration_window_minutes: 5, default_class_minutes: 120 },
     })
@@ -85,7 +96,7 @@ describe('createSession', () => {
   })
 
   it('rejects when the caller does not own the subject', async () => {
-    mockSubjectSingle.mockResolvedValue({ data: null })
+    mockCheckSubjectProfessor.mockResolvedValue(false)
 
     const result = await createSession('subject-1')
 
