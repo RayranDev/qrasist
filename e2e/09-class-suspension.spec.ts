@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
 import { loginAs } from './utils/auth'
 import { getLocalSupabaseEnv } from './utils/supabaseLocal'
-import { ADMIN_USER, PROFESSOR_USER, STUDENT_B, TEST_SUBJECT } from './seed/testUsers'
+import { ADMIN_USER, PROFESSOR_USER, STUDENT_A, STUDENT_B, TEST_SUBJECT } from './seed/testUsers'
 import { isColombianHoliday } from '../src/lib/utils/colombianHolidays'
 
 // RF20 (class suspension) and RF22 (justification of an unregistered class).
@@ -87,11 +87,16 @@ test.describe('class suspension (RF20)', () => {
     let sessionId: string | null = null
     const studentContext = await browser.newContext()
     const studentPage = await studentContext.newPage()
+    const studentAContext = await browser.newContext()
+    const studentAPage = await studentAContext.newPage()
 
     try {
       // Baseline: what student B sees before the class exists.
       await loginAs(studentPage, STUDENT_B.email, STUDENT_B.password)
       const lineBefore = await studentStatusLine(studentPage)
+      // Student A attended the seeded class and never scans the one below.
+      await loginAs(studentAPage, STUDENT_A.email, STUDENT_A.password)
+      const lineABefore = await studentStatusLine(studentAPage)
       const heldBefore = await countHeld()
 
       // Professor opens attendance from the subject card.
@@ -155,11 +160,18 @@ test.describe('class suspension (RF20)', () => {
 
       // Student B scanned it, yet the suspended class gives no credit and no new absence.
       expect(await studentStatusLine(studentPage)).toBe(lineBefore)
+      expect(await studentStatusLine(studentAPage)).toBe(lineABefore)
+
+      // The history lists the kept scan, labelled, and does not count it.
+      await studentPage.goto('/student/history')
+      await expect(studentPage.getByText('Clase suspendida', { exact: true })).toBeVisible()
 
       // The professor cannot open attendance again that day.
       await page.goto('/professor/subjects')
-      await expect(page.getByText('La clase de hoy está suspendida')).toBeVisible()
-      await expect(page.getByRole('button', { name: 'Iniciar Sesión (Generar QR)' })).toHaveCount(0)
+      await expect(page.getByText('La clase de hoy está suspendida', { exact: true })).toBeVisible()
+      // Only a makeup class can be opened now: the toggle is locked on.
+      await expect(page.getByRole('checkbox', { name: 'Es una reposición' })).toBeChecked()
+      await expect(page.getByRole('checkbox', { name: 'Es una reposición' })).toBeDisabled()
 
       // Coordination sees it flagged and can undo the suspension.
       const adminContext = await browser.newContext()
@@ -175,6 +187,14 @@ test.describe('class suspension (RF20)', () => {
           adminPage.getByText('Clase suspendida: no se registra asistencia.')
         ).toBeVisible()
 
+        // Coordination also sees it in the "Suspendidas" tab (who, why, scans kept).
+        await adminPage.goto('/admin/omissions?status=suspended')
+        await expect(adminPage.getByText('Corte de energía en el edificio.')).toBeVisible()
+        await expect(adminPage.getByText('1 asistencia conservada')).toBeVisible()
+        await adminPage.goto('/admin/dashboard')
+        await expect(adminPage.getByText('Clase suspendida (últimos 7 días)')).toBeVisible()
+
+        await adminPage.goto(`/admin/attendance?subjectId=${subject!.id}&sessionId=${sessionId}`)
         await adminPage.getByRole('button', { name: 'Deshacer suspensión' }).click()
         await adminPage
           .getByRole('dialog')
@@ -189,6 +209,9 @@ test.describe('class suspension (RF20)', () => {
           .single()
         expect(restored).toEqual({ is_active: true, suspended_at: null, suspension_reason: null })
         expect(await countHeld()).toBe(heldBefore + 1)
+
+        // The class counts again: student A (who never scanned it) has one more absence.
+        expect(await studentStatusLine(studentAPage)).not.toBe(lineABefore)
       } finally {
         await adminContext.close()
       }
@@ -196,6 +219,7 @@ test.describe('class suspension (RF20)', () => {
       // ON DELETE CASCADE takes the attendance rows with the session.
       if (sessionId) await admin.from('sessions').delete().eq('id', sessionId)
       await studentContext.close()
+      await studentAContext.close()
     }
   })
 
@@ -214,8 +238,9 @@ test.describe('class suspension (RF20)', () => {
       .insert({
         subject_id: subject!.id,
         day_of_week: bogotaWeekday(today),
-        start_time: '06:00',
-        end_time: '07:00',
+        // spans "now": a professor can only suspend while today's class has not ended
+        start_time: '00:00',
+        end_time: '23:59',
         modality: 'PRESENCIAL',
       })
       .select('id')
@@ -229,7 +254,7 @@ test.describe('class suspension (RF20)', () => {
       await modal.getByLabel(/Motivo/).fill('Paro de transporte, no hay condiciones.')
       await modal.getByRole('button', { name: 'Suspender clase' }).click()
 
-      await expect(page.getByText('La clase de hoy está suspendida')).toBeVisible()
+      await expect(page.getByText('La clase de hoy está suspendida', { exact: true })).toBeVisible()
 
       const { data: placeholders } = await admin
         .from('sessions')
@@ -241,8 +266,8 @@ test.describe('class suspension (RF20)', () => {
         is_active: false,
         qr_token: null,
         suspension_reason: 'Paro de transporte, no hay condiciones.',
-        // starts at the schedule block (06:00 Bogota = 11:00 UTC)
-        date: `${today}T11:00:00+00:00`,
+        // starts at the schedule block (00:00 Bogota = 05:00 UTC)
+        date: `${today}T05:00:00+00:00`,
       })
     } finally {
       await admin
@@ -251,6 +276,121 @@ test.describe('class suspension (RF20)', () => {
         .eq('subject_id', subject!.id)
         .not('suspended_at', 'is', null)
       await admin.from('subject_schedules').delete().eq('id', block!.id)
+    }
+  })
+})
+
+test.describe('class suspension edge cases (RF20)', () => {
+  test('a professor cannot file a suspension after the class of the day ended', async ({
+    page,
+  }) => {
+    const admin = serviceClient()
+    const { data: subject } = await admin
+      .from('subjects')
+      .select('id')
+      .eq('code', TEST_SUBJECT.code)
+      .single()
+    const today = bogotaDate(new Date())
+    const { data: block } = await admin
+      .from('subject_schedules')
+      .insert({
+        subject_id: subject!.id,
+        day_of_week: bogotaWeekday(today),
+        start_time: '00:00',
+        end_time: '00:01',
+        modality: 'PRESENCIAL',
+      })
+      .select('id')
+      .single()
+
+    try {
+      await loginAs(page, PROFESSOR_USER.email, PROFESSOR_USER.password)
+      // The class window is over: no suspend shortcut (the omission path is justification).
+      await expect(page.getByRole('button', { name: 'Iniciar Sesión (Generar QR)' })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Suspender clase de hoy' })).toHaveCount(0)
+    } finally {
+      await admin.from('subject_schedules').delete().eq('id', block!.id)
+    }
+  })
+
+  test('a same-day makeup takes over the scans kept in the suspended class', async ({ page }) => {
+    const admin = serviceClient()
+    const { data: subject } = await admin
+      .from('subjects')
+      .select('id')
+      .eq('code', TEST_SUBJECT.code)
+      .single()
+    const { data: studentB } = await admin
+      .from('profiles')
+      .select('id')
+      .eq('email', STUDENT_B.email)
+      .single()
+
+    // A class that was running, then got suspended after B scanned.
+    const startedAt = new Date(Date.now() - 20 * 60 * 1000)
+    const { data: suspended, error } = await admin
+      .from('sessions')
+      .insert({
+        subject_id: subject!.id,
+        date: startedAt.toISOString(),
+        duration_minutes: 5,
+        expires_at: new Date(startedAt.getTime() + 5 * 60 * 1000).toISOString(),
+        class_ends_at: new Date(startedAt.getTime() + 2 * 60 * 60 * 1000).toISOString(),
+        qr_token: null,
+        is_active: false,
+        suspended_at: new Date().toISOString(),
+        suspension_reason: 'Corte de energía en el edificio.',
+      })
+      .select('id')
+      .single()
+    expect(error).toBeNull()
+    const scannedAt = new Date(startedAt.getTime() + 2 * 60 * 1000).toISOString()
+    const { data: kept } = await admin
+      .from('attendances')
+      .insert({
+        session_id: suspended!.id,
+        student_id: studentB!.id,
+        scanned_at: scannedAt,
+        status: 'PRESENT',
+        ip_address: '203.0.113.7',
+      })
+      .select('id')
+      .single()
+
+    let makeupId: string | null = null
+    try {
+      await loginAs(page, PROFESSOR_USER.email, PROFESSOR_USER.password)
+      // The toggle is locked on (only a makeup can be opened); give it a reason.
+      await page.getByPlaceholder(/Clase perdida/).fill('Reposición de la clase suspendida hoy.')
+      await page.getByRole('button', { name: 'Iniciar Sesión (Generar QR)' }).click()
+      await page.waitForURL(/\/professor\/session\//)
+      makeupId = new URL(page.url()).pathname.split('/').pop()!
+
+      // The scan moved to the makeup class, untouched otherwise.
+      const { data: moved } = await admin
+        .from('attendances')
+        .select('session_id, scanned_at, ip_address, status')
+        .eq('id', kept!.id)
+        .single()
+      expect(moved).toMatchObject({
+        session_id: makeupId,
+        ip_address: '203.0.113.7',
+        status: 'PRESENT',
+      })
+      expect(new Date(moved!.scanned_at).toISOString()).toBe(scannedAt)
+
+      await expect(page.getByText('1 de 2 inscritos registrados')).toBeVisible()
+
+      const { data: audit } = await admin
+        .from('audit_log')
+        .select('details')
+        .eq('entity_id', makeupId)
+        .eq('action', 'attendance.relocate')
+      expect(audit).toHaveLength(1)
+      expect(audit![0].details).toMatchObject({ path: 'makeup_after_suspension', moved: 1 })
+    } finally {
+      await admin.from('sessions').delete().eq('id', suspended!.id)
+      if (makeupId) await admin.from('sessions').delete().eq('id', makeupId)
     }
   })
 })
