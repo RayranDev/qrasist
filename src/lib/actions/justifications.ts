@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { checkAdmin } from './authGuards'
 import { logAudit } from '@/lib/audit/auditLog'
 import {
-  JUSTIFICATION_WINDOW_DAYS,
+  JUSTIFICATION_BUSINESS_DAYS,
   validateAttachmentMeta,
   isSessionAlreadyHeld,
   isWithinJustificationWindow,
@@ -31,7 +31,7 @@ interface EligibleSession {
 
 /**
  * Vuelve a validar TODO del lado del servidor: sesión ya dictada,
- * dentro de la ventana de 7 días, estudiante activo e inscrito en la
+ * dentro de la ventana de 3 días hábiles, estudiante activo e inscrito en la
  * materia, y sin asistencia registrada para esa sesión. Nunca se
  * confía en subject_id/student_id que pudiera mandar el cliente --
  * se derivan siempre de la sesión y de la sesión de auth.
@@ -66,7 +66,7 @@ async function checkJustificationEligibility(
   if (!isWithinJustificationWindow(session.date)) {
     return {
       ok: false,
-      error: `El plazo de ${JUSTIFICATION_WINDOW_DAYS} días para justificar esta sesión ya venció.`,
+      error: `El plazo de ${JUSTIFICATION_BUSINESS_DAYS} días hábiles para justificar esta sesión ya venció.`,
     }
   }
 

@@ -7,7 +7,9 @@ import { createClient } from '@/lib/supabase/client'
 import { createJustificationUploadUrl, submitJustification } from '@/lib/actions/justifications'
 import {
   ALLOWED_ATTACHMENT_MIME_TYPES,
+  JUSTIFICATION_BUSINESS_DAYS,
   MAX_ATTACHMENT_SIZE_BYTES,
+  getJustificationDeadline,
 } from '@/lib/justifications/eligibility'
 import type { MissedSessionItem } from './missedSessions'
 
@@ -136,8 +138,18 @@ export default function JustifyModal({
             <X className="w-4 h-4" />
           </button>
         </div>
-        <p className="text-xs text-gray-500 mb-4">
+        <p className="text-xs text-gray-500 mb-1">
           {session.subjectName} · {new Date(session.date).toLocaleDateString('es-CO')}
+        </p>
+        <p className="text-xs text-gray-500 mb-4">
+          Plazo: {JUSTIFICATION_BUSINESS_DAYS} días hábiles después de la clase, hasta el{' '}
+          {new Intl.DateTimeFormat('es-CO', {
+            timeZone: 'America/Bogota',
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+          }).format(getJustificationDeadline(session.date))}
+          .
         </p>
 
         {isResubmit && session.justification?.reviewNote && (

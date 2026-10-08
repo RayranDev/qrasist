@@ -7,9 +7,12 @@
  * (formulario de justificación) para validar antes de enviar.
  */
 
-// Ventana de envío: hasta 7 días calendario después de la fecha de
-// la sesión. Pasado ese plazo, la falta ya no se puede justificar.
-export const JUSTIFICATION_WINDOW_DAYS = 7
+import { addBusinessDaysBogota, endOfBogotaDay } from '@/lib/utils/businessDays'
+
+// Ventana de envío (RF26): hasta 3 días HÁBILES después de la fecha de
+// la sesión -- sin contar sábados, domingos ni festivos de Colombia.
+// Pasado ese plazo, la falta ya no se puede justificar.
+export const JUSTIFICATION_BUSINESS_DAYS = 3
 
 export const MAX_ATTACHMENT_SIZE_BYTES = 5 * 1024 * 1024 // 5MB
 
@@ -93,17 +96,22 @@ export function isSessionAlreadyHeld(session: {
 }
 
 /**
- * Ventana de 7 días calendario contados desde la fecha de la sesión
- * (no desde que quedó "held"), para que el estudiante no pueda
- * estirar el plazo dejando pasar tiempo antes de que expire el QR.
+ * Último instante en que el estudiante puede justificar una sesión: el
+ * final (hora de Bogotá) del tercer día hábil posterior a la fecha de la
+ * sesión. Se cuenta desde la fecha de la sesión (no desde que quedó
+ * "held"), para que no se pueda estirar el plazo dejando pasar tiempo
+ * antes de que expire el QR.
  */
+export function getJustificationDeadline(sessionDate: string | Date): Date {
+  const deadlineDay = addBusinessDaysBogota(new Date(sessionDate), JUSTIFICATION_BUSINESS_DAYS)
+  return endOfBogotaDay(deadlineDay)
+}
+
 export function isWithinJustificationWindow(
   sessionDate: string | Date,
   reference: Date = new Date()
 ): boolean {
-  const sessionTime = new Date(sessionDate).getTime()
-  const deadline = sessionTime + JUSTIFICATION_WINDOW_DAYS * 24 * 60 * 60 * 1000
-  return reference.getTime() <= deadline
+  return reference.getTime() <= getJustificationDeadline(sessionDate).getTime()
 }
 
 export function validateReasonLength(reason: string): string | null {
