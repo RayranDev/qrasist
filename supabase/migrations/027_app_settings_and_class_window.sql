@@ -18,7 +18,10 @@
 --      profesor solo puede corregir asistencia hasta ese momento
 --      (RF21); después solo el coordinador (RF25 / RNF11). NULL en
 --      sesiones anteriores a esta migración: el código usa
---      sessions.date + default_class_minutes como respaldo.
+--      sessions.date + default_class_minutes como respaldo. Esta
+--      migración rellena esas filas (ver el backfill abajo) para que
+--      cambiar el default más adelante no corra retroactivamente las
+--      ventanas de edición de clases viejas.
 --
 --   3. sessions.note: nota opcional del coordinador al registrar una
 --      clase pasada a mano (contingencia de lista en papel).
@@ -75,3 +78,12 @@ BEGIN
       CHECK (note IS NULL OR char_length(note) <= 500);
   END IF;
 END $$;
+
+-- Backfill: sesiones previas a esta migración (class_ends_at NULL) quedan
+-- con date + 120 minutos, el default de default_class_minutes. Idempotente:
+-- solo toca filas que siguen en NULL. Una sesión creada por el código viejo
+-- de main DESPUÉS de este backfill queda en NULL y el código nuevo sigue
+-- usando el respaldo date + default_class_minutes para ella.
+UPDATE public.sessions
+SET class_ends_at = date + INTERVAL '120 minutes'
+WHERE class_ends_at IS NULL AND date IS NOT NULL;
