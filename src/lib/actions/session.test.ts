@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createSession } from './session'
+import { closeSession, createSession, refreshSessionQrToken } from './session'
 
 const mockGetUser = vi.fn()
 const mockCheckSubjectProfessor = vi.fn()
@@ -7,6 +7,8 @@ const mockSettingsMaybeSingle = vi.fn()
 const mockSchedulesResult = vi.fn()
 const mockInsert = vi.fn()
 const mockInsertSingle = vi.fn()
+const mockSessionSingle = vi.fn()
+const mockAdminUpdate = vi.fn()
 
 function chain(terminal: Record<string, unknown> = {}) {
   const c: Record<string, unknown> = {}
@@ -31,6 +33,10 @@ vi.mock('@/lib/supabase/adminClient', () => ({
           mockInsert(row)
           return { select: vi.fn(() => ({ single: mockInsertSingle })) }
         }),
+        update: vi.fn((values: unknown) => {
+          mockAdminUpdate(values)
+          return { eq: vi.fn(async () => ({ error: null })) }
+        }),
       }
     }),
   }),
@@ -40,6 +46,7 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
     auth: { getUser: mockGetUser },
     from: vi.fn((table: string) => {
+      if (table === 'sessions') return chain({ single: mockSessionSingle })
       if (table === 'app_settings') return chain({ maybeSingle: mockSettingsMaybeSingle })
       if (table === 'subject_schedules') {
         // awaited directly after .eq(...)
@@ -185,5 +192,51 @@ describe('createSession', () => {
       expect(result.success).toBe(true)
       expect(mockInsert.mock.calls[0][0].makeup_reason).toBe('Clase reprogramada por paro')
     })
+  })
+})
+
+describe('QR token refresh and manual close (service-role writes)', () => {
+  beforeEach(() => {
+    mockGetUser.mockReset()
+    mockCheckSubjectProfessor.mockReset()
+    mockSessionSingle.mockReset()
+    mockAdminUpdate.mockReset()
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'prof-1' } } })
+    mockCheckSubjectProfessor.mockResolvedValue(true)
+    mockSessionSingle.mockResolvedValue({
+      data: {
+        id: 'session-1',
+        subject_id: 'subject-1',
+        qr_token: 'old',
+        is_active: true,
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+      },
+    })
+  })
+
+  it('rotates the token through the service role for the owning professor', async () => {
+    const result = await refreshSessionQrToken('session-1')
+
+    expect(result.success).toBe(true)
+    expect(mockAdminUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ previous_qr_token: 'old' })
+    )
+  })
+
+  it('does not rotate or close for someone who does not own the subject', async () => {
+    mockCheckSubjectProfessor.mockResolvedValue(false)
+
+    expect((await refreshSessionQrToken('session-1')).success).toBe(false)
+    expect((await closeSession('session-1')).success).toBe(false)
+    expect(mockAdminUpdate).not.toHaveBeenCalled()
+  })
+
+  it('closes the QR window through the service role', async () => {
+    const result = await closeSession('session-1')
+
+    expect(result.success).toBe(true)
+    expect(mockAdminUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ qr_token: null, previous_qr_token: null })
+    )
   })
 })
