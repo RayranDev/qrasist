@@ -24,6 +24,7 @@ export type AuditAction =
   | 'user.reactivate'
   | 'user.update_account'
   | 'policy.update_global_absence'
+  | 'settings.update_attendance'
   | 'justification.approve'
   | 'justification.reject'
   | 'auth.password_reset'

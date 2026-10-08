@@ -3,6 +3,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { DEFAULT_ROTATION_SECONDS } from '@/lib/qrRotation'
 import { sessionConfigSchema } from '@/lib/validations/schemas'
+import { getAppSettings } from '@/lib/settings/appSettings'
+import { computeClassEndsAt, type ScheduleBlockTime } from '@/lib/sessions/classWindow'
 
 interface Coords {
   latitude: number
@@ -19,14 +21,20 @@ export interface SessionExtras {
 
 const MIN_MAKEUP_REASON_LENGTH = 5
 
+/**
+ * Abre la asistencia de una clase. La ventana de registro por QR NO la
+ * decide el cliente: sale de app_settings (configurable por el
+ * coordinador, RF11), y el fin de la clase (class_ends_at, RF21) se
+ * deduce del horario semanal de la materia o, en su defecto, de la
+ * duración de clase por defecto.
+ */
 export async function createSession(
   subjectId: string,
-  durationMinutes: number = 15,
   coords?: Coords,
   rotationSeconds: number = DEFAULT_ROTATION_SECONDS,
   extras?: SessionExtras
 ) {
-  const parsed = sessionConfigSchema.safeParse({ durationMinutes, rotationSeconds })
+  const parsed = sessionConfigSchema.pick({ rotationSeconds: true }).safeParse({ rotationSeconds })
   if (!parsed.success) {
     return {
       success: false,
@@ -67,16 +75,33 @@ export async function createSession(
 
   if (!subject) return { success: false, error: 'Materia no encontrada o acceso denegado.' }
 
-  // 3. Crear sesión con expires_at calculada en el futuro
-  const expiresAt = new Date()
-  expiresAt.setMinutes(expiresAt.getMinutes() + parsed.data.durationMinutes)
+  // 3. Ventana de registro y fin de clase, ambos derivados en el servidor
+  const [settings, { data: scheduleRows }] = await Promise.all([
+    getAppSettings(supabase),
+    supabase
+      .from('subject_schedules')
+      .select('day_of_week, start_time, end_time')
+      .eq('subject_id', subjectId),
+  ])
+
+  const startedAt = new Date()
+  const registrationWindowMinutes = settings.registrationWindowMinutes
+  const expiresAt = new Date(startedAt.getTime() + registrationWindowMinutes * 60_000)
+  const classEndsAt = computeClassEndsAt({
+    start: startedAt,
+    schedules: (scheduleRows || []) as ScheduleBlockTime[],
+    defaultClassMinutes: settings.defaultClassMinutes,
+    minimumEnd: expiresAt,
+  })
 
   const { data: newSession, error } = await supabase
     .from('sessions')
     .insert({
       subject_id: subjectId,
-      duration_minutes: parsed.data.durationMinutes,
+      date: startedAt.toISOString(),
+      duration_minutes: registrationWindowMinutes,
       expires_at: expiresAt.toISOString(),
+      class_ends_at: classEndsAt.toISOString(),
       latitude: coords?.latitude ?? null,
       longitude: coords?.longitude ?? null,
       qr_rotation_seconds: parsed.data.rotationSeconds,
@@ -91,7 +116,7 @@ export async function createSession(
     return { success: false, error: 'No se pudo crear la sesión.' }
   }
 
-  return { success: true, sessionId: newSession.id }
+  return { success: true, sessionId: newSession.id, registrationWindowMinutes }
 }
 
 export async function refreshSessionQrToken(sessionId: string) {

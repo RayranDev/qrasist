@@ -31,9 +31,13 @@ function defaultModalityForToday(schedules: ScheduleBlock[]): SessionModality {
 export default function SessionButton({
   subjectId,
   schedules = [],
+  registrationWindowMinutes,
 }: {
   subjectId: string
   schedules?: ScheduleBlock[]
+  /** Ventana de registro vigente (la define coordinación; el servidor la
+   * vuelve a leer al crear la sesión, este valor solo se muestra). */
+  registrationWindowMinutes: number
 }) {
   const [loading, setLoading] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
@@ -59,7 +63,7 @@ export default function SessionButton({
     }
     setLoading(true)
     const coords = await getBestEffortLocation()
-    const res = await createSession(subjectId, 15, coords || undefined, rotationSeconds, {
+    const res = await createSession(subjectId, coords || undefined, rotationSeconds, {
       modality,
       isMakeup,
       makeupReason: isMakeup ? trimmedMakeupReason : undefined,
@@ -170,6 +174,10 @@ export default function SessionButton({
       >
         {loading ? 'Generando...' : 'Iniciar Sesión (Generar QR)'}
       </button>
+      <p className="text-xs text-gray-500 text-center mt-2">
+        Los estudiantes tienen {registrationWindowMinutes}{' '}
+        {registrationWindowMinutes === 1 ? 'minuto' : 'minutos'} para registrarse.
+      </p>
     </div>
   )
 }

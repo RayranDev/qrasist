@@ -8,6 +8,7 @@ import { Users, BookOpen, AlertTriangle } from 'lucide-react'
 import InstitutionMark from '@/components/brand/InstitutionMark'
 import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
 import { fetchAllRows } from '@/lib/supabase/fetchAll'
+import { getAppSettings } from '@/lib/settings/appSettings'
 
 export default async function ProfessorSubjectsPage() {
   const supabase = await createClient()
@@ -30,6 +31,8 @@ export default async function ProfessorSubjectsPage() {
     )
     .eq('professor_id', user.id)
     .eq('is_active', true)
+
+  const { registrationWindowMinutes } = await getAppSettings(supabase)
 
   const firstName = profile?.first_name || 'Profe'
   const pendingJustificationsTotal = (subjects || []).reduce(
@@ -239,6 +242,7 @@ export default async function ProfessorSubjectsPage() {
                     />
                     <SessionButton
                       subjectId={sub.id}
+                      registrationWindowMinutes={registrationWindowMinutes}
                       schedules={
                         (sub.subject_schedules as
                           { day_of_week: number; modality: 'PRESENCIAL' | 'VIRTUAL' }[] | null) ||

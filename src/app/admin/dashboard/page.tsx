@@ -3,11 +3,13 @@ import { redirect } from 'next/navigation'
 import AdminHeader from '@/components/admin/AdminHeader'
 import PaginatedConsolidatedBoard from '@/components/admin/PaginatedConsolidatedBoard'
 import GlobalAbsencePolicyModal from '@/components/admin/GlobalAbsencePolicyModal'
+import AttendanceSettingsModal from '@/components/admin/AttendanceSettingsModal'
 import PeriodReportExport from '@/components/admin/PeriodReportExport'
 import AttentionArea from '@/components/admin/dashboard/AttentionArea'
 import AttendanceSummary from '@/components/admin/dashboard/AttendanceSummary'
 import OnboardingChecklist from '@/components/admin/dashboard/OnboardingChecklist'
 import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
+import { getAppSettings } from '@/lib/settings/appSettings'
 import {
   buildAttentionItems,
   computeOnboardingSteps,
@@ -34,6 +36,8 @@ export default async function AdminDashboardPage({
     .eq('id', user.id)
     .single()
   if (!profile || profile.role !== 'ADMIN') redirect('/login')
+
+  const appSettings = await getAppSettings(supabase)
 
   // Conteos generales (solo activos) + Asistencias y Sesiones
   const [
@@ -367,6 +371,10 @@ export default async function AdminDashboardPage({
               initialLateAfterMinutes={defaultLateAfterMinutes}
               initialLatesPerAbsence={defaultLatesPerAbsence}
               totalSubjectsCount={totalSubjects ?? 0}
+            />
+            <AttendanceSettingsModal
+              initialRegistrationWindowMinutes={appSettings.registrationWindowMinutes}
+              initialDefaultClassMinutes={appSettings.defaultClassMinutes}
             />
             {periods && periods.length > 0 && <PeriodReportExport periods={periods} />}
           </div>

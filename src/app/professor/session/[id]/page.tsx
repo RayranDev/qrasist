@@ -52,6 +52,10 @@ export default async function ProfessorSessionPage({
                 Código de Asistencia
               </h1>
               <p className="text-gray-500 mt-1">Materia: {session.subject?.name}</p>
+              <p className="text-gray-400 text-sm mt-0.5">
+                Los estudiantes tienen {session.duration_minutes}{' '}
+                {session.duration_minutes === 1 ? 'minuto' : 'minutos'} para registrarse.
+              </p>
             </div>
           </header>
 
