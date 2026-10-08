@@ -27,6 +27,7 @@ export default function SessionRosterPanel({
   const [collapsed, setCollapsed] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [canEdit, setCanEdit] = useState(true)
+  const [suspended, setSuspended] = useState(false)
 
   const fetchRoster = useCallback(async () => {
     const res = await getSessionRoster(sessionId)
@@ -35,6 +36,7 @@ export default function SessionRosterPanel({
       setTotalEnrolled(res.totalEnrolled ?? 0)
       setTotalRegistered(res.totalRegistered ?? 0)
       setCanEdit(res.canEdit !== false)
+      setSuspended(res.suspended === true)
     }
     setLoaded(true)
   }, [sessionId])
@@ -75,11 +77,13 @@ export default function SessionRosterPanel({
               {totalRegistered} de {totalEnrolled} inscritos registrados
             </p>
             <p className="text-xs text-gray-400">
-              {!canEdit
-                ? PAST_CLASS_EDIT_MESSAGE
-                : autoRefresh
-                  ? 'Se actualiza automáticamente cada 5s'
-                  : 'Cada cambio exige un motivo y queda en la bitácora'}
+              {suspended
+                ? 'Clase suspendida: no se registra asistencia.'
+                : !canEdit
+                  ? PAST_CLASS_EDIT_MESSAGE
+                  : autoRefresh
+                    ? 'Se actualiza automáticamente cada 5s'
+                    : 'Cada cambio exige un motivo y queda en la bitácora'}
             </p>
           </div>
         </div>

@@ -17,6 +17,8 @@ interface AttendanceRecord {
   session: {
     id: string
     date: string
+    is_active?: boolean | null
+    suspended_at?: string | null
     subject: {
       id: string
       name: string
@@ -53,6 +55,8 @@ export default async function StudentHistoryPage() {
         session:sessions (
           id,
           date,
+          is_active,
+          suspended_at,
           subject:subjects (
             id,
             name,
@@ -91,7 +95,10 @@ export default async function StudentHistoryPage() {
     return a.subjectName.localeCompare(b.subjectName)
   })
 
-  const totalRecords = records.length
+  // Solo cuentan las asistencias de clases dictadas (is_active): las de una
+  // clase suspendida o archivada se listan con su etiqueta pero no suman,
+  // igual que en el resumen de faltas de cada materia.
+  const totalRecords = records.filter((r) => r.session?.is_active !== false).length
 
   return (
     <div className="pt-2 flex flex-col">
@@ -131,7 +138,14 @@ export default async function StudentHistoryPage() {
                           <LocalTime date={record.scanned_at} />
                         </p>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          {record.marked_by ? (
+                          {record.session?.is_active === false ? (
+                            <Badge
+                              variant={record.session.suspended_at ? 'danger' : 'neutral'}
+                              size="sm"
+                            >
+                              {record.session.suspended_at ? 'Clase suspendida' : 'Clase archivada'}
+                            </Badge>
+                          ) : record.marked_by ? (
                             <Badge variant="neutral" size="sm">
                               Manual
                             </Badge>

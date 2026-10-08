@@ -149,7 +149,7 @@ export async function getStudentSubjectRisks(
       fetchAllRows<AttendanceRow>((from, to) =>
         supabase
           .from('attendances')
-          .select('status, session:sessions(subject_id)')
+          .select('status, session:sessions(subject_id, is_active)')
           .eq('student_id', studentId)
           .range(from, to)
       ),
@@ -172,7 +172,11 @@ export async function getStudentSubjectRisks(
   const attendedBySubject = new Map<string, number>()
   const lateBySubject = new Map<string, number>()
   for (const a of attendances) {
-    const subjectId = (a.session as unknown as { subject_id: string } | null)?.subject_id
+    const session = a.session as unknown as { subject_id: string; is_active: boolean | null } | null
+    // Asistencias de clases archivadas o suspendidas (is_active = false) no
+    // cuentan: esas clases tampoco están en sessionsHeld.
+    if (!session || session.is_active === false) continue
+    const subjectId = session.subject_id
     if (!subjectId || !subjectIdSet.has(subjectId)) continue
     attendedBySubject.set(subjectId, (attendedBySubject.get(subjectId) || 0) + 1)
     if (a.status === 'LATE') {

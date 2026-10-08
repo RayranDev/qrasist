@@ -15,15 +15,20 @@ export default function PastClassModal({
   subjectId,
   subjectName,
   careerId,
+  defaultStartsAt = '',
+  buttonLabel = 'Registrar clase pasada',
 }: {
   subjectId: string
   subjectName: string
   careerId?: string
+  /** 'YYYY-MM-DDTHH:mm' precargado (ej. desde la lista de clases sin registrar). */
+  defaultStartsAt?: string
+  buttonLabel?: string
 }) {
   const router = useRouter()
   const showToast = useToast()
   const [isOpen, setIsOpen] = useState(false)
-  const [startsAt, setStartsAt] = useState('')
+  const [startsAt, setStartsAt] = useState(defaultStartsAt)
   const [modality, setModality] = useState('PRESENCIAL')
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
@@ -67,7 +72,7 @@ export default function PastClassModal({
         leftIcon={<CalendarPlus className="w-4 h-4" />}
         onClick={() => setIsOpen(true)}
       >
-        Registrar clase pasada
+        {buttonLabel}
       </Button>
 
       {isOpen && (

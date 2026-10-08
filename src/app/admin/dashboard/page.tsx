@@ -10,6 +10,8 @@ import AttendanceSummary from '@/components/admin/dashboard/AttendanceSummary'
 import OnboardingChecklist from '@/components/admin/dashboard/OnboardingChecklist'
 import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
 import { getAppSettings } from '@/lib/settings/appSettings'
+import { countUnjustified, fetchClassOmissions } from '@/lib/attendance/classOmissionsData'
+import { countRecentSuspensions } from '@/lib/attendance/suspendedClasses'
 import {
   buildAttentionItems,
   computeOnboardingSteps,
@@ -45,7 +47,6 @@ export default async function AdminDashboardPage({
     { count: totalStudents },
     { count: totalSubjects },
     { count: totalCareers },
-    { count: totalAttendances },
     { count: totalSessions },
     { count: periodsActiveCount },
     { count: pendingJustificationsTotal },
@@ -63,7 +64,6 @@ export default async function AdminDashboardPage({
       .eq('is_active', true),
     supabase.from('subjects').select('*', { count: 'exact', head: true }).eq('is_active', true),
     supabase.from('careers').select('*', { count: 'exact', head: true }).eq('is_active', true),
-    supabase.from('attendances').select('*', { count: 'exact', head: true }),
     supabase.from('sessions').select('*', { count: 'exact', head: true }).eq('is_active', true),
     supabase.from('periods').select('*', { count: 'exact', head: true }).eq('is_active', true),
     supabase
@@ -206,7 +206,7 @@ export default async function AdminDashboardPage({
   // Registro de asistencias para cálculo de alumnos en riesgo
   const { data: allAttendanceRecords } = await supabase
     .from('attendances')
-    .select('student_id, session_id, status, session:sessions(subject_id)')
+    .select('student_id, session_id, status, session:sessions(subject_id, is_active)')
 
   // Justificaciones aprobadas: descuentan la falta en computeAttendanceSummary
   const { data: allApprovedJustifications } = await supabase
@@ -234,7 +234,10 @@ export default async function AdminDashboardPage({
   const studentSubjectAttendances = new Map<string, number>()
   const studentSubjectLateCounts = new Map<string, number>()
   for (const att of allAttendanceRecords || []) {
-    const subjId = (att.session as { subject_id?: string } | null)?.subject_id
+    const attSession = att.session as { subject_id?: string; is_active?: boolean | null } | null
+    // Clases archivadas o suspendidas no cuentan como dictadas, y sus
+    // asistencias tampoco.
+    const subjId = attSession?.is_active === false ? undefined : attSession?.subject_id
     if (subjId && att.student_id) {
       const key = `${att.student_id}_${subjId}`
       studentSubjectAttendances.set(key, (studentSubjectAttendances.get(key) || 0) + 1)
@@ -244,7 +247,13 @@ export default async function AdminDashboardPage({
     }
   }
 
-  // Tasa de presentismo: asistencias efectivas / asistencias esperadas
+  // Tasa de presentismo: asistencias efectivas / asistencias esperadas.
+  // El numerador sale del mapa ya filtrado a clases dictadas (is_active),
+  // igual que el denominador: las asistencias conservadas de una clase
+  // suspendida o archivada no inflan el porcentaje.
+  let totalAttendances = 0
+  for (const count of studentSubjectAttendances.values()) totalAttendances += count
+
   let totalExpectedAttendances = 0
   for (const s of allSubjects || []) {
     const enrolled = (s.enrollments as { student_id: string }[] | null)?.length || 0
@@ -254,8 +263,8 @@ export default async function AdminDashboardPage({
 
   const attendanceRate =
     totalExpectedAttendances > 0
-      ? Math.min(100, Math.round(((totalAttendances ?? 0) / totalExpectedAttendances) * 1000) / 10)
-      : (totalAttendances ?? 0) > 0
+      ? Math.min(100, Math.round((totalAttendances / totalExpectedAttendances) * 1000) / 10)
+      : totalAttendances > 0
         ? 100
         : 0
 
@@ -302,11 +311,22 @@ export default async function AdminDashboardPage({
   const defaultLateAfterMinutes = sampleSubject?.late_after_minutes ?? 15
   const defaultLatesPerAbsence = sampleSubject?.lates_per_absence ?? null
 
+  // Clases programadas que ningún docente registró ni justificó (RF22).
+  // Se calcula al leer a partir de horario x período x sesiones; vacío si no
+  // hay materias con período y horario.
+  const [classOmissions, recentSuspensionsCount] = await Promise.all([
+    fetchClassOmissions(supabase),
+    countRecentSuspensions(supabase),
+  ])
+  const unregisteredClassesCount = countUnjustified(classOmissions)
+
   // ==================== BLOQUE "HOY": QUÉ NECESITA ACCIÓN ====================
   const attentionItems = buildAttentionItems(
     {
       pendingEnrollmentRequests: pendingEnrollmentRequestsTotal,
       pendingJustifications: pendingJustificationsTotal ?? 0,
+      unregisteredClasses: unregisteredClassesCount,
+      recentSuspensions: recentSuspensionsCount,
       atRiskStudents: studentsAtRiskCount,
       activeSessionsNow: openSessionsNow ?? 0,
     },
@@ -315,6 +335,8 @@ export default async function AdminDashboardPage({
         ? `/professor/subjects/${topRequestSubjectId}/requests`
         : null,
       justificationsHref: '/admin/justifications?status=PENDING',
+      unregisteredClassesHref: '/admin/omissions?status=unjustified',
+      recentSuspensionsHref: '/admin/omissions?status=suspended',
       atRiskStudentsHref: '/admin/dashboard?tab=students#consolidado',
       activeSessionsHref: '/admin/dashboard#consolidado',
     }
@@ -354,9 +376,9 @@ export default async function AdminDashboardPage({
 
           <AttendanceSummary
             attendanceRate={attendanceRate}
-            totalAttendances={totalAttendances ?? 0}
+            totalAttendances={totalAttendances}
             totalSessions={totalSessions ?? 0}
-            hasExpectedAttendances={totalExpectedAttendances > 0 || (totalAttendances ?? 0) > 0}
+            hasExpectedAttendances={totalExpectedAttendances > 0 || totalAttendances > 0}
           />
 
           {showOnboarding && <OnboardingChecklist steps={onboardingSteps} />}

@@ -32,12 +32,15 @@ export default function SessionButton({
   subjectId,
   schedules = [],
   registrationWindowMinutes,
+  makeupOnly = false,
 }: {
   subjectId: string
   schedules?: ScheduleBlock[]
   /** Ventana de registro vigente (la define coordinación; el servidor la
    * vuelve a leer al crear la sesión, este valor solo se muestra). */
   registrationWindowMinutes: number
+  /** La clase de hoy fue suspendida (RF20): solo se puede abrir una reposición. */
+  makeupOnly?: boolean
 }) {
   const [loading, setLoading] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
@@ -45,7 +48,7 @@ export default function SessionButton({
   const [modality, setModality] = useState<SessionModality>(() =>
     defaultModalityForToday(schedules)
   )
-  const [isMakeup, setIsMakeup] = useState(false)
+  const [isMakeup, setIsMakeup] = useState(makeupOnly)
   const [makeupReason, setMakeupReason] = useState('')
   const router = useRouter()
   const showToast = useToast()
@@ -97,11 +100,18 @@ export default function SessionButton({
           <input
             type="checkbox"
             checked={isMakeup}
+            disabled={makeupOnly}
             onChange={(e) => setIsMakeup(e.target.checked)}
             className="w-4 h-4 rounded border-gray-300 text-navy-700 focus:ring-navy-600"
           />
           Es una reposición
         </label>
+        {makeupOnly && (
+          <p className="text-[11px] text-gray-500 leading-relaxed">
+            La clase de hoy está suspendida: solo puedes abrir una reposición. Las asistencias que
+            ya se habían escaneado pasan a la reposición.
+          </p>
+        )}
 
         {isMakeup && (
           <div>

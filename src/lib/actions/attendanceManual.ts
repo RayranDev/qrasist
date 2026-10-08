@@ -16,6 +16,9 @@ interface ActionResult {
 
 const MIN_REASON_LENGTH = 5
 
+const SUSPENDED_ATTENDANCE_MESSAGE =
+  'La clase está suspendida: no se registra asistencia. Coordinación puede deshacer la suspensión.'
+
 function validateReason(reason: string): string | null {
   if (reason.trim().length < MIN_REASON_LENGTH) {
     return `El motivo debe tener al menos ${MIN_REASON_LENGTH} caracteres.`
@@ -61,7 +64,7 @@ export async function markAttendanceManually({
 
   const { data: session } = await supabase
     .from('sessions')
-    .select('id, date, subject_id, class_ends_at')
+    .select('id, date, subject_id, class_ends_at, suspended_at')
     .eq('id', sessionId)
     .single()
   if (!session) return { success: false, error: 'Sesión no encontrada.' }
@@ -70,6 +73,12 @@ export async function markAttendanceManually({
   // únicamente coordinación (ADMIN).
   const editAuth = await authorizeAttendanceEdit(supabase, user.id, session)
   if (!editAuth.ok) return { success: false, error: editAuth.error }
+
+  // RF20: una clase suspendida no toma asistencia. Si fue un error,
+  // coordinación deshace la suspensión primero.
+  if (session.suspended_at) {
+    return { success: false, error: SUSPENDED_ATTENDANCE_MESSAGE }
+  }
 
   const { data: enrollment } = await supabase
     .from('enrollments')
@@ -296,8 +305,11 @@ export async function getSessionRoster(sessionId: string): Promise<{
   totalEnrolled?: number
   totalRegistered?: number
   /** false cuando la clase ya terminó y quien consulta es el profesor
-   * (RF21): la lista se puede ver, pero ya no modificar. */
+   * (RF21), o cuando la clase está suspendida: la lista se puede ver, pero
+   * ya no modificar. */
   canEdit?: boolean
+  /** La clase fue suspendida (RF20): no cuenta como dictada. */
+  suspended?: boolean
 }> {
   const supabase = await createClient()
   const {
@@ -307,7 +319,7 @@ export async function getSessionRoster(sessionId: string): Promise<{
 
   const { data: session } = await supabase
     .from('sessions')
-    .select('id, subject_id, date, class_ends_at')
+    .select('id, subject_id, date, class_ends_at, suspended_at')
     .eq('id', sessionId)
     .single()
   if (!session) return { success: false, error: 'Sesión no encontrada.' }
@@ -353,6 +365,7 @@ export async function getSessionRoster(sessionId: string): Promise<{
     roster,
     totalEnrolled: roster.length,
     totalRegistered: roster.filter((r) => r.status !== null).length,
-    canEdit: editAuth.ok,
+    canEdit: editAuth.ok && !session.suspended_at,
+    suspended: !!session.suspended_at,
   }
 }

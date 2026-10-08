@@ -8,6 +8,8 @@ interface ReasonModalProps {
   description?: string
   confirmLabel: string
   confirmVariant?: 'primary' | 'danger'
+  /** Ejemplo gris del textarea; por defecto uno de corrección de asistencia. */
+  placeholder?: string
   loading?: boolean
   onCancel: () => void
   onConfirm: (reason: string) => void
@@ -20,6 +22,7 @@ export default function ReasonModal({
   description,
   confirmLabel,
   confirmVariant = 'primary',
+  placeholder = 'Ej. Llegó justo cuando se cerraba el QR',
   loading = false,
   onCancel,
   onConfirm,
@@ -60,7 +63,7 @@ export default function ReasonModal({
           onChange={(e) => setReason(e.target.value)}
           rows={3}
           className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:border-navy-600 focus:ring-2 focus:ring-navy-100 transition-all mb-4"
-          placeholder="Ej. Llegó justo cuando se cerraba el QR"
+          placeholder={placeholder}
         />
 
         <div className="flex gap-3">

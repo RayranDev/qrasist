@@ -57,6 +57,8 @@ export default async function ProfessorHistoryPage({
         class_ends_at,
         duration_minutes,
         is_active,
+        suspended_at,
+        suspension_reason,
         latitude,
         longitude,
         attendances (
