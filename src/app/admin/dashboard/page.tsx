@@ -10,6 +10,7 @@ import AttendanceSummary from '@/components/admin/dashboard/AttendanceSummary'
 import OnboardingChecklist from '@/components/admin/dashboard/OnboardingChecklist'
 import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
 import { getAppSettings } from '@/lib/settings/appSettings'
+import { countUnjustified, fetchClassOmissions } from '@/lib/attendance/classOmissionsData'
 import {
   buildAttentionItems,
   computeOnboardingSteps,
@@ -305,11 +306,17 @@ export default async function AdminDashboardPage({
   const defaultLateAfterMinutes = sampleSubject?.late_after_minutes ?? 15
   const defaultLatesPerAbsence = sampleSubject?.lates_per_absence ?? null
 
+  // Clases programadas que ningún docente registró ni justificó (RF22).
+  // Se calcula al leer a partir de horario x período x sesiones; vacío si no
+  // hay materias con período y horario.
+  const unregisteredClassesCount = countUnjustified(await fetchClassOmissions(supabase))
+
   // ==================== BLOQUE "HOY": QUÉ NECESITA ACCIÓN ====================
   const attentionItems = buildAttentionItems(
     {
       pendingEnrollmentRequests: pendingEnrollmentRequestsTotal,
       pendingJustifications: pendingJustificationsTotal ?? 0,
+      unregisteredClasses: unregisteredClassesCount,
       atRiskStudents: studentsAtRiskCount,
       activeSessionsNow: openSessionsNow ?? 0,
     },
@@ -318,6 +325,7 @@ export default async function AdminDashboardPage({
         ? `/professor/subjects/${topRequestSubjectId}/requests`
         : null,
       justificationsHref: '/admin/justifications?status=PENDING',
+      unregisteredClassesHref: '/admin/omissions?status=unjustified',
       atRiskStudentsHref: '/admin/dashboard?tab=students#consolidado',
       activeSessionsHref: '/admin/dashboard#consolidado',
     }

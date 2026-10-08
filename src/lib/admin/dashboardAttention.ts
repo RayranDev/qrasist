@@ -18,6 +18,8 @@ export interface AttentionItem {
 export interface AttentionCounts {
   pendingEnrollmentRequests: number
   pendingJustifications: number
+  /** Clases programadas sin ninguna sesión y sin justificar (RF22). */
+  unregisteredClasses: number
   atRiskStudents: number
   activeSessionsNow: number
 }
@@ -25,6 +27,7 @@ export interface AttentionCounts {
 export interface AttentionLinks {
   enrollmentRequestsHref: string | null
   justificationsHref: string
+  unregisteredClassesHref: string
   atRiskStudentsHref: string
   activeSessionsHref: string
 }
@@ -58,6 +61,16 @@ export function buildAttentionItems(
           : 'Justificaciones de inasistencia pendientes',
       count: counts.pendingJustifications,
       href: links.justificationsHref,
+      tone: 'warning',
+    },
+    {
+      key: 'unregistered-classes',
+      label:
+        counts.unregisteredClasses === 1
+          ? 'Clase no registrada por un docente'
+          : 'Clases no registradas por docentes',
+      count: counts.unregisteredClasses,
+      href: links.unregisteredClassesHref,
       tone: 'warning',
     },
     {

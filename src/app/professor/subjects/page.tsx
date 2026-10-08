@@ -6,6 +6,8 @@ import ProfileModal from './ProfileModal'
 import EnrollmentCodeSection from './EnrollmentCodeSection'
 import { Users, BookOpen, AlertTriangle, Ban } from 'lucide-react'
 import SuspendClassButton from '@/components/attendance/SuspendClassButton'
+import ClassOmissionsPanel from './ClassOmissionsPanel'
+import { fetchClassOmissions } from '@/lib/attendance/classOmissionsData'
 import { canProfessorEditSession } from '@/lib/sessions/classWindow'
 import { getBogotaDayRange } from '@/lib/utils/bogotaDay'
 import { bogotaCalendarDate } from '@/lib/utils/businessDays'
@@ -81,6 +83,17 @@ export default async function ProfessorSubjectsPage() {
     todaySessionsBySubject.set(row.subject_id, [
       ...(todaySessionsBySubject.get(row.subject_id) || []),
       row,
+    ])
+  }
+
+  // RF22: clases del horario sin ninguna sesión (justificadas o no), por
+  // materia. Vacío si la materia no tiene período con fechas ni horario.
+  const omissionItems = await fetchClassOmissions(supabase, { subjectIds, now })
+  const omissionsBySubject = new Map<string, typeof omissionItems>()
+  for (const item of omissionItems) {
+    omissionsBySubject.set(item.subjectId, [
+      ...(omissionsBySubject.get(item.subjectId) || []),
+      item,
     ])
   }
 
@@ -265,6 +278,16 @@ export default async function ProfessorSubjectsPage() {
                         )}
                       </div>
                     </div>
+                    <ClassOmissionsPanel
+                      subjectId={sub.id}
+                      omissions={(omissionsBySubject.get(sub.id) || []).map((o) => ({
+                        date: o.date,
+                        startTime: o.startTime,
+                        endTime: o.endTime,
+                        justified: o.justified,
+                        reason: o.reason,
+                      }))}
+                    />
                     <EnrollmentCodeSection
                       subjectId={sub.id}
                       code={sub.enrollment_code}

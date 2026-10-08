@@ -34,6 +34,21 @@ import { isColombianHoliday } from '@/lib/utils/colombianHolidays'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
+export const MIN_OMISSION_REASON_LENGTH = 5
+/** Igual que el CHECK de class_omissions.reason (migración 029). */
+export const MAX_OMISSION_REASON_LENGTH = 1000
+
+export function validateOmissionReason(reason: string): string | null {
+  const trimmed = reason.trim()
+  if (trimmed.length < MIN_OMISSION_REASON_LENGTH) {
+    return `El motivo debe tener al menos ${MIN_OMISSION_REASON_LENGTH} caracteres.`
+  }
+  if (trimmed.length > MAX_OMISSION_REASON_LENGTH) {
+    return `El motivo no puede superar ${MAX_OMISSION_REASON_LENGTH} caracteres.`
+  }
+  return null
+}
+
 export interface OmissionScheduleBlock {
   id: string
   /** 0 = domingo ... 6 = sábado */
