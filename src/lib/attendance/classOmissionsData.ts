@@ -17,6 +17,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/supabase/fetchAll'
 import { bogotaInstant } from '@/lib/utils/bogotaDay'
+import { bogotaCalendarDate, endOfBogotaDay } from '@/lib/utils/businessDays'
 import {
   findClassOmissions,
   summarizeClassStats,
@@ -104,7 +105,7 @@ function chunk<T>(items: T[], size: number): T[][] {
 
 async function loadContexts(
   supabase: SupabaseClient,
-  { subjectIds }: ClassOmissionQuery
+  { subjectIds, now = new Date() }: ClassOmissionQuery
 ): Promise<SubjectOmissionContext[]> {
   if (subjectIds && subjectIds.length === 0) return []
 
@@ -153,15 +154,26 @@ async function loadContexts(
   if (scheduled.length === 0) return []
 
   const scheduledIds = scheduled.map((s) => s.row.id)
-  const earliestStart = scheduled
-    .map((s) => s.period.start_date as string)
-    .reduce((min, d) => (d < min ? d : min))
-  const sessionsSince = bogotaInstant(earliestStart, 0).toISOString()
+  const periodBySubject = new Map(scheduled.map((s) => [s.row.id, s.period]))
+  const today = bogotaCalendarDate(now)
 
   // 2. Sesiones (cualquier estado) y justificaciones, solo de esas materias.
   const sessionsBySubject = new Map<string, SessionRow[]>()
   const justificationsBySubject = new Map<string, JustificationRow[]>()
   for (const part of chunk(scheduledIds, SUBJECT_CHUNK)) {
+    // Ventana de sesiones por lote: desde el inicio más temprano de los
+    // períodos del lote hasta el menor entre el fin más tardío y hoy (las
+    // sesiones posteriores a hoy no pueden cubrir un día ya vencido).
+    const periods = part.map((id) => periodBySubject.get(id) as OmissionPeriod)
+    const windowStart = periods
+      .map((p) => p.start_date as string)
+      .reduce((min, d) => (d < min ? d : min))
+    const latestEnd = periods
+      .map((p) => p.end_date as string)
+      .reduce((max, d) => (d > max ? d : max))
+    const sessionsSince = bogotaInstant(windowStart, 0).toISOString()
+    const sessionsUntil = endOfBogotaDay(latestEnd < today ? latestEnd : today).toISOString()
+
     const [{ data: sessions }, { data: justifications }] = await Promise.all([
       fetchAllRows<SessionRow>((from, to) =>
         supabase
@@ -169,6 +181,7 @@ async function loadContexts(
           .select('id, subject_id, date, is_active, suspended_at')
           .in('subject_id', part)
           .gte('date', sessionsSince)
+          .lte('date', sessionsUntil)
           .order('id')
           .range(from, to)
       ),

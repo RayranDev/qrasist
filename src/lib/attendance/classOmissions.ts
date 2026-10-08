@@ -16,7 +16,7 @@
  *    vez terminado el último bloque del día (no se acusa a nadie de omitir
  *    una clase que todavía no termina).
  *  - Un bloque solo cuenta desde que existe: se ignoran los días en que el
- *    bloque terminó antes de su created_at. Así agregar un bloque a mitad
+ *    bloque empezó antes de su created_at. Así agregar un bloque a mitad
  *    de período no marca las semanas anteriores.
  *  - Los festivos colombianos no tienen clase esperada.
  *  - Está "cubierto" si existe CUALQUIER sesión de la materia ese día de
@@ -144,9 +144,11 @@ export function listExpectedClassDays({
     if (isColombianHoliday(date)) continue
 
     const dow = dayOfWeekOfIso(date)
-    // Bloques de ese día que ya existían cuando la clase terminó.
+    // Bloques de ese día que ya existían cuando la clase EMPEZÓ: un bloque
+    // creado a mitad de la clase (o después) no obliga a nadie a haberla
+    // registrado.
     const active = parsedBlocks.filter(
-      (b) => b.block.day_of_week === dow && bogotaInstant(date, b.end).getTime() > b.createdAt
+      (b) => b.block.day_of_week === dow && bogotaInstant(date, b.start).getTime() >= b.createdAt
     )
     if (active.length === 0) continue
 

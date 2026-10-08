@@ -139,6 +139,15 @@ describe('listExpectedClassDays', () => {
     })
     expect(createdAfterClass).toEqual([])
 
+    // Created while the class was running (08:00-10:00): it did not exist
+    // when the class started, so nobody was expected to register it.
+    const createdMidClass = listExpectedClassDays({
+      blocks: [mondayBlock({ created_at: bogota('2026-03-02', '09:00').toISOString() })],
+      period,
+      now: bogota('2026-03-04', '12:00'),
+    })
+    expect(createdMidClass).toEqual([])
+
     const createdBeforeClass = listExpectedClassDays({
       blocks: [mondayBlock({ created_at: bogota('2026-03-02', '07:00').toISOString() })],
       period,

@@ -10,7 +10,7 @@ function fakeClient(rows: Rows) {
   const client = {
     from(table: string) {
       const builder: Record<string, unknown> = {}
-      for (const method of ['select', 'eq', 'not', 'in', 'gte', 'order', 'range']) {
+      for (const method of ['select', 'eq', 'not', 'in', 'gte', 'lte', 'order', 'range']) {
         builder[method] = vi.fn((...args: unknown[]) => {
           calls.push({ table, method, args })
           return builder
@@ -79,6 +79,29 @@ describe('fetchClassOmissions', () => {
     })
     expect(items[1]).toMatchObject({ justified: true, reason: 'Cita médica urgente' })
     expect(countUnjustified(items)).toBe(2)
+  })
+
+  it('bounds the sessions query to the period window and today', async () => {
+    const { client, calls } = fakeClient({
+      subjects: [
+        subject,
+        {
+          ...subject,
+          id: 'subject-2',
+          period: { start_date: '2026-01-12', end_date: '2026-02-20' },
+        },
+      ],
+      subject_schedules: [mondayBlock, { ...mondayBlock, id: 'block-2', subject_id: 'subject-2' }],
+    })
+
+    await fetchClassOmissions(client, { now: NOW })
+
+    const bound = (method: string) =>
+      calls.find((c) => c.table === 'sessions' && c.method === method)?.args[1]
+    // earliest period start of the batch (Jan 12, 00:00 Bogota) ...
+    expect(bound('gte')).toBe('2026-01-12T05:00:00.000Z')
+    // ... up to the end of today (Mar 4, Bogota), not the end of the period
+    expect(bound('lte')).toBe('2026-03-05T04:59:59.999Z')
   })
 
   it('degrades to an empty list when there is no period, no dates or no schedule', async () => {
