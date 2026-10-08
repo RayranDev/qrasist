@@ -5,7 +5,7 @@ const mockGetUser = vi.fn()
 const mockSessionSingle = vi.fn()
 const mockEnrollmentMaybeSingle = vi.fn()
 const mockAttendanceSingle = vi.fn()
-const mockCheckAdminOrSubjectProfessor = vi.fn()
+const mockAuthorizeAttendanceEdit = vi.fn()
 
 const mockAdminExistingMaybeSingle = vi.fn()
 const mockAdminInsert = vi.fn()
@@ -14,8 +14,8 @@ const mockAdminUpdateEq = vi.fn()
 const mockAdminDeleteEq = vi.fn()
 const mockLogAudit = vi.fn()
 
-vi.mock('./authGuards', () => ({
-  checkAdminOrSubjectProfessor: (...args: unknown[]) => mockCheckAdminOrSubjectProfessor(...args),
+vi.mock('./attendanceEditGuard', () => ({
+  authorizeAttendanceEdit: (...args: unknown[]) => mockAuthorizeAttendanceEdit(...args),
 }))
 
 vi.mock('@/lib/audit/auditLog', () => ({
@@ -75,12 +75,24 @@ vi.mock('@/lib/supabase/adminClient', () => ({
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
+const FORBIDDEN = {
+  ok: false,
+  code: 'FORBIDDEN',
+  error: 'No tienes permiso sobre esta sesión.',
+} as const
+
+const CLASS_ENDED = {
+  ok: false,
+  code: 'CLASS_ENDED',
+  error: 'Solo coordinación puede modificar asistencias de clases pasadas.',
+} as const
+
 describe('markAttendanceManually', () => {
   beforeEach(() => {
     mockGetUser.mockReset()
     mockSessionSingle.mockReset()
     mockEnrollmentMaybeSingle.mockReset()
-    mockCheckAdminOrSubjectProfessor.mockReset()
+    mockAuthorizeAttendanceEdit.mockReset()
     mockAdminExistingMaybeSingle.mockReset()
     mockAdminInsert.mockReset()
     mockAdminInsertSingle.mockReset()
@@ -106,7 +118,7 @@ describe('markAttendanceManually', () => {
     mockSessionSingle.mockResolvedValue({
       data: { id: 'session-1', date: '2026-01-01T10:00:00Z', subject_id: 'subject-1' },
     })
-    mockCheckAdminOrSubjectProfessor.mockResolvedValue(false)
+    mockAuthorizeAttendanceEdit.mockResolvedValue(FORBIDDEN)
 
     const result = await markAttendanceManually({
       sessionId: 'session-1',
@@ -125,7 +137,7 @@ describe('markAttendanceManually', () => {
     mockSessionSingle.mockResolvedValue({
       data: { id: 'session-1', date: '2026-01-01T10:00:00Z', subject_id: 'subject-1' },
     })
-    mockCheckAdminOrSubjectProfessor.mockResolvedValue(true)
+    mockAuthorizeAttendanceEdit.mockResolvedValue({ ok: true, role: 'PROFESSOR' })
     mockEnrollmentMaybeSingle.mockResolvedValue({ data: null })
 
     const result = await markAttendanceManually({
@@ -145,7 +157,7 @@ describe('markAttendanceManually', () => {
     mockSessionSingle.mockResolvedValue({
       data: { id: 'session-1', date: '2026-01-01T10:00:00Z', subject_id: 'subject-1' },
     })
-    mockCheckAdminOrSubjectProfessor.mockResolvedValue(true)
+    mockAuthorizeAttendanceEdit.mockResolvedValue({ ok: true, role: 'PROFESSOR' })
     mockEnrollmentMaybeSingle.mockResolvedValue({ data: { id: 'enrollment-1' } })
     mockAdminExistingMaybeSingle.mockResolvedValue({ data: null })
     mockAdminInsertSingle.mockResolvedValue({ data: { id: 'attendance-new-1' }, error: null })
@@ -174,7 +186,7 @@ describe('markAttendanceManually', () => {
     mockSessionSingle.mockResolvedValue({
       data: { id: 'session-1', date: '2026-01-01T10:00:00Z', subject_id: 'subject-1' },
     })
-    mockCheckAdminOrSubjectProfessor.mockResolvedValue(true)
+    mockAuthorizeAttendanceEdit.mockResolvedValue({ ok: true, role: 'PROFESSOR' })
     mockEnrollmentMaybeSingle.mockResolvedValue({ data: { id: 'enrollment-1' } })
     mockAdminExistingMaybeSingle.mockResolvedValue({ data: { id: 'attendance-1' } })
     mockAdminUpdateEq.mockResolvedValue({ error: null })
@@ -190,13 +202,70 @@ describe('markAttendanceManually', () => {
     expect(mockAdminInsert).not.toHaveBeenCalled()
     expect(mockAdminUpdateEq).toHaveBeenCalled()
   })
+
+  it('refuses a professor once the class has ended, without touching attendances', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'prof-1' } } })
+    mockSessionSingle.mockResolvedValue({
+      data: {
+        id: 'session-1',
+        date: '2026-01-01T10:00:00Z',
+        subject_id: 'subject-1',
+        class_ends_at: '2026-01-01T12:00:00Z',
+      },
+    })
+    mockAuthorizeAttendanceEdit.mockResolvedValue(CLASS_ENDED)
+
+    const result = await markAttendanceManually({
+      sessionId: 'session-1',
+      studentId: 'student-1',
+      status: 'PRESENT',
+      reason: 'Corrección tardía de asistencia',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/coordinación/i)
+    expect(mockEnrollmentMaybeSingle).not.toHaveBeenCalled()
+    expect(mockAdminInsert).not.toHaveBeenCalled()
+    expect(mockAuthorizeAttendanceEdit).toHaveBeenCalledWith(
+      expect.anything(),
+      'prof-1',
+      expect.objectContaining({ class_ends_at: '2026-01-01T12:00:00Z', subject_id: 'subject-1' })
+    )
+  })
+
+  it('lets an admin correct a past session and records the actor role in the audit trail', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'admin-1' } } })
+    mockSessionSingle.mockResolvedValue({
+      data: { id: 'session-1', date: '2026-01-01T10:00:00Z', subject_id: 'subject-1' },
+    })
+    mockAuthorizeAttendanceEdit.mockResolvedValue({ ok: true, role: 'ADMIN' })
+    mockEnrollmentMaybeSingle.mockResolvedValue({ data: { id: 'enrollment-1' } })
+    mockAdminExistingMaybeSingle.mockResolvedValue({ data: null })
+    mockAdminInsertSingle.mockResolvedValue({ data: { id: 'attendance-new-1' }, error: null })
+
+    const result = await markAttendanceManually({
+      sessionId: 'session-1',
+      studentId: 'student-1',
+      status: 'PRESENT',
+      reason: 'Constancia médica validada',
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockLogAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'admin-1',
+        action: 'attendance.mark',
+        details: expect.objectContaining({ actor_role: 'ADMIN' }),
+      })
+    )
+  })
 })
 
 describe('removeAttendanceMark', () => {
   beforeEach(() => {
     mockGetUser.mockReset()
     mockAttendanceSingle.mockReset()
-    mockCheckAdminOrSubjectProfessor.mockReset()
+    mockAuthorizeAttendanceEdit.mockReset()
     mockAdminDeleteEq.mockReset()
   })
 
@@ -212,7 +281,7 @@ describe('removeAttendanceMark', () => {
     mockAttendanceSingle.mockResolvedValue({
       data: { id: 'att-1', session: { subject_id: 'subject-1' } },
     })
-    mockCheckAdminOrSubjectProfessor.mockResolvedValue(false)
+    mockAuthorizeAttendanceEdit.mockResolvedValue(FORBIDDEN)
 
     const result = await removeAttendanceMark({
       attendanceId: 'att-1',
@@ -220,6 +289,33 @@ describe('removeAttendanceMark', () => {
     })
 
     expect(result.success).toBe(false)
+    expect(mockAdminDeleteEq).not.toHaveBeenCalled()
+  })
+
+  it('refuses a professor once the class has ended, without deleting anything', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'prof-1' } } })
+    mockAttendanceSingle.mockResolvedValue({
+      data: {
+        id: 'att-1',
+        student_id: 'student-1',
+        session_id: 'session-1',
+        status: 'PRESENT',
+        session: {
+          subject_id: 'subject-1',
+          date: '2026-01-01T10:00:00Z',
+          class_ends_at: '2026-01-01T12:00:00Z',
+        },
+      },
+    })
+    mockAuthorizeAttendanceEdit.mockResolvedValue(CLASS_ENDED)
+
+    const result = await removeAttendanceMark({
+      attendanceId: 'att-1',
+      reason: 'Se quiere borrar luego',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/coordinación/i)
     expect(mockAdminDeleteEq).not.toHaveBeenCalled()
   })
 })

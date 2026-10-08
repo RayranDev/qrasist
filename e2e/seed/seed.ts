@@ -129,9 +129,11 @@ async function main() {
   }
 
   // ---- Sesión pasada (ya dictada): A asistió, B no --------------------
-  // 2 días atrás: dentro de la ventana de 7 días para justificar (ver
-  // JUSTIFICATION_WINDOW_DAYS en src/lib/justifications/eligibility.ts)
-  // sin importar cuándo corra este script.
+  // 2 días atrás: dentro de la ventana de 3 días hábiles para justificar
+  // (ver JUSTIFICATION_BUSINESS_DAYS en src/lib/justifications/eligibility.ts)
+  // sin importar cuándo corra este script: dos días de calendario nunca
+  // superan tres días hábiles (los fines de semana y festivos solo la
+  // extienden).
   //
   // is_active se deja en TRUE a propósito -- "ya dictada" la da
   // expires_at en el pasado (isSessionAlreadyHeld en eligibility.ts

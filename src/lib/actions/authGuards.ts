@@ -15,17 +15,14 @@ export async function checkAdmin(supabase: SupabaseClient, userId: string) {
   return data?.role === 'ADMIN'
 }
 
-// Defensa en profundidad para acciones sobre solicitudes de inscripcion:
-// el admin puede revisar cualquiera, el profesor solo las de sus materias.
-// La rama de profesor tambien exige cuenta activa -- mismo motivo que en
-// checkAdmin: la sesion de un profesor desactivado sigue siendo valida.
-export async function checkAdminOrSubjectProfessor(
+// Profesor activo que dicta la materia. Exige cuenta activa -- mismo
+// motivo que en checkAdmin: la sesion de un profesor desactivado sigue
+// siendo valida.
+export async function checkSubjectProfessor(
   supabase: SupabaseClient,
   userId: string,
   subjectId: string
 ) {
-  if (await checkAdmin(supabase, userId)) return true
-
   const { data: caller } = await supabase
     .from('profiles')
     .select('is_active')
@@ -41,4 +38,28 @@ export async function checkAdminOrSubjectProfessor(
     .maybeSingle()
 
   return !!data
+}
+
+// Defensa en profundidad para acciones sobre solicitudes de inscripcion:
+// el admin puede revisar cualquiera, el profesor solo las de sus materias.
+export async function checkAdminOrSubjectProfessor(
+  supabase: SupabaseClient,
+  userId: string,
+  subjectId: string
+) {
+  if (await checkAdmin(supabase, userId)) return true
+  return checkSubjectProfessor(supabase, userId, subjectId)
+}
+
+// Igual que checkAdminOrSubjectProfessor pero distinguiendo QUIÉN es,
+// para reglas que tratan distinto a coordinación y a docencia (ej.
+// RF21/RF25: el profesor solo corrige asistencia durante la clase, el
+// coordinador en cualquier momento).
+export async function resolveSubjectEditorRole(
+  supabase: SupabaseClient,
+  userId: string,
+  subjectId: string
+): Promise<'ADMIN' | 'PROFESSOR' | null> {
+  if (await checkAdmin(supabase, userId)) return 'ADMIN'
+  return (await checkSubjectProfessor(supabase, userId, subjectId)) ? 'PROFESSOR' : null
 }

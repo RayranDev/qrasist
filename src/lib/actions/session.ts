@@ -1,8 +1,12 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
+import { checkSubjectProfessor } from './authGuards'
 import { DEFAULT_ROTATION_SECONDS } from '@/lib/qrRotation'
 import { sessionConfigSchema } from '@/lib/validations/schemas'
+import { getAppSettings } from '@/lib/settings/appSettings'
+import { computeClassEndsAt, type ScheduleBlockTime } from '@/lib/sessions/classWindow'
 
 interface Coords {
   latitude: number
@@ -19,14 +23,20 @@ export interface SessionExtras {
 
 const MIN_MAKEUP_REASON_LENGTH = 5
 
+/**
+ * Abre la asistencia de una clase. La ventana de registro por QR NO la
+ * decide el cliente: sale de app_settings (configurable por el
+ * coordinador, RF11), y el fin de la clase (class_ends_at, RF21) se
+ * deduce del horario semanal de la materia o, en su defecto, de la
+ * duración de clase por defecto.
+ */
 export async function createSession(
   subjectId: string,
-  durationMinutes: number = 15,
   coords?: Coords,
   rotationSeconds: number = DEFAULT_ROTATION_SECONDS,
   extras?: SessionExtras
 ) {
-  const parsed = sessionConfigSchema.safeParse({ durationMinutes, rotationSeconds })
+  const parsed = sessionConfigSchema.pick({ rotationSeconds: true }).safeParse({ rotationSeconds })
   if (!parsed.success) {
     return {
       success: false,
@@ -57,26 +67,41 @@ export async function createSession(
   } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'No estás autenticado.' }
 
-  // 2. Verificar que el profesor dicte esta materia
-  const { data: subject } = await supabase
-    .from('subjects')
-    .select('id')
-    .eq('id', subjectId)
-    .eq('professor_id', user.id)
-    .single()
+  // 2. Verificar que el profesor (activo) dicte esta materia. Desde la
+  //    migración 028 `sessions` no tiene policy de escritura para
+  //    profesores: toda escritura va con service-role DESPUÉS de este
+  //    chequeo de aplicación.
+  if (!(await checkSubjectProfessor(supabase, user.id, subjectId))) {
+    return { success: false, error: 'Materia no encontrada o acceso denegado.' }
+  }
 
-  if (!subject) return { success: false, error: 'Materia no encontrada o acceso denegado.' }
+  // 3. Ventana de registro y fin de clase, ambos derivados en el servidor
+  const [settings, { data: scheduleRows }] = await Promise.all([
+    getAppSettings(supabase),
+    supabase
+      .from('subject_schedules')
+      .select('day_of_week, start_time, end_time')
+      .eq('subject_id', subjectId),
+  ])
 
-  // 3. Crear sesión con expires_at calculada en el futuro
-  const expiresAt = new Date()
-  expiresAt.setMinutes(expiresAt.getMinutes() + parsed.data.durationMinutes)
+  const startedAt = new Date()
+  const registrationWindowMinutes = settings.registrationWindowMinutes
+  const expiresAt = new Date(startedAt.getTime() + registrationWindowMinutes * 60_000)
+  const classEndsAt = computeClassEndsAt({
+    start: startedAt,
+    schedules: (scheduleRows || []) as ScheduleBlockTime[],
+    defaultClassMinutes: settings.defaultClassMinutes,
+    minimumEnd: expiresAt,
+  })
 
-  const { data: newSession, error } = await supabase
+  const { data: newSession, error } = await getSupabaseAdmin()
     .from('sessions')
     .insert({
       subject_id: subjectId,
-      duration_minutes: parsed.data.durationMinutes,
+      date: startedAt.toISOString(),
+      duration_minutes: registrationWindowMinutes,
       expires_at: expiresAt.toISOString(),
+      class_ends_at: classEndsAt.toISOString(),
       latitude: coords?.latitude ?? null,
       longitude: coords?.longitude ?? null,
       qr_rotation_seconds: parsed.data.rotationSeconds,
@@ -91,7 +116,7 @@ export async function createSession(
     return { success: false, error: 'No se pudo crear la sesión.' }
   }
 
-  return { success: true, sessionId: newSession.id }
+  return { success: true, sessionId: newSession.id, registrationWindowMinutes }
 }
 
 export async function refreshSessionQrToken(sessionId: string) {
@@ -109,13 +134,9 @@ export async function refreshSessionQrToken(sessionId: string) {
     .single()
   if (!session) return { success: false, error: 'Sesión no encontrada.' }
 
-  const { data: subject } = await supabase
-    .from('subjects')
-    .select('id')
-    .eq('id', session.subject_id)
-    .eq('professor_id', user.id)
-    .single()
-  if (!subject) return { success: false, error: 'Acceso denegado.' }
+  if (!(await checkSubjectProfessor(supabase, user.id, session.subject_id))) {
+    return { success: false, error: 'Acceso denegado.' }
+  }
 
   if (session.is_active === false) {
     return { success: false, error: 'Esta sesión ha sido archivada.' }
@@ -125,7 +146,7 @@ export async function refreshSessionQrToken(sessionId: string) {
   }
 
   const newToken = crypto.randomUUID()
-  const { error: updateError } = await supabase
+  const { error: updateError } = await getSupabaseAdmin()
     .from('sessions')
     .update({ qr_token: newToken, previous_qr_token: session.qr_token })
     .eq('id', sessionId)
@@ -156,17 +177,12 @@ export async function closeSession(sessionId: string) {
 
   if (!session) return { success: false, error: 'Sesión no encontrada.' }
 
-  const { data: subject } = await supabase
-    .from('subjects')
-    .select('id')
-    .eq('id', session.subject_id)
-    .eq('professor_id', user.id)
-    .single()
-
-  if (!subject) return { success: false, error: 'Acceso denegado.' }
+  if (!(await checkSubjectProfessor(supabase, user.id, session.subject_id))) {
+    return { success: false, error: 'Acceso denegado.' }
+  }
 
   const now = new Date().toISOString()
-  const { error: updateError } = await supabase
+  const { error: updateError } = await getSupabaseAdmin()
     .from('sessions')
     .update({
       expires_at: now,

@@ -7,9 +7,13 @@
  * (formulario de justificación) para validar antes de enviar.
  */
 
-// Ventana de envío: hasta 7 días calendario después de la fecha de
-// la sesión. Pasado ese plazo, la falta ya no se puede justificar.
-export const JUSTIFICATION_WINDOW_DAYS = 7
+import { addBusinessDaysBogota, endOfBogotaDay } from '@/lib/utils/businessDays'
+import { getEffectiveClassEnd } from '@/lib/sessions/classWindow'
+
+// Ventana de envío (RF26): hasta 3 días HÁBILES después de la fecha de
+// la sesión -- sin contar sábados, domingos ni festivos de Colombia.
+// Pasado ese plazo, la falta ya no se puede justificar.
+export const JUSTIFICATION_BUSINESS_DAYS = 3
 
 export const MAX_ATTACHMENT_SIZE_BYTES = 5 * 1024 * 1024 // 5MB
 
@@ -38,32 +42,80 @@ export function getAttachmentExtension(contentType: string): string | null {
 }
 
 /**
- * Una sesión es justificable cuando ya "pasó": el profesor la
- * archivó (is_active = false) o su ventana de QR (expires_at) ya
- * venció. Antes de eso no tiene sentido justificar una clase que
- * técnicamente todavía se puede escanear.
+ * Validación de los metadatos de un adjunto ANTES de firmar la URL de
+ * subida. La comparten la subida del estudiante y la del coordinador
+ * (registro de excusa), para que ambas apliquen exactamente los mismos
+ * límites.
+ *
+ * Defensa extra: la extensión del nombre original declarado por el
+ * cliente debe coincidir con la que implica el contentType. No es
+ * infalible (ambos vienen del cliente), pero evita el caso trivial de
+ * un archivo "informe.exe" renombrado con un content-type falso.
  */
-export function isSessionAlreadyHeld(session: {
-  is_active: boolean | null
-  expires_at: string | null
-}): boolean {
-  if (session.is_active === false) return true
-  if (!session.expires_at) return false
-  return new Date(session.expires_at).getTime() < Date.now()
+export function validateAttachmentMeta({
+  fileName,
+  contentType,
+  size,
+}: {
+  fileName: string
+  contentType: string
+  size: number
+}): { ok: true; extension: string } | { ok: false; error: string } {
+  const extension = getAttachmentExtension(contentType)
+  if (!extension) {
+    return { ok: false, error: 'Formato no permitido. Usa PDF, JPG, PNG o WEBP.' }
+  }
+
+  const declaredExtension = fileName.split('.').pop()?.toLowerCase()
+  if (
+    !declaredExtension ||
+    (declaredExtension === 'jpeg' ? 'jpg' : declaredExtension) !== extension
+  ) {
+    return { ok: false, error: 'La extensión del archivo no coincide con su tipo.' }
+  }
+
+  if (!Number.isFinite(size) || size <= 0 || size > MAX_ATTACHMENT_SIZE_BYTES) {
+    return { ok: false, error: 'El archivo no puede superar 5MB.' }
+  }
+
+  return { ok: true, extension }
 }
 
 /**
- * Ventana de 7 días calendario contados desde la fecha de la sesión
- * (no desde que quedó "held"), para que el estudiante no pueda
- * estirar el plazo dejando pasar tiempo antes de que expire el QR.
+ * Una sesión es justificable cuando la CLASE ya terminó: ahora es posterior
+ * al fin efectivo de la clase (class_ends_at, o date + duración por defecto
+ * en sesiones viejas). NO se usa expires_at: desde la migración 027 es solo
+ * la ventana de registro por QR (5 minutos por defecto), y con ella un
+ * estudiante figuraría como ausente a los 5 minutos de una clase de 2 horas.
+ *
+ * Las sesiones archivadas (is_active = false) no cuentan como clase dictada,
+ * así que quien llama debe descartarlas aparte.
  */
+export function isSessionAlreadyHeld(
+  session: { date: string | Date; class_ends_at?: string | Date | null },
+  defaultClassMinutes: number,
+  now: Date = new Date()
+): boolean {
+  return now.getTime() > getEffectiveClassEnd(session, defaultClassMinutes).getTime()
+}
+
+/**
+ * Último instante en que el estudiante puede justificar una sesión: el
+ * final (hora de Bogotá) del tercer día hábil posterior a la fecha de la
+ * sesión. Se cuenta desde la fecha de la sesión (no desde que quedó
+ * "held"), para que no se pueda estirar el plazo dejando pasar tiempo
+ * antes de que termine la clase.
+ */
+export function getJustificationDeadline(sessionDate: string | Date): Date {
+  const deadlineDay = addBusinessDaysBogota(new Date(sessionDate), JUSTIFICATION_BUSINESS_DAYS)
+  return endOfBogotaDay(deadlineDay)
+}
+
 export function isWithinJustificationWindow(
   sessionDate: string | Date,
   reference: Date = new Date()
 ): boolean {
-  const sessionTime = new Date(sessionDate).getTime()
-  const deadline = sessionTime + JUSTIFICATION_WINDOW_DAYS * 24 * 60 * 60 * 1000
-  return reference.getTime() <= deadline
+  return reference.getTime() <= getJustificationDeadline(sessionDate).getTime()
 }
 
 export function validateReasonLength(reason: string): string | null {

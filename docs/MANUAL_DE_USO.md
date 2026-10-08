@@ -62,7 +62,8 @@ Clic en el ícono de perfil (silueta de persona) en la esquina superior derecha.
 2. Cada materia muestra la cantidad de estudiantes inscritos.
 3. Clic en **"Iniciar Sesión (Generar QR)"**.
 4. Se abre la pantalla con el código QR activo:
-   - El QR es válido por **15 minutos** (hay un contador regresivo).
+   - El QR es válido durante la **ventana de registro** que define coordinación (5 minutos por defecto; hay un contador regresivo).
+   - Puedes corregir la asistencia solo mientras la clase sigue en curso; después únicamente coordinación puede modificarla.
    - Proyecta este QR en el televisor o video beam del salón.
    - Los estudiantes escanean desde su celular.
    - Una vez que expire, el QR ya no acepta registros.

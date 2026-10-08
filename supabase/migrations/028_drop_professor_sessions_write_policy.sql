@@ -1,0 +1,34 @@
+-- ============================================================
+-- MIGRACIÓN 028: elimina la policy de escritura directa de profesores
+--                sobre `sessions`
+--
+-- !! ORDEN DE DESPLIEGUE (importante) !!
+--
+--   1. Aplicar 027 ANTES de desplegar la rama feat/requirements-alignment
+--      (es aditiva: tabla/columnas nuevas, el código de main sigue
+--      funcionando).
+--   2. Desplegar el código de la rama. A partir de ahí TODA escritura
+--      sobre `sessions` (crear sesión, rotar/cerrar QR, archivar,
+--      reactivar, registrar clase pasada) pasa por server actions con el
+--      cliente service-role, después de validar la autorización en la app.
+--   3. Aplicar ESTA migración (028) DESPUÉS del despliegue.
+--
+-- NO aplicar 028 antes del despliegue: el código de main crea y actualiza
+-- sesiones con el cliente del usuario (JWT del profesor) y dependía de la
+-- policy que acá se elimina; sin ella, iniciar una clase en producción
+-- fallaría hasta que se despliegue el código nuevo.
+--
+-- Por qué se elimina: `sessions_professor_write` (006) es FOR ALL para el
+-- profesor dueño de la materia. Con su propio JWT, llamando a PostgREST
+-- directo (la anon key es pública), podía:
+--   - UPDATE de class_ends_at/date en una sesión pasada y así reabrir la
+--     ventana de edición de asistencia (RF21), o archivar sesiones;
+--   - INSERT de sesiones con fechas arbitrarias;
+--   - DELETE de sesiones, que borra en cascada sus asistencias.
+-- Quedan solo la policy de SELECT (sessions_select, 015/016): la lectura
+-- no cambia. Mismo patrón que audit_log (023), absence_justifications (024)
+-- y app_settings (027): sin policies de escritura, solo service-role tras
+-- un chequeo de aplicación.
+-- ============================================================
+
+DROP POLICY IF EXISTS sessions_professor_write ON public.sessions;

@@ -3,10 +3,17 @@ import { redirect } from 'next/navigation'
 import { checkAdmin } from '@/lib/actions/authGuards'
 import Link from 'next/link'
 import InstitutionMark from '@/components/brand/InstitutionMark'
-import JustificationsList, { JustificationRow } from './JustificationsList'
+import JustificationsList, {
+  JustificationRow,
+} from '@/components/justifications/JustificationsList'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * Vista de solo lectura para el profesor: ve en qué estado están las
+ * justificaciones de sus estudiantes, pero la revisión (aprobar o
+ * rechazar) la hace coordinación desde /admin/justifications.
+ */
 export default async function ProfessorJustificationsPage() {
   const supabase = await createClient()
   const {
@@ -17,16 +24,12 @@ export default async function ProfessorJustificationsPage() {
 
   // checkAdmin exige cuenta activa: un admin desactivado con sesion viva
   // no debe ver datos de toda la institucion.
-  const isAdmin = await checkAdmin(supabase, user.id)
+  if (await checkAdmin(supabase, user.id)) redirect('/admin/justifications')
 
-  // Un admin revisa justificaciones de toda la institución (mismo
-  // permiso que ya usa `reviewJustification` vía
-  // `checkAdminOrSubjectProfessor`); el profesor sigue viendo solo las
-  // materias que dicta.
-  const subjectsQuery = supabase.from('subjects').select('id, name, code')
-  const { data: subjects } = isAdmin
-    ? await subjectsQuery.eq('is_active', true)
-    : await subjectsQuery.eq('professor_id', user.id)
+  const { data: subjects } = await supabase
+    .from('subjects')
+    .select('id, name, code')
+    .eq('professor_id', user.id)
 
   const subjectIds = (subjects || []).map((s) => s.id)
 
@@ -68,18 +71,17 @@ export default async function ProfessorJustificationsPage() {
             <InstitutionMark size="sm" />
             <div>
               <Link
-                href={isAdmin ? '/admin/dashboard' : '/professor/subjects'}
+                href="/professor/subjects"
                 className="text-navy-700 hover:text-navy-900 font-semibold text-sm inline-flex items-center gap-1 mb-2"
               >
-                ← Volver {isAdmin ? 'al Dashboard' : 'a Mis Materias'}
+                ← Volver a Mis Materias
               </Link>
               <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">
                 Justificaciones de Inasistencia
               </h1>
               <p className="text-gray-500 mt-1 text-sm">
-                {isAdmin
-                  ? 'Revisa y decide las justificaciones enviadas en toda la institución'
-                  : 'Revisa y decide las justificaciones enviadas por tus estudiantes'}
+                Estado de las justificaciones de tus estudiantes. La revisión la realiza
+                coordinación.
               </p>
             </div>
           </header>
@@ -87,6 +89,8 @@ export default async function ProfessorJustificationsPage() {
           <JustificationsList
             justifications={(justifications || []) as unknown as JustificationRow[]}
             subjects={subjects || []}
+            canReview={false}
+            emptyDescription="Cuando tus estudiantes envíen justificaciones, vas a ver acá su estado."
           />
         </div>
       </div>

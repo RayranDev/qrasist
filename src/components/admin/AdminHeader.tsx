@@ -12,6 +12,8 @@ interface AdminNavLink {
 const NAV_LINKS: AdminNavLink[] = [
   { href: '/admin/dashboard', label: 'Dashboard' },
   { href: '/admin/subjects', label: 'Materias' },
+  { href: '/admin/attendance', label: 'Asistencias' },
+  { href: '/admin/justifications', label: 'Justificaciones' },
   { href: '/admin/users', label: 'Usuarios' },
   { href: '/admin/academic', label: 'Carreras' },
   { href: '/admin/audit', label: 'Auditoría' },
@@ -48,14 +50,14 @@ export default function AdminHeader({
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-between md:justify-end">
           {/* Segmented control de navegación */}
-          <nav className="inline-flex p-1 bg-neutral-100 rounded-xl border border-neutral-200/80">
+          <nav className="inline-flex max-w-full overflow-x-auto p-1 bg-neutral-100 rounded-xl border border-neutral-200/80">
             {NAV_LINKS.map((link) => {
               const isActive = link.href === activeHref
               return (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                     isActive
                       ? 'bg-white text-neutral-900 shadow-2xs font-bold'
                       : 'text-neutral-600 hover:text-neutral-900 hover:bg-white/50'

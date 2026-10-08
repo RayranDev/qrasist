@@ -16,6 +16,9 @@ export type AuditAction =
   | 'attendance.update'
   | 'attendance.remove'
   | 'attendance.relocate'
+  | 'session.register_past'
+  | 'session.archive'
+  | 'session.reactivate'
   | 'enrollment_request.approve'
   | 'enrollment_request.reject'
   | 'user.role_change'
@@ -24,8 +27,10 @@ export type AuditAction =
   | 'user.reactivate'
   | 'user.update_account'
   | 'policy.update_global_absence'
+  | 'settings.update_attendance'
   | 'justification.approve'
   | 'justification.reject'
+  | 'justification.register'
   | 'auth.password_reset'
 
 interface LogAuditInput {

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
 import { loginAs } from './utils/auth'
 import { getLocalSupabaseEnv } from './utils/supabaseLocal'
-import { PROFESSOR_USER, STUDENT_A, TEST_SUBJECT } from './seed/testUsers'
+import { ADMIN_USER, PROFESSOR_USER, STUDENT_A, TEST_SUBJECT } from './seed/testUsers'
 
 // Self-contained on purpose: it does NOT rely on
 // 03-student-history-and-justify.spec.ts having run first. Playwright
@@ -13,9 +13,15 @@ import { PROFESSOR_USER, STUDENT_A, TEST_SUBJECT } from './seed/testUsers'
 // cross-project ordering here would be fragile. Instead this test
 // arranges its own PENDING justification directly (service role, the
 // same way submitJustification() would insert it) against a
-// throwaway session, then only exercises the professor's review UI.
-test.describe('professor: review a justification', () => {
-  test('approves it and the student sees "1 justificada"', async ({ page, browser }) => {
+// throwaway session, then only exercises the review UI.
+//
+// Process 3 of the requirements document: only the coordinator (ADMIN)
+// reviews excuses; the professor gets a read-only status view.
+test.describe('justification review', () => {
+  test('coordinator approves it, professor only watches, student sees "1 justificada"', async ({
+    page,
+    browser,
+  }) => {
     const env = getLocalSupabaseEnv()
     const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -60,17 +66,29 @@ test.describe('professor: review a justification', () => {
     expect(justificationError).toBeNull()
 
     try {
-      await loginAs(page, PROFESSOR_USER.email, PROFESSOR_USER.password)
-      await page.goto('/professor/justifications')
-
       const studentFullName = `${STUDENT_A.firstName} ${STUDENT_A.lastName}`
+
+      // The professor sees the pending request but cannot decide on it.
+      const professorContext = await browser.newContext()
+      const professorPage = await professorContext.newPage()
+      await loginAs(professorPage, PROFESSOR_USER.email, PROFESSOR_USER.password)
+      await professorPage.goto('/professor/justifications')
+      await expect(professorPage.getByText(studentFullName)).toBeVisible()
+      await expect(professorPage.getByText('En revisión').first()).toBeVisible()
+      await expect(professorPage.getByRole('button', { name: 'Aprobar' })).toHaveCount(0)
+      await expect(professorPage.getByRole('button', { name: 'Rechazar' })).toHaveCount(0)
+      await professorContext.close()
+
+      // The coordinator reviews it.
+      await loginAs(page, ADMIN_USER.email, ADMIN_USER.password)
+      await page.goto('/admin/justifications')
       await expect(page.getByText(studentFullName)).toBeVisible()
 
       await page.getByRole('button', { name: 'Aprobar' }).first().click()
       await expect(page.getByText('Justificación de').first()).toBeVisible() // toast confirmation
 
       // Verify as the student, in a separate browser context so we
-      // don't mix sessions/cookies with the professor's.
+      // don't mix sessions/cookies with the admin's.
       const studentContext = await browser.newContext()
       const studentPage = await studentContext.newPage()
       await loginAs(studentPage, STUDENT_A.email, STUDENT_A.password)

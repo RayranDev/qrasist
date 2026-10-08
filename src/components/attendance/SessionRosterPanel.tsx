@@ -6,19 +6,27 @@ import { Badge } from '@/components/ui/Badge'
 import { getSessionRoster, type RosterStudent } from '@/lib/actions/attendanceManual'
 import AttendanceRowActions from './AttendanceRowActions'
 import LocalTime from '@/components/LocalTime'
+import { PAST_CLASS_EDIT_MESSAGE } from '@/lib/sessions/classWindow'
 
 interface SessionRosterPanelProps {
   sessionId: string
+  /** Consulta la lista cada 5s. Se apaga en vistas que no son en vivo
+   * (ej. el panel del coordinador sobre una clase pasada). */
+  autoRefresh?: boolean
 }
 
 const POLL_MS = 5000
 
-export default function SessionRosterPanel({ sessionId }: SessionRosterPanelProps) {
+export default function SessionRosterPanel({
+  sessionId,
+  autoRefresh = true,
+}: SessionRosterPanelProps) {
   const [roster, setRoster] = useState<RosterStudent[]>([])
   const [totalEnrolled, setTotalEnrolled] = useState(0)
   const [totalRegistered, setTotalRegistered] = useState(0)
   const [collapsed, setCollapsed] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [canEdit, setCanEdit] = useState(true)
 
   const fetchRoster = useCallback(async () => {
     const res = await getSessionRoster(sessionId)
@@ -26,6 +34,7 @@ export default function SessionRosterPanel({ sessionId }: SessionRosterPanelProp
       setRoster(res.roster)
       setTotalEnrolled(res.totalEnrolled ?? 0)
       setTotalRegistered(res.totalRegistered ?? 0)
+      setCanEdit(res.canEdit !== false)
     }
     setLoaded(true)
   }, [sessionId])
@@ -41,13 +50,13 @@ export default function SessionRosterPanel({ sessionId }: SessionRosterPanelProp
       fetchRoster()
     }
     const immediate = setTimeout(poll, 0)
-    const interval = setInterval(poll, POLL_MS)
+    const interval = autoRefresh ? setInterval(poll, POLL_MS) : null
 
     return () => {
       clearTimeout(immediate)
-      clearInterval(interval)
+      if (interval) clearInterval(interval)
     }
-  }, [fetchRoster])
+  }, [fetchRoster, autoRefresh])
 
   return (
     <div className="w-full bg-white rounded-3xl border border-neutral-200 shadow-xs overflow-hidden">
@@ -65,7 +74,13 @@ export default function SessionRosterPanel({ sessionId }: SessionRosterPanelProp
             <p className="text-sm font-bold text-gray-900">
               {totalRegistered} de {totalEnrolled} inscritos registrados
             </p>
-            <p className="text-xs text-gray-400">Se actualiza automáticamente cada 5s</p>
+            <p className="text-xs text-gray-400">
+              {!canEdit
+                ? PAST_CLASS_EDIT_MESSAGE
+                : autoRefresh
+                  ? 'Se actualiza automáticamente cada 5s'
+                  : 'Cada cambio exige un motivo y queda en la bitácora'}
+            </p>
           </div>
         </div>
         {collapsed ? (
@@ -120,13 +135,15 @@ export default function SessionRosterPanel({ sessionId }: SessionRosterPanelProp
                     )}
                   </div>
                 </div>
-                <AttendanceRowActions
-                  sessionId={sessionId}
-                  studentId={r.studentId}
-                  attendanceId={r.attendanceId}
-                  currentStatus={r.status}
-                  onChanged={fetchRoster}
-                />
+                {canEdit && (
+                  <AttendanceRowActions
+                    sessionId={sessionId}
+                    studentId={r.studentId}
+                    attendanceId={r.attendanceId}
+                    currentStatus={r.status}
+                    onChanged={fetchRoster}
+                  />
+                )}
               </div>
             ))
           )}

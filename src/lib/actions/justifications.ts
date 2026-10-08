@@ -2,12 +2,12 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
-import { checkAdminOrSubjectProfessor } from './authGuards'
+import { checkAdmin } from './authGuards'
 import { logAudit } from '@/lib/audit/auditLog'
+import { getAppSettings } from '@/lib/settings/appSettings'
 import {
-  JUSTIFICATION_WINDOW_DAYS,
-  MAX_ATTACHMENT_SIZE_BYTES,
-  getAttachmentExtension,
+  JUSTIFICATION_BUSINESS_DAYS,
+  validateAttachmentMeta,
   isSessionAlreadyHeld,
   isWithinJustificationWindow,
   validateReasonLength,
@@ -27,12 +27,12 @@ interface EligibleSession {
   date: string
   subject_id: string
   is_active: boolean | null
-  expires_at: string | null
+  class_ends_at: string | null
 }
 
 /**
  * Vuelve a validar TODO del lado del servidor: sesión ya dictada,
- * dentro de la ventana de 7 días, estudiante activo e inscrito en la
+ * dentro de la ventana de 3 días hábiles, estudiante activo e inscrito en la
  * materia, y sin asistencia registrada para esa sesión. Nunca se
  * confía en subject_id/student_id que pudiera mandar el cliente --
  * se derivan siempre de la sesión y de la sesión de auth.
@@ -54,20 +54,25 @@ async function checkJustificationEligibility(
 
   const { data: session } = await supabase
     .from('sessions')
-    .select('id, date, subject_id, is_active, expires_at')
+    .select('id, date, subject_id, is_active, class_ends_at')
     .eq('id', sessionId)
     .single()
 
   if (!session) return { ok: false, error: 'Sesión no encontrada.' }
 
-  if (!isSessionAlreadyHeld(session)) {
+  if (session.is_active === false) {
+    return { ok: false, error: 'Esta sesión fue archivada y no cuenta como inasistencia.' }
+  }
+
+  const { defaultClassMinutes } = await getAppSettings(supabase)
+  if (!isSessionAlreadyHeld(session, defaultClassMinutes)) {
     return { ok: false, error: 'Esta sesión todavía está en curso.' }
   }
 
   if (!isWithinJustificationWindow(session.date)) {
     return {
       ok: false,
-      error: `El plazo de ${JUSTIFICATION_WINDOW_DAYS} días para justificar esta sesión ya venció.`,
+      error: `El plazo de ${JUSTIFICATION_BUSINESS_DAYS} días hábiles para justificar esta sesión ya venció.`,
     }
   }
 
@@ -119,26 +124,9 @@ export async function createJustificationUploadUrl({
   } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'No estás autenticado.' }
 
-  const extension = getAttachmentExtension(contentType)
-  if (!extension) {
-    return { success: false, error: 'Formato no permitido. Usa PDF, JPG, PNG o WEBP.' }
-  }
-
-  // Defensa extra: la extensión del nombre original declarado por el
-  // cliente debe coincidir con la que implica el contentType. No es
-  // infalible (ambos vienen del cliente), pero evita el caso trivial
-  // de un archivo "informe.exe" renombrado con un content-type falso.
-  const declaredExtension = fileName.split('.').pop()?.toLowerCase()
-  if (
-    !declaredExtension ||
-    (declaredExtension === 'jpeg' ? 'jpg' : declaredExtension) !== extension
-  ) {
-    return { success: false, error: 'La extensión del archivo no coincide con su tipo.' }
-  }
-
-  if (!Number.isFinite(size) || size <= 0 || size > MAX_ATTACHMENT_SIZE_BYTES) {
-    return { success: false, error: 'El archivo no puede superar 5MB.' }
-  }
+  const attachment = validateAttachmentMeta({ fileName, contentType, size })
+  if (!attachment.ok) return { success: false, error: attachment.error }
+  const extension = attachment.extension
 
   const eligibility = await checkJustificationEligibility(supabase, user.id, sessionId)
   if (!eligibility.ok) return { success: false, error: eligibility.error }
@@ -253,6 +241,7 @@ export async function submitJustification({
   revalidatePath('/student/subjects')
   revalidatePath('/student/history')
   revalidatePath('/professor/justifications')
+  revalidatePath('/admin/justifications')
   return { success: true }
 }
 
@@ -271,6 +260,12 @@ export async function reviewJustification({
   } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'No estás autenticado.' }
 
+  // Process 3 del documento de requisitos: la revisión de excusas la hace
+  // coordinación (ADMIN); el profesor solo consulta su estado.
+  if (!(await checkAdmin(supabase, user.id))) {
+    return { success: false, error: 'Solo coordinación puede revisar justificaciones.' }
+  }
+
   const trimmedNote = (note || '').trim()
   if (decision === 'REJECTED' && trimmedNote.length < MIN_REVIEW_NOTE_LENGTH) {
     return {
@@ -288,11 +283,6 @@ export async function reviewJustification({
   if (!justification) return { success: false, error: 'Justificación no encontrada.' }
   if (justification.status !== 'PENDING') {
     return { success: false, error: 'Esta justificación ya fue revisada.' }
-  }
-
-  const authorized = await checkAdminOrSubjectProfessor(supabase, user.id, justification.subject_id)
-  if (!authorized) {
-    return { success: false, error: 'No tienes permiso para revisar esta justificación.' }
   }
 
   const admin = getSupabaseAdmin()
@@ -328,6 +318,7 @@ export async function reviewJustification({
     },
   })
 
+  revalidatePath('/admin/justifications')
   revalidatePath('/professor/justifications')
   revalidatePath('/student/subjects')
   revalidatePath('/student/history')

@@ -25,9 +25,14 @@ export interface JustificationRow {
 export default function JustificationsList({
   justifications,
   subjects,
+  canReview,
+  emptyDescription,
 }: {
   justifications: JustificationRow[]
   subjects: { id: string; name: string; code: string }[]
+  /** Solo coordinación (ADMIN) revisa; el profesor ve el estado en modo lectura. */
+  canReview: boolean
+  emptyDescription?: string
 }) {
   const [items, setItems] = useState(justifications)
   const [subjectFilter, setSubjectFilter] = useState('')
@@ -136,8 +141,12 @@ export default function JustificationsList({
 
       <p className="text-xs text-gray-500 font-medium">
         {pendingCount === 0
-          ? 'No hay justificaciones pendientes.'
-          : `${pendingCount} justificación${pendingCount > 1 ? 'es' : ''} pendiente${pendingCount > 1 ? 's' : ''}`}
+          ? canReview
+            ? 'No hay justificaciones pendientes.'
+            : 'Ninguna justificación está en revisión.'
+          : canReview
+            ? `${pendingCount} justificación${pendingCount > 1 ? 'es' : ''} pendiente${pendingCount > 1 ? 's' : ''}`
+            : `${pendingCount} justificación${pendingCount > 1 ? 'es' : ''} en revisión por coordinación`}
       </p>
 
       {sorted.length === 0 ? (
@@ -152,7 +161,8 @@ export default function JustificationsList({
             description={
               subjectFilter
                 ? undefined
-                : 'Las justificaciones enviadas por tus estudiantes van a aparecer acá.'
+                : emptyDescription ||
+                  'Las justificaciones enviadas por los estudiantes van a aparecer acá.'
             }
             action={
               subjectFilter ? (
@@ -191,7 +201,7 @@ export default function JustificationsList({
                         : '—'}
                     </p>
                   </div>
-                  <StatusBadge status={j.status} />
+                  <StatusBadge status={j.status} canReview={canReview} />
                 </div>
 
                 <p className="text-sm text-gray-700 bg-gray-50/80 rounded-xl px-3 py-2">
@@ -218,7 +228,7 @@ export default function JustificationsList({
                     </Button>
                   )}
 
-                  {j.status === 'PENDING' && (
+                  {canReview && j.status === 'PENDING' && (
                     <>
                       <Button
                         type="button"
@@ -262,12 +272,18 @@ export default function JustificationsList({
   )
 }
 
-function StatusBadge({ status }: { status: JustificationRow['status'] }) {
+function StatusBadge({
+  status,
+  canReview,
+}: {
+  status: JustificationRow['status']
+  canReview: boolean
+}) {
   if (status === 'PENDING') {
     return (
       <Badge variant="warning" size="sm">
         <Clock className="w-3 h-3" />
-        Pendiente
+        {canReview ? 'Pendiente' : 'En revisión'}
       </Badge>
     )
   }
