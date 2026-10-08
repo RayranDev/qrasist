@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
-import { checkAdminOrSubjectProfessor } from './authGuards'
+import { authorizeAttendanceEdit } from './attendanceEditGuard'
 import { getBogotaDayRange } from '@/lib/utils/bogotaDay'
 import { logAudit } from '@/lib/audit/auditLog'
 import { revalidatePath } from 'next/cache'
@@ -61,13 +61,15 @@ export async function markAttendanceManually({
 
   const { data: session } = await supabase
     .from('sessions')
-    .select('id, date, subject_id')
+    .select('id, date, subject_id, class_ends_at')
     .eq('id', sessionId)
     .single()
   if (!session) return { success: false, error: 'Sesión no encontrada.' }
 
-  const authorized = await checkAdminOrSubjectProfessor(supabase, user.id, session.subject_id)
-  if (!authorized) return { success: false, error: 'No tienes permiso sobre esta sesión.' }
+  // RF21 / RF25: el profesor solo corrige durante la clase; después,
+  // únicamente coordinación (ADMIN).
+  const editAuth = await authorizeAttendanceEdit(supabase, user.id, session)
+  if (!editAuth.ok) return { success: false, error: editAuth.error }
 
   const { data: enrollment } = await supabase
     .from('enrollments')
@@ -108,6 +110,7 @@ export async function markAttendanceManually({
         status_before: existing.status,
         status_after: status,
         reason: trimmedReason,
+        actor_role: editAuth.role,
       },
     })
   } else {
@@ -171,6 +174,7 @@ export async function markAttendanceManually({
             original_scanned_at: sameDayRow.scanned_at,
             original_ip_address: sameDayRow.ip_address,
             reason: trimmedReason,
+            actor_role: editAuth.role,
           },
         })
       } else {
@@ -183,12 +187,19 @@ export async function markAttendanceManually({
         entityType: 'attendance',
         entityId: inserted?.id ?? null,
         subjectId: session.subject_id,
-        details: { student_id: studentId, session_id: sessionId, status, reason: trimmedReason },
+        details: {
+          student_id: studentId,
+          session_id: sessionId,
+          status,
+          reason: trimmedReason,
+          actor_role: editAuth.role,
+        },
       })
     }
   }
 
   revalidatePath('/professor/history')
+  revalidatePath('/admin/attendance')
   return { success: true }
 }
 
@@ -213,18 +224,22 @@ export async function removeAttendanceMark({
 
   const { data: attendance } = await supabase
     .from('attendances')
-    .select('id, student_id, session_id, status, session:sessions(subject_id)')
+    .select('id, student_id, session_id, status, session:sessions(subject_id, date, class_ends_at)')
     .eq('id', attendanceId)
     .single()
 
-  const subjectId = (attendance as unknown as { session: { subject_id: string } | null } | null)
-    ?.session?.subject_id
-  if (!attendance || !subjectId) {
+  const sessionRow = (
+    attendance as unknown as {
+      session: { subject_id: string; date: string; class_ends_at: string | null } | null
+    } | null
+  )?.session
+  if (!attendance || !sessionRow) {
     return { success: false, error: 'Registro no encontrado.' }
   }
+  const subjectId = sessionRow.subject_id
 
-  const authorized = await checkAdminOrSubjectProfessor(supabase, user.id, subjectId)
-  if (!authorized) return { success: false, error: 'No tienes permiso sobre este registro.' }
+  const editAuth = await authorizeAttendanceEdit(supabase, user.id, sessionRow)
+  if (!editAuth.ok) return { success: false, error: editAuth.error }
 
   const admin = getSupabaseAdmin()
   const { error } = await admin.from('attendances').delete().eq('id', attendanceId)
@@ -242,10 +257,12 @@ export async function removeAttendanceMark({
       session_id: attendance.session_id,
       status_before: attendance.status,
       reason: trimmedReason,
+      actor_role: editAuth.role,
     },
   })
 
   revalidatePath('/professor/history')
+  revalidatePath('/admin/attendance')
   return { success: true }
 }
 
@@ -278,6 +295,9 @@ export async function getSessionRoster(sessionId: string): Promise<{
   roster?: RosterStudent[]
   totalEnrolled?: number
   totalRegistered?: number
+  /** false cuando la clase ya terminó y quien consulta es el profesor
+   * (RF21): la lista se puede ver, pero ya no modificar. */
+  canEdit?: boolean
 }> {
   const supabase = await createClient()
   const {
@@ -287,13 +307,15 @@ export async function getSessionRoster(sessionId: string): Promise<{
 
   const { data: session } = await supabase
     .from('sessions')
-    .select('id, subject_id')
+    .select('id, subject_id, date, class_ends_at')
     .eq('id', sessionId)
     .single()
   if (!session) return { success: false, error: 'Sesión no encontrada.' }
 
-  const authorized = await checkAdminOrSubjectProfessor(supabase, user.id, session.subject_id)
-  if (!authorized) return { success: false, error: 'No tienes permiso sobre esta sesión.' }
+  const editAuth = await authorizeAttendanceEdit(supabase, user.id, session)
+  if (!editAuth.ok && editAuth.code === 'FORBIDDEN') {
+    return { success: false, error: editAuth.error }
+  }
 
   const [{ data: enrollments }, { data: attendances }] = await Promise.all([
     supabase
@@ -331,5 +353,6 @@ export async function getSessionRoster(sessionId: string): Promise<{
     roster,
     totalEnrolled: roster.length,
     totalRegistered: roster.filter((r) => r.status !== null).length,
+    canEdit: editAuth.ok,
   }
 }

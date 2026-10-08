@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import HistoryDrillDown from './HistoryDrillDown'
 import BackLink from '@/components/BackLink'
+import { getAppSettings } from '@/lib/settings/appSettings'
+import { canProfessorEditSession } from '@/lib/sessions/classWindow'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,6 +54,7 @@ export default async function ProfessorHistoryPage({
       sessions (
         id,
         date,
+        class_ends_at,
         duration_minutes,
         is_active,
         latitude,
@@ -97,6 +100,22 @@ export default async function ProfessorHistoryPage({
     })
   }
 
+  // RF21: el profesor solo corrige asistencia mientras la clase está en
+  // curso. Se calcula acá (servidor) y se manda como bandera para que la
+  // UI oculte las acciones; la regla real la vuelve a aplicar la server
+  // action en cada intento.
+  const { defaultClassMinutes } = await getAppSettings(supabase)
+  const now = new Date()
+  const subjectsWithEditFlag = (subjects || []).map((sub) => ({
+    ...sub,
+    sessions: ((sub.sessions || []) as { date: string; class_ends_at: string | null }[]).map(
+      (session) => ({
+        ...session,
+        can_edit: canProfessorEditSession(session, defaultClassMinutes, now),
+      })
+    ),
+  }))
+
   return (
     <div className="min-h-screen bg-surface">
       <div className="p-4 md:p-8">
@@ -126,7 +145,7 @@ export default async function ProfessorHistoryPage({
 
           <HistoryDrillDown
             subjects={
-              (subjects || []) as unknown as Parameters<typeof HistoryDrillDown>[0]['subjects']
+              subjectsWithEditFlag as unknown as Parameters<typeof HistoryDrillDown>[0]['subjects']
             }
             initialSubjectId={subjectId}
           />

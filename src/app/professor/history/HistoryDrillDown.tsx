@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
 import AttendanceRowActions from '@/components/attendance/AttendanceRowActions'
+import { PAST_CLASS_EDIT_MESSAGE } from '@/lib/sessions/classWindow'
 
 interface EnrolledProfile {
   id: string
@@ -82,6 +83,9 @@ interface Session {
   is_active: boolean
   latitude: number | null
   longitude: number | null
+  /** false cuando la clase ya terminó (RF21): solo coordinación puede
+   * modificar la asistencia. Lo calcula el servidor en page.tsx. */
+  can_edit?: boolean
   attendances: Attendance[]
 }
 
@@ -182,6 +186,7 @@ export default function HistoryDrillDown({
       .filter((st): st is EnrolledProfile => !!st && !enrolledAttendedIds.has(st.id))
 
     const refreshAfterManualAction = () => window.location.reload()
+    const canEditSession = selectedSession.can_edit !== false
 
     const renderTable = (
       attendances: Attendance[],
@@ -367,7 +372,19 @@ export default function HistoryDrillDown({
           </span>
           Estudiantes Regulares (Inscritos)
         </h4>
-        {renderTable(enrolledAttendances, 'Ningún estudiante inscrito registró asistencia.', true)}
+        {!canEditSession && (
+          <p
+            role="note"
+            className="mb-4 text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200/70 rounded-xl px-3 py-2"
+          >
+            {PAST_CLASS_EDIT_MESSAGE}
+          </p>
+        )}
+        {renderTable(
+          enrolledAttendances,
+          'Ningún estudiante inscrito registró asistencia.',
+          canEditSession
+        )}
 
         {notRegisteredStudents.length > 0 && (
           <>
@@ -384,13 +401,15 @@ export default function HistoryDrillDown({
                     <p className="text-sm font-bold text-gray-900">{st.name}</p>
                     <p className="text-xs font-mono text-gray-400">{st.student_code || '---'}</p>
                   </div>
-                  <AttendanceRowActions
-                    sessionId={selectedSession.id}
-                    studentId={st.id}
-                    attendanceId={null}
-                    currentStatus={null}
-                    onChanged={refreshAfterManualAction}
-                  />
+                  {canEditSession && (
+                    <AttendanceRowActions
+                      sessionId={selectedSession.id}
+                      studentId={st.id}
+                      attendanceId={null}
+                      currentStatus={null}
+                      onChanged={refreshAfterManualAction}
+                    />
+                  )}
                 </div>
               ))}
             </div>
@@ -594,6 +613,7 @@ export default function HistoryDrillDown({
             </div>
           )}
           <div
+            data-testid={`session-card-${session.id}`}
             className={`p-4 rounded-2xl border transition-all flex justify-between items-center group relative ${
               archived
                 ? 'border-dashed border-gray-200 bg-gray-50/40 opacity-70'

@@ -5,6 +5,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'attendance.update': 'Corrigió asistencia',
   'attendance.remove': 'Quitó asistencia',
   'attendance.relocate': 'Reubicó asistencia de otra sesión',
+  'session.register_past': 'Registró una clase pasada',
   'enrollment_request.approve': 'Aprobó solicitud de inscripción',
   'enrollment_request.reject': 'Rechazó solicitud de inscripción',
   'user.role_change': 'Cambió el rol de un usuario',
@@ -36,6 +37,9 @@ export function summarizeAuditDetails(action: string, details: Record<string, un
       if (details.status_before || details.status_after) {
         parts.push(`${details.status_before ?? '?'} → ${details.status_after ?? '?'}`)
       }
+      break
+    case 'session.register_past':
+      if (details.note) parts.push(`nota: ${String(details.note)}`)
       break
     case 'attendance.relocate':
       parts.push('sesión reubicada')
