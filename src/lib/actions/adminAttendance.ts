@@ -6,6 +6,7 @@ import { checkAdmin } from './authGuards'
 import { logAudit } from '@/lib/audit/auditLog'
 import { getAppSettings } from '@/lib/settings/appSettings'
 import { validatePastSessionInput } from '@/lib/sessions/pastSession'
+import { getBogotaDayRange } from '@/lib/utils/bogotaDay'
 import { revalidatePath } from 'next/cache'
 
 /**
@@ -43,6 +44,27 @@ export async function createPastSession(input: {
     .eq('id', input.subjectId)
     .maybeSingle()
   if (!subject) return { success: false, error: 'Materia no encontrada.' }
+
+  // Una clase por materia y día (hora de Bogotá). Hay un índice único de
+  // "una asistencia por materia por día" (007): si ya existe otra sesión ese
+  // día, marcar asistencia en la nueva chocaría con él y el camino 23505 de
+  // markAttendanceManually reubicaría en silencio la fila original. Esto
+  // también frena un doble envío del formulario.
+  const { start: dayStart, end: dayEnd } = getBogotaDayRange(validated.startsAt)
+  const { data: sameDay } = await supabase
+    .from('sessions')
+    .select('id')
+    .eq('subject_id', subject.id)
+    .gte('date', dayStart.toISOString())
+    .lte('date', dayEnd.toISOString())
+    .limit(1)
+  if (sameDay && sameDay.length > 0) {
+    return {
+      success: false,
+      error:
+        'Ya existe una clase de esta materia ese día. Ábrela desde la lista y carga ahí la asistencia.',
+    }
+  }
 
   const { defaultClassMinutes } = await getAppSettings(supabase)
   const classEndsAt = new Date(validated.startsAt.getTime() + defaultClassMinutes * 60_000)
