@@ -28,6 +28,7 @@ export type AuditAction =
   | 'settings.update_attendance'
   | 'justification.approve'
   | 'justification.reject'
+  | 'justification.register'
   | 'auth.password_reset'
 
 interface LogAuditInput {

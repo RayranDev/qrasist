@@ -35,14 +35,6 @@ export default async function ProfessorSubjectsPage() {
   const { registrationWindowMinutes } = await getAppSettings(supabase)
 
   const firstName = profile?.first_name || 'Profe'
-  const pendingJustificationsTotal = (subjects || []).reduce(
-    (total, sub) =>
-      total +
-      ((sub.absence_justifications as { student_id: string; status: string }[] | null)?.filter(
-        (j) => j.status === 'PENDING'
-      ).length ?? 0),
-    0
-  )
 
   // ==================== CONTEO DE ESTUDIANTES EN RIESGO POR MATERIA ====================
   // Dos consultas más (sesiones + asistencias), sin importar cuántos
@@ -160,14 +152,9 @@ export default async function ProfessorSubjectsPage() {
                 />
                 <Link
                   href="/professor/justifications"
-                  className="relative px-4 py-2 text-sm font-bold text-navy-700 bg-navy-50 rounded-xl hover:bg-navy-100 transition"
+                  className="px-4 py-2 text-sm font-bold text-navy-700 bg-navy-50 rounded-xl hover:bg-navy-100 transition"
                 >
                   Justificaciones
-                  {pendingJustificationsTotal > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold text-white bg-red-600 rounded-full">
-                      {pendingJustificationsTotal}
-                    </span>
-                  )}
                 </Link>
                 <Link
                   href="/professor/history"
@@ -217,11 +204,11 @@ export default async function ProfessorSubjectsPage() {
                         {pendingJustificationsCount > 0 && (
                           <Link
                             href="/professor/justifications"
-                            className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-100 px-2 py-1 rounded-lg hover:bg-amber-100 transition"
+                            className="inline-flex items-center gap-1 text-xs font-bold text-gray-600 bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg hover:bg-gray-100 transition"
                           >
                             {pendingJustificationsCount} justificación
-                            {pendingJustificationsCount > 1 ? 'es' : ''} pendiente
-                            {pendingJustificationsCount > 1 ? 's' : ''}
+                            {pendingJustificationsCount > 1 ? 'es' : ''} en revisión por
+                            coordinación
                           </Link>
                         )}
                         {atRiskCount > 0 && (

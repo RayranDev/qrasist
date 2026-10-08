@@ -79,15 +79,6 @@ export default async function ProfessorHistoryPage({
     )
     .eq('professor_id', user.id)
 
-  const pendingJustificationsTotal = (subjects || []).reduce(
-    (total, sub) =>
-      total +
-      ((sub.absence_justifications as { status: string }[] | null)?.filter(
-        (j) => j.status === 'PENDING'
-      ).length ?? 0),
-    0
-  )
-
   // Ordenamos las sesiones por fecha dentro de cada materia para comodidad
   if (subjects) {
     subjects.forEach((sub) => {
@@ -132,14 +123,9 @@ export default async function ProfessorHistoryPage({
             </div>
             <Link
               href="/professor/justifications"
-              className="relative px-4 py-2 text-sm font-bold text-navy-700 bg-navy-50 rounded-xl hover:bg-navy-100 transition"
+              className="px-4 py-2 text-sm font-bold text-navy-700 bg-navy-50 rounded-xl hover:bg-navy-100 transition"
             >
               Justificaciones
-              {pendingJustificationsTotal > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold text-white bg-red-600 rounded-full">
-                  {pendingJustificationsTotal}
-                </span>
-              )}
             </Link>
           </header>
 

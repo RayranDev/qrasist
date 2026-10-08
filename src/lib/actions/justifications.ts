@@ -2,12 +2,11 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
-import { checkAdminOrSubjectProfessor } from './authGuards'
+import { checkAdmin } from './authGuards'
 import { logAudit } from '@/lib/audit/auditLog'
 import {
   JUSTIFICATION_WINDOW_DAYS,
-  MAX_ATTACHMENT_SIZE_BYTES,
-  getAttachmentExtension,
+  validateAttachmentMeta,
   isSessionAlreadyHeld,
   isWithinJustificationWindow,
   validateReasonLength,
@@ -119,26 +118,9 @@ export async function createJustificationUploadUrl({
   } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'No estás autenticado.' }
 
-  const extension = getAttachmentExtension(contentType)
-  if (!extension) {
-    return { success: false, error: 'Formato no permitido. Usa PDF, JPG, PNG o WEBP.' }
-  }
-
-  // Defensa extra: la extensión del nombre original declarado por el
-  // cliente debe coincidir con la que implica el contentType. No es
-  // infalible (ambos vienen del cliente), pero evita el caso trivial
-  // de un archivo "informe.exe" renombrado con un content-type falso.
-  const declaredExtension = fileName.split('.').pop()?.toLowerCase()
-  if (
-    !declaredExtension ||
-    (declaredExtension === 'jpeg' ? 'jpg' : declaredExtension) !== extension
-  ) {
-    return { success: false, error: 'La extensión del archivo no coincide con su tipo.' }
-  }
-
-  if (!Number.isFinite(size) || size <= 0 || size > MAX_ATTACHMENT_SIZE_BYTES) {
-    return { success: false, error: 'El archivo no puede superar 5MB.' }
-  }
+  const attachment = validateAttachmentMeta({ fileName, contentType, size })
+  if (!attachment.ok) return { success: false, error: attachment.error }
+  const extension = attachment.extension
 
   const eligibility = await checkJustificationEligibility(supabase, user.id, sessionId)
   if (!eligibility.ok) return { success: false, error: eligibility.error }
@@ -253,6 +235,7 @@ export async function submitJustification({
   revalidatePath('/student/subjects')
   revalidatePath('/student/history')
   revalidatePath('/professor/justifications')
+  revalidatePath('/admin/justifications')
   return { success: true }
 }
 
@@ -271,6 +254,12 @@ export async function reviewJustification({
   } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'No estás autenticado.' }
 
+  // Process 3 del documento de requisitos: la revisión de excusas la hace
+  // coordinación (ADMIN); el profesor solo consulta su estado.
+  if (!(await checkAdmin(supabase, user.id))) {
+    return { success: false, error: 'Solo coordinación puede revisar justificaciones.' }
+  }
+
   const trimmedNote = (note || '').trim()
   if (decision === 'REJECTED' && trimmedNote.length < MIN_REVIEW_NOTE_LENGTH) {
     return {
@@ -288,11 +277,6 @@ export async function reviewJustification({
   if (!justification) return { success: false, error: 'Justificación no encontrada.' }
   if (justification.status !== 'PENDING') {
     return { success: false, error: 'Esta justificación ya fue revisada.' }
-  }
-
-  const authorized = await checkAdminOrSubjectProfessor(supabase, user.id, justification.subject_id)
-  if (!authorized) {
-    return { success: false, error: 'No tienes permiso para revisar esta justificación.' }
   }
 
   const admin = getSupabaseAdmin()
@@ -328,6 +312,7 @@ export async function reviewJustification({
     },
   })
 
+  revalidatePath('/admin/justifications')
   revalidatePath('/professor/justifications')
   revalidatePath('/student/subjects')
   revalidatePath('/student/history')

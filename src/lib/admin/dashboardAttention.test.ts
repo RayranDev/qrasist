@@ -9,7 +9,7 @@ import {
 
 const links: AttentionLinks = {
   enrollmentRequestsHref: '/professor/subjects/s1/requests',
-  justificationsHref: '/professor/justifications',
+  justificationsHref: '/admin/justifications?status=PENDING',
   atRiskStudentsHref: '/admin/dashboard#consolidado',
   activeSessionsHref: '/admin/dashboard#consolidado',
 }

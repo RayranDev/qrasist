@@ -17,6 +17,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'settings.update_attendance': 'Actualizó la configuración de asistencia',
   'justification.approve': 'Aprobó una justificación',
   'justification.reject': 'Rechazó una justificación',
+  'justification.register': 'Registró una excusa para un estudiante',
   'auth.password_reset': 'Restableció su contraseña por enlace de correo',
 }
 
@@ -60,6 +61,7 @@ export function summarizeAuditDetails(action: string, details: Record<string, un
           .join(', ') || 'sin cambios de datos'
       )
       break
+    case 'justification.register':
     case 'justification.reject':
     case 'justification.approve':
       if (details.note) parts.push(`nota: ${String(details.note)}`)

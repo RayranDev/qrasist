@@ -314,7 +314,7 @@ export default async function AdminDashboardPage({
       enrollmentRequestsHref: topRequestSubjectId
         ? `/professor/subjects/${topRequestSubjectId}/requests`
         : null,
-      justificationsHref: '/professor/justifications',
+      justificationsHref: '/admin/justifications?status=PENDING',
       atRiskStudentsHref: '/admin/dashboard?tab=students#consolidado',
       activeSessionsHref: '/admin/dashboard#consolidado',
     }

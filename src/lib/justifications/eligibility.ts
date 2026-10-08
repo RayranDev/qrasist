@@ -38,6 +38,46 @@ export function getAttachmentExtension(contentType: string): string | null {
 }
 
 /**
+ * Validación de los metadatos de un adjunto ANTES de firmar la URL de
+ * subida. La comparten la subida del estudiante y la del coordinador
+ * (registro de excusa), para que ambas apliquen exactamente los mismos
+ * límites.
+ *
+ * Defensa extra: la extensión del nombre original declarado por el
+ * cliente debe coincidir con la que implica el contentType. No es
+ * infalible (ambos vienen del cliente), pero evita el caso trivial de
+ * un archivo "informe.exe" renombrado con un content-type falso.
+ */
+export function validateAttachmentMeta({
+  fileName,
+  contentType,
+  size,
+}: {
+  fileName: string
+  contentType: string
+  size: number
+}): { ok: true; extension: string } | { ok: false; error: string } {
+  const extension = getAttachmentExtension(contentType)
+  if (!extension) {
+    return { ok: false, error: 'Formato no permitido. Usa PDF, JPG, PNG o WEBP.' }
+  }
+
+  const declaredExtension = fileName.split('.').pop()?.toLowerCase()
+  if (
+    !declaredExtension ||
+    (declaredExtension === 'jpeg' ? 'jpg' : declaredExtension) !== extension
+  ) {
+    return { ok: false, error: 'La extensión del archivo no coincide con su tipo.' }
+  }
+
+  if (!Number.isFinite(size) || size <= 0 || size > MAX_ATTACHMENT_SIZE_BYTES) {
+    return { ok: false, error: 'El archivo no puede superar 5MB.' }
+  }
+
+  return { ok: true, extension }
+}
+
+/**
  * Una sesión es justificable cuando ya "pasó": el profesor la
  * archivó (is_active = false) o su ventana de QR (expires_at) ya
  * venció. Antes de eso no tiene sentido justificar una clase que
