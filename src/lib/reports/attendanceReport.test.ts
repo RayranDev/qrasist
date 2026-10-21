@@ -653,8 +653,46 @@ describe('in-progress classes (DEF-QA-05)', () => {
     const byStudent = Object.fromEntries(report.rows.map((r) => [r.studentId, r]))
     expect(byStudent.a).toMatchObject({ sessionsHeld: 2, present: 2, countedAbsences: 0 })
     expect(byStudent.b).toMatchObject({ sessionsHeld: 1, present: 1, countedAbsences: 0 })
-    // Subject level: only the ended class.
+    // Subject level: the ended class plus the running one student a already scanned,
+    // so the summary label never falls below any student's row.
+    expect(report.subjectSummaries[0].sessionsHeld).toBe(2)
+    const maxRow = Math.max(...report.rows.map((r) => r.sessionsHeld))
+    expect(report.subjectSummaries[0].sessionsHeld).toBeGreaterThanOrEqual(maxRow)
+    expect(report.totals.sessionsHeld).toBe(2)
+  })
+
+  it('subject-level held stays at the ended classes when nobody scanned the running one', () => {
+    const report = buildAttendanceReport({
+      subjects: [subject({ cuts: [] })],
+      sessions: [ended, running],
+      enrollments: [enrollment('a'), enrollment('b')],
+      attendances: [attendance('ended', 'a'), attendance('ended', 'b')],
+      justifications: [],
+      held,
+    })
     expect(report.subjectSummaries[0].sessionsHeld).toBe(1)
+    expect(report.rows.every((r) => r.sessionsHeld === 1)).toBe(true)
+  })
+
+  it('the no-schedule professor fallback uses the same held rule', () => {
+    const base = {
+      subjects: [subject({ cuts: [] })],
+      sessions: [ended, running],
+      enrollments: [enrollment('a'), enrollment('b')],
+      justifications: [],
+      held,
+    }
+    const nobody = buildAttendanceReport({
+      ...base,
+      attendances: [attendance('ended', 'a')],
+    })
+    expect(nobody.professors[0]).toMatchObject({ held: 1, subjectsWithoutSchedule: 1 })
+
+    const oneScanned = buildAttendanceReport({
+      ...base,
+      attendances: [attendance('ended', 'a'), attendance('running', 'a')],
+    })
+    expect(oneScanned.professors[0]).toMatchObject({ held: 2, subjectsWithoutSchedule: 1 })
   })
 
   it('counts everything when no held context is given (legacy behaviour)', () => {

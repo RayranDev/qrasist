@@ -372,6 +372,7 @@ export function buildAttendanceReport(input: BuildReportInput): AttendanceReport
 
   const rows: StudentSubjectRow[] = []
   const subjectSummaries: SubjectSummaryRow[] = []
+  const heldCountBySubject = new Map<string, number>()
 
   for (const subject of subjects) {
     const allSessions = sessionsBySubject.get(subject.id) || []
@@ -382,6 +383,11 @@ export function buildAttendanceReport(input: BuildReportInput): AttendanceReport
       ? heldAll.filter((s) => hasClassEnded(heldTimes(s), heldCtx.defaultClassMinutes, heldCtx.now))
       : heldAll
     const heldInRange = heldEnded.filter((s) => isInRange(s.date, range))
+    // Clases dictadas de la materia en el rango: las terminadas MÁS las que
+    // están en curso pero algún estudiante ya escaneó (esas cuentan en su
+    // fila). Así el total de la materia nunca queda por debajo de la fila de
+    // ningún estudiante y las etiquetas del reporte son consistentes.
+    const heldUnionInRange = new Map(heldInRange.map((s) => [s.id, s]))
     const career = careerLabel(subject.careerNames)
     const professorName = subject.professorName || NO_PROFESSOR_LABEL
 
@@ -400,6 +406,7 @@ export function buildAttendanceReport(input: BuildReportInput): AttendanceReport
           )
         : heldAll
       const studentHeldInRange = studentHeld.filter((s) => isInRange(s.date, range))
+      for (const s of studentHeldInRange) heldUnionInRange.set(s.id, s)
 
       const studentAttendance = new Map<string, ReportAttendanceInput>()
       const justifiedSessionIds = new Set<string>()
@@ -496,6 +503,7 @@ export function buildAttendanceReport(input: BuildReportInput): AttendanceReport
 
     const pcts = visibleRows.map((r) => r.attendancePct).filter((p): p is number => p !== null)
     const rangeSessions = allSessions.filter((s) => isInRange(s.date, range))
+    heldCountBySubject.set(subject.id, heldUnionInRange.size)
     subjectSummaries.push({
       subjectId: subject.id,
       subjectCode: subject.code,
@@ -503,9 +511,9 @@ export function buildAttendanceReport(input: BuildReportInput): AttendanceReport
       career,
       professorName,
       enrolled: visibleRows.length,
-      sessionsHeld: heldInRange.length,
+      sessionsHeld: heldUnionInRange.size,
       sessionsSuspended: rangeSessions.filter((s) => !!s.suspendedAt).length,
-      makeups: heldInRange.filter((s) => s.isMakeup).length,
+      makeups: [...heldUnionInRange.values()].filter((s) => s.isMakeup).length,
       avgAttendancePct:
         pcts.length > 0 ? round1(pcts.reduce((sum, p) => sum + p, 0) / pcts.length) : null,
       normal: visibleRows.filter((r) => r.status === 'NORMAL').length,
@@ -524,7 +532,13 @@ export function buildAttendanceReport(input: BuildReportInput): AttendanceReport
   )
   subjectSummaries.sort((x, y) => collator.compare(x.subjectCode, y.subjectCode))
 
-  const professors = buildProfessorRows(subjects, sessionsBySubject, input.classStats || [], range)
+  const professors = buildProfessorRows(
+    subjects,
+    sessionsBySubject,
+    input.classStats || [],
+    range,
+    heldCountBySubject
+  )
 
   return {
     range,
@@ -539,7 +553,8 @@ function buildProfessorRows(
   subjects: ReportSubjectInput[],
   sessionsBySubject: Map<string, ReportSessionInput[]>,
   classStats: ReportClassStatsInput[],
-  range: ReportRange
+  range: ReportRange,
+  heldCountBySubject: Map<string, number>
 ): ProfessorComplianceRow[] {
   const statsBySubject = new Map(classStats.map((s) => [s.subjectId, s]))
   const byProfessor = new Map<string, ProfessorComplianceRow>()
@@ -579,7 +594,9 @@ function buildProfessorRows(
       const rangeSessions = (sessionsBySubject.get(subject.id) || []).filter((s) =>
         isInRange(s.date, range)
       )
-      row.held += rangeSessions.filter(isHeld).length
+      // Misma regla que el resumen por materia: las clases en curso solo cuentan
+      // si algún estudiante ya escaneó en ellas.
+      row.held += heldCountBySubject.get(subject.id) ?? rangeSessions.filter(isHeld).length
       row.suspended += rangeSessions.filter((s) => !!s.suspendedAt).length
       row.subjectsWithoutSchedule += 1
     }
