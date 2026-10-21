@@ -40,6 +40,42 @@ export type RegisterAttendanceResult =
       message: string
     }
 
+// Un doble envío del mismo escaneo (remonte del componente, reintento del
+// navegador, doble toque) llega como segunda llamada para la MISMA sesión
+// segundos después. Dentro de esta ventana se responde con el registro ya
+// guardado en vez de un error: el estudiante ve la confirmación que le
+// corresponde. Fuera de ella, o en otra sesión del día, sigue siendo DUPLICATE.
+const IDEMPOTENT_RETRY_WINDOW_MS = 2 * 60_000
+
+interface ExistingAttendance {
+  id: string
+  session_id: string
+  scanned_at: string
+  status: string
+}
+
+function buildSuccess(
+  subjectName: string,
+  subjectCode: string,
+  timeStr: string,
+  isLate: boolean,
+  isGuest: boolean
+): RegisterAttendanceResult {
+  if (isGuest) {
+    return {
+      ok: true,
+      message: `Registrado como invitado en ${subjectName} (${subjectCode}) a las ${timeStr}`,
+      data: { subjectName, subjectCode, time: timeStr, isGuest: true, isLate },
+    }
+  }
+
+  return {
+    ok: true,
+    message: `${subjectName} · ${subjectCode} — ${timeStr}`,
+    data: { subjectName, subjectCode, time: timeStr, isGuest: false, isLate },
+  }
+}
+
 export async function registerAttendance(
   qrToken: string,
   coords?: Coords
@@ -181,22 +217,45 @@ export async function registerAttendance(
   // 9. Verificar duplicado por materia en el mismo día (cálculo en zona de Bogotá UTC-5)
   const { start: todayStart, end: todayEnd } = getBogotaDayRange()
 
-  const { data: existingToday } = await supabase
-    .from('attendances')
-    .select('id')
-    .eq('student_id', user.id)
-    .eq('subject_id', session.subject_id)
-    .gte('scanned_at', todayStart.toISOString())
-    .lte('scanned_at', todayEnd.toISOString())
-    .maybeSingle()
+  const findTodayAttendance = async (): Promise<ExistingAttendance | null> => {
+    const { data } = await supabase
+      .from('attendances')
+      .select('id, session_id, scanned_at, status')
+      .eq('student_id', user.id)
+      .eq('subject_id', session.subject_id)
+      .gte('scanned_at', todayStart.toISOString())
+      .lte('scanned_at', todayEnd.toISOString())
+      .maybeSingle()
+    return (data as ExistingAttendance | null) ?? null
+  }
 
-  if (existingToday) {
+  // Duplicado: si es un reenvío reciente de esta misma sesión devolvemos el
+  // registro original (idempotente); cualquier otro caso es DUPLICATE.
+  const resolveDuplicate = (existing: ExistingAttendance): RegisterAttendanceResult => {
+    const scannedAt = new Date(existing.scanned_at)
+    const isRecentRetry =
+      existing.session_id === session.id &&
+      Date.now() - scannedAt.getTime() <= IDEMPOTENT_RETRY_WINDOW_MS
+
+    if (isRecentRetry) {
+      return buildSuccess(
+        subject?.name || 'Materia',
+        subject?.code || '',
+        formatBogotaTime(scannedAt),
+        existing.status === 'LATE',
+        !isEnrolled
+      )
+    }
+
     return {
       ok: false,
       code: 'DUPLICATE',
       message: `Ya registraste asistencia para ${subject?.name || 'esta materia'} hoy.`,
     }
   }
+
+  const existingToday = await findTodayAttendance()
+  if (existingToday) return resolveDuplicate(existingToday)
 
   // 10. Determinar si el escaneo llegó tarde. late_after_minutes = NULL
   //     desactiva el seguimiento de tardanzas para esta materia (todo
@@ -230,6 +289,10 @@ export async function registerAttendance(
 
   if (insertError) {
     if (insertError.code === '23505') {
+      // Carrera entre dos envíos simultáneos: el otro ganó el INSERT. Se
+      // relee su fila para aplicar la misma regla idempotente.
+      const winner = await findTodayAttendance()
+      if (winner) return resolveDuplicate(winner)
       return {
         ok: false,
         code: 'DUPLICATE',
@@ -245,34 +308,11 @@ export async function registerAttendance(
 
   // El servidor corre en UTC (Vercel): sin zona explícita la hora saldría
   // 5 horas adelantada respecto a la del estudiante.
-  const timeStr = formatBogotaTime(registeredAt)
-  const subjectName = subject?.name || 'Materia'
-  const subjectCode = subject?.code || ''
-  const isLate = status === 'LATE'
-
-  if (!isEnrolled) {
-    return {
-      ok: true,
-      message: `Registrado como invitado en ${subjectName} (${subjectCode}) a las ${timeStr}`,
-      data: {
-        subjectName,
-        subjectCode,
-        time: timeStr,
-        isGuest: true,
-        isLate,
-      },
-    }
-  }
-
-  return {
-    ok: true,
-    message: `${subjectName} · ${subjectCode} — ${timeStr}`,
-    data: {
-      subjectName,
-      subjectCode,
-      time: timeStr,
-      isGuest: false,
-      isLate,
-    },
-  }
+  return buildSuccess(
+    subject?.name || 'Materia',
+    subject?.code || '',
+    formatBogotaTime(registeredAt),
+    status === 'LATE',
+    !isEnrolled
+  )
 }
