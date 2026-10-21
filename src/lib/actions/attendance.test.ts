@@ -224,12 +224,74 @@ describe('registerAttendance', () => {
     expect(mockAdminInsert).not.toHaveBeenCalled()
   })
 
-  it('rejects a second scan for the same subject on the same day', async () => {
-    mockExistingToday.mockResolvedValue({ data: { id: 'attendance-1' } })
+  it('rejects a second scan for a different session of the same subject on the same day', async () => {
+    mockExistingToday.mockResolvedValue({
+      data: {
+        id: 'attendance-1',
+        session_id: 'session-0',
+        scanned_at: new Date(NOW.getTime() - 10_000).toISOString(),
+        status: 'PRESENT',
+      },
+    })
 
     const result = await registerAttendance(TOKEN)
 
     expect(result).toMatchObject({ ok: false, code: 'DUPLICATE' })
+    expect(mockAdminInsert).not.toHaveBeenCalled()
+  })
+
+  it('rejects a second scan for the same session once the retry window has passed', async () => {
+    mockExistingToday.mockResolvedValue({
+      data: {
+        id: 'attendance-1',
+        session_id: 'session-1',
+        scanned_at: new Date(NOW.getTime() - 3 * 60_000).toISOString(),
+        status: 'PRESENT',
+      },
+    })
+
+    const result = await registerAttendance(TOKEN)
+
+    expect(result).toMatchObject({ ok: false, code: 'DUPLICATE' })
+    expect(mockAdminInsert).not.toHaveBeenCalled()
+  })
+
+  it('answers a recent resend for the same session with the original registration', async () => {
+    // Original scan at 08:58:30 Bogota; the resend arrives 30 s later.
+    mockExistingToday.mockResolvedValue({
+      data: {
+        id: 'attendance-1',
+        session_id: 'session-1',
+        scanned_at: new Date(NOW.getTime() - 30_000).toISOString(),
+        status: 'PRESENT',
+      },
+    })
+
+    const result = await registerAttendance(TOKEN)
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: { subjectName: 'Algoritmos', subjectCode: 'ALG', isGuest: false, isLate: false },
+    })
+    if (!result.ok) return
+    expect(result.data.time).toMatch(/^08:58\sa\.\sm\.$/)
+    expect(mockAdminInsert).not.toHaveBeenCalled()
+  })
+
+  it('keeps the LATE status and guest flag when answering a resend', async () => {
+    mockEnrollment.mockResolvedValue({ data: null })
+    mockExistingToday.mockResolvedValue({
+      data: {
+        id: 'attendance-1',
+        session_id: 'session-1',
+        scanned_at: new Date(NOW.getTime() - 5_000).toISOString(),
+        status: 'LATE',
+      },
+    })
+
+    const result = await registerAttendance(TOKEN)
+
+    expect(result).toMatchObject({ ok: true, data: { isGuest: true, isLate: true } })
     expect(mockAdminInsert).not.toHaveBeenCalled()
   })
 
@@ -239,6 +301,24 @@ describe('registerAttendance', () => {
     const result = await registerAttendance(TOKEN)
 
     expect(result).toMatchObject({ ok: false, code: 'DUPLICATE' })
+  })
+
+  it('answers a concurrent double submit (unique-violation) with the winner registration', async () => {
+    mockInsertResult.mockReturnValue({ error: { code: '23505' } })
+    // The pre-check sees nothing; after the lost race the winner row exists.
+    mockExistingToday.mockResolvedValueOnce({ data: null }).mockResolvedValueOnce({
+      data: {
+        id: 'attendance-1',
+        session_id: 'session-1',
+        scanned_at: new Date(NOW.getTime() - 1_000).toISOString(),
+        status: 'PRESENT',
+      },
+    })
+
+    const result = await registerAttendance(TOKEN)
+
+    expect(result).toMatchObject({ ok: true, data: { subjectCode: 'ALG', isLate: false } })
+    expect(mockAdminInsert).toHaveBeenCalledTimes(1)
   })
 
   it('reports a SERVER_ERROR when the insert fails for another reason', async () => {
