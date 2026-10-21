@@ -332,6 +332,29 @@ test.describe('security: page-level role guards', () => {
     }
   })
 
+  test('a PROFESSOR or ADMIN cannot open student screens', async ({ page }) => {
+    await loginAs(page, PROFESSOR_USER.email, PROFESSOR_USER.password)
+    for (const path of ['/student/scanner', '/student/subjects', '/student/history']) {
+      await page.goto(path)
+      await expect(page, `professor ${path}`).toHaveURL(/\/professor\/subjects/)
+    }
+
+    await page.context().clearCookies()
+    await loginAs(page, ADMIN_USER.email, ADMIN_USER.password)
+    for (const path of ['/student/scanner', '/student/subjects', '/student/history']) {
+      await page.goto(path)
+      await expect(page, `admin ${path}`).toHaveURL(/\/admin\/dashboard/)
+    }
+  })
+
+  test('a STUDENT still opens their own screens', async ({ page }) => {
+    await loginAs(page, STUDENT_A.email, STUDENT_A.password)
+    for (const path of ['/student/scanner', '/student/subjects', '/student/history']) {
+      await page.goto(path)
+      await expect(page, path).toHaveURL(new RegExp(path))
+    }
+  })
+
   test('an ADMIN still opens coordination screens', async ({ page }) => {
     await loginAs(page, ADMIN_USER.email, ADMIN_USER.password)
 

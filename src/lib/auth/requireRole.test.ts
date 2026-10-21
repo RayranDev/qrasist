@@ -89,6 +89,24 @@ describe('requireRole', () => {
     await expect(requireRole(['PROFESSOR'])).rejects.toThrow('NEXT_REDIRECT:/dashboard')
   })
 
+  it('keeps PROFESSOR and ADMIN out of student screens', async () => {
+    for (const role of ['PROFESSOR', 'ADMIN']) {
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'u-1' } } })
+      mockProfile.mockResolvedValue({ data: { role, is_active: true } })
+
+      await expect(requireRole(['STUDENT'])).rejects.toThrow('NEXT_REDIRECT:/dashboard')
+    }
+  })
+
+  it('lets an active STUDENT into student screens', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'student-1' } } })
+    mockProfile.mockResolvedValue({ data: { role: 'STUDENT', is_active: true } })
+
+    const result = await requireRole(['STUDENT'])
+
+    expect(result.role).toBe('STUDENT')
+  })
+
   it('returns the authenticated client, user and role when allowed', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'admin-1' } } })
     mockProfile.mockResolvedValue({ data: { role: 'ADMIN', is_active: true } })

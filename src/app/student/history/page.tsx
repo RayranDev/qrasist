@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+import { requireRole } from '@/lib/auth/requireRole'
 import LocalTime from '@/components/LocalTime'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -37,14 +36,7 @@ const STATUS_STYLES: Record<AttendanceStatus, string> = {
 }
 
 export default async function StudentHistoryPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    redirect('/login')
-  }
+  const { supabase, user } = await requireRole(['STUDENT'])
 
   const [{ data: attendances }, risks, cutsBySubject] = await Promise.all([
     supabase

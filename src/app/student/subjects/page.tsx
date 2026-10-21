@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+import { requireRole } from '@/lib/auth/requireRole'
 import SubjectBrowser, { SubjectItem } from './SubjectBrowser'
 import JoinByCode from './JoinByCode'
 import { isSessionAlreadyHeld, isWithinJustificationWindow } from '@/lib/justifications/eligibility'
@@ -39,12 +38,7 @@ interface SubjectCareerRow {
 }
 
 export default async function StudentSubjectsPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireRole(['STUDENT'])
 
   const { data: studentCareers } = await supabase
     .from('student_careers')
