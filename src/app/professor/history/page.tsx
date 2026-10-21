@@ -3,7 +3,7 @@ import Link from 'next/link'
 import HistoryDrillDown from './HistoryDrillDown'
 import BackLink from '@/components/BackLink'
 import { getAppSettings } from '@/lib/settings/appSettings'
-import { canProfessorEditSession } from '@/lib/sessions/classWindow'
+import { canProfessorEditSession, getEffectiveClassEnd } from '@/lib/sessions/classWindow'
 import { hasClassEnded } from '@/lib/attendance/heldSessions'
 import { usableCuts, type PeriodCutRow, type PeriodDates } from '@/lib/attendance/cutsView'
 
@@ -130,6 +130,9 @@ export default async function ProfessorHistoryPage({
         // (DEF-QA-05): una clase en curso no cuenta como dictada para quien
         // todavía no escaneó.
         class_ended: hasClassEnded(session, defaultClassMinutes, now),
+        // Fin efectivo (class_ends_at, o date + duración por defecto en sesiones
+        // viejas): el cliente lo usa para refrescar justo cuando termina la clase.
+        class_ends_at_effective: getEffectiveClassEnd(session, defaultClassMinutes).toISOString(),
       })
     ),
   }))

@@ -22,6 +22,7 @@ import CutsBreakdownList, { CutsInline } from '@/components/attendance/CutsBreak
 import { buildStudentCutBreakdown } from '@/lib/attendance/cutsView'
 import type { CutInput, SessionAttendance } from '@/lib/attendance/cutsBreakdown'
 import { countOf } from '@/lib/utils/plural'
+import { useRefreshAtClassEnd } from '@/lib/hooks/useRefreshAtClassEnd'
 import {
   capitalizeFirst,
   formatBogotaClock,
@@ -99,6 +100,8 @@ interface Session {
   /** true cuando la clase ya terminó (calculado en el servidor). Una clase
    * en curso solo cuenta como dictada para quien ya escaneó (DEF-QA-05). */
   class_ended?: boolean
+  /** Fin efectivo de la clase (ISO), calculado en el servidor. */
+  class_ends_at_effective?: string
   attendances: Attendance[]
 }
 
@@ -137,10 +140,24 @@ export default function HistoryDrillDown({
    */
   initialSubjectId?: string
 }) {
-  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(
-    () => subjects.find((s) => s.id === initialSubjectId) || null
+  // Se guardan los ids y se resuelve contra `subjects` en cada render: cuando el
+  // servidor refresca las props (p. ej. al terminar una clase) la vista se
+  // actualiza en vez de quedar con una copia vieja de la materia/sesión.
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(
+    () => subjects.find((s) => s.id === initialSubjectId)?.id ?? null
   )
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null)
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
+  const selectedSubject = subjects.find((s) => s.id === selectedSubjectId) ?? null
+  const selectedSession = selectedSubject?.sessions?.find((s) => s.id === selectedSessionId) ?? null
+  const setSelectedSubject = (subject: Subject | null) => setSelectedSubjectId(subject?.id ?? null)
+  const setSelectedSession = (session: Session | null) => setSelectedSessionId(session?.id ?? null)
+  // La bandera class_ended la calcula el servidor: si el docente deja la página
+  // abierta, se refresca justo cuando termina la próxima clase en curso.
+  useRefreshAtClassEnd(
+    (selectedSubject?.sessions ?? [])
+      .filter((s) => s.is_active !== false && s.class_ended === false)
+      .map((s) => s.class_ends_at_effective)
+  )
   const [subjectTab, setSubjectTab] = useState<'sessions' | 'absences'>(
     initialSubjectId ? 'absences' : 'sessions'
   )
