@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/auth/requireRole'
+import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { redirect } from 'next/navigation'
 import QRDisplay from '@/components/qr/QRDisplay'
 import SessionRosterPanel from '@/components/attendance/SessionRosterPanel'
@@ -11,6 +12,21 @@ import { canProfessorEditSession } from '@/lib/sessions/classWindow'
 
 export const dynamic = 'force-dynamic'
 
+// Fila de la sesión sin los tokens QR (esos se leen aparte con service-role).
+interface SessionRow {
+  id: string
+  subject_id: string
+  date: string
+  duration_minutes: number
+  expires_at: string
+  is_active: boolean | null
+  qr_rotation_seconds: number
+  class_ends_at: string | null
+  suspended_at: string | null
+  suspension_reason: string | null
+  subject: { name: string; professor_id: string } | null
+}
+
 export default async function ProfessorSessionPage({
   params,
 }: {
@@ -19,21 +35,18 @@ export default async function ProfessorSessionPage({
   const resolvedParams = await params
   const sessionId = resolvedParams.id
 
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    redirect('/login')
-  }
+  const { supabase, user } = await requireRole(['PROFESSOR'])
 
   // Fetch session details
   const { data: session } = await supabase
     .from('sessions')
-    .select('*, subject:subjects(name, professor_id)')
+    // Columnas explícitas: desde la migración 031 un SELECT * falla para el
+    // JWT del usuario porque qr_token / previous_qr_token no son legibles.
+    .select(
+      'id, subject_id, date, duration_minutes, expires_at, is_active, qr_rotation_seconds, class_ends_at, suspended_at, suspension_reason, subject:subjects(name, professor_id)'
+    )
     .eq('id', sessionId)
-    .single()
+    .single<SessionRow>()
 
   if (!session) {
     return <div className="p-8 text-center">Sesión no encontrada</div>
@@ -45,6 +58,14 @@ export default async function ProfessorSessionPage({
   if (session.subject?.professor_id !== user.id) {
     redirect('/professor/subjects')
   }
+
+  // El token vigente solo se lee con service-role, y recién ahora que se
+  // comprobó que el profesor es el dueño de la materia.
+  const { data: tokenRow } = await getSupabaseAdmin()
+    .from('sessions')
+    .select('qr_token')
+    .eq('id', session.id)
+    .single()
 
   const isSuspended = !!session.suspended_at
   // RF20: suspender solo mientras la clase sigue en curso (misma ventana
@@ -105,7 +126,7 @@ export default async function ProfessorSessionPage({
               <div className="lg:flex-1 lg:max-w-xl">
                 <QRDisplay
                   sessionId={session.id}
-                  qrToken={session.qr_token}
+                  qrToken={tokenRow?.qr_token ?? null}
                   expiresAt={session.expires_at}
                   rotationSeconds={session.qr_rotation_seconds}
                 />

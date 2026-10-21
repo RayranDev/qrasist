@@ -80,7 +80,7 @@ export async function deleteSubject(subjectId: string) {
   ] = await Promise.all([
     supabase
       .from('sessions')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
       .eq('subject_id', subjectId),
     supabase
       .from('enrollments')

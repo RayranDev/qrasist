@@ -53,7 +53,7 @@ export default async function AdminDashboardPage({
       .eq('is_active', true),
     supabase.from('subjects').select('*', { count: 'exact', head: true }).eq('is_active', true),
     supabase.from('careers').select('*', { count: 'exact', head: true }).eq('is_active', true),
-    supabase.from('sessions').select('*', { count: 'exact', head: true }).eq('is_active', true),
+    supabase.from('sessions').select('id', { count: 'exact', head: true }).eq('is_active', true),
     supabase.from('periods').select('*', { count: 'exact', head: true }).eq('is_active', true),
     supabase
       .from('absence_justifications')
@@ -63,7 +63,7 @@ export default async function AdminDashboardPage({
     // historicas no archivadas).
     supabase
       .from('sessions')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
       .eq('is_active', true)
       .gt('expires_at', new Date().toISOString()),
   ])
