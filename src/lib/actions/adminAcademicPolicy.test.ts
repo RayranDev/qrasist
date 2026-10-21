@@ -55,7 +55,12 @@ describe('updateGlobalAbsencePolicy', () => {
     const result = await updateGlobalAbsencePolicy({ ...policy, applyToAllActiveSubjects: true })
     expect(result.success).toBe(false)
     expect(mockUpdate).not.toHaveBeenCalled()
-    expect(mockLogAudit).not.toHaveBeenCalled()
+    expect(mockLogAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'policy.update_global_refused',
+        details: expect.objectContaining({ reason: 'missing_confirmation' }),
+      })
+    )
   })
 
   it('does not overwrite when the active subject count changed since the confirmation', async () => {
@@ -67,6 +72,17 @@ describe('updateGlobalAbsencePolicy', () => {
     })
     expect(result).toMatchObject({ success: false, currentCount: 38 })
     expect(mockUpdate).not.toHaveBeenCalled()
+    // The refused attempt is audited with both counts.
+    expect(mockLogAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'policy.update_global_refused',
+        details: expect.objectContaining({
+          reason: 'count_mismatch',
+          confirmed_count: 37,
+          current_count: 38,
+        }),
+      })
+    )
   })
 
   it('overwrites and audits when the confirmed count matches', async () => {
@@ -80,7 +96,31 @@ describe('updateGlobalAbsencePolicy', () => {
     expect(mockLogAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'policy.update_global_absence',
-        details: expect.objectContaining({ applied_to_count: 37 }),
+        details: expect.objectContaining({ confirmed_count: 37, applied_to_count: 37 }),
+      })
+    )
+    const details = mockLogAudit.mock.calls[0][0].details
+    expect(details.count_mismatch).toBeUndefined()
+  })
+
+  it('keeps the result but flags it when the updated rows differ from the confirmed count', async () => {
+    mockUpdate.mockResolvedValue({ count: 36, error: null })
+    const result = await updateGlobalAbsencePolicy({
+      ...policy,
+      applyToAllActiveSubjects: true,
+      confirmedSubjectsCount: 37,
+    })
+    expect(result).toMatchObject({ success: true, countUpdated: 36 })
+    expect((result as { warning?: string }).warning).toContain('36')
+    expect((result as { warning?: string }).warning).toContain('37')
+    expect(mockLogAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'policy.update_global_absence',
+        details: expect.objectContaining({
+          confirmed_count: 37,
+          applied_to_count: 36,
+          count_mismatch: true,
+        }),
       })
     )
   })

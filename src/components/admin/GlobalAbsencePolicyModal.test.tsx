@@ -51,6 +51,29 @@ describe('GlobalAbsencePolicyModal (DEF-QA-07)', () => {
     )
   })
 
+  it('reopens unchecked and with the initial values after a successful apply', async () => {
+    openModal()
+    fireEvent.click(screen.getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar y aplicar' }))
+    await screen.findByText(/37 materias activas/)
+    fireEvent.click(screen.getByRole('button', { name: 'Sí, reemplazar política' }))
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1))
+    // The modal closes itself after the success message.
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), { timeout: 4000 })
+
+    fireEvent.click(screen.getByRole('button', { name: /Configurar Política/ }))
+    expect((screen.getByRole('checkbox') as HTMLInputElement).checked).toBe(false)
+    expect(screen.queryByText(/Se reemplazará la política/)).toBeNull()
+  })
+
+  it('reopens unchecked after closing without applying', () => {
+    openModal()
+    fireEvent.click(screen.getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+    fireEvent.click(screen.getByRole('button', { name: /Configurar Política/ }))
+    expect((screen.getByRole('checkbox') as HTMLInputElement).checked).toBe(false)
+  })
+
   it('goes back without applying anything', async () => {
     openModal()
     fireEvent.click(screen.getByRole('checkbox'))

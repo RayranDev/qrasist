@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { buildPolicyCountChangedMessage, buildPolicyOverwriteMessage } from './policyOverwrite'
+import {
+  buildPolicyAppliedMismatchMessage,
+  buildPolicyCountChangedMessage,
+  buildPolicyOverwriteMessage,
+} from './policyOverwrite'
 
 describe('buildPolicyOverwriteMessage', () => {
   it('states the exact number of active subjects and the audit notice', () => {
@@ -18,5 +22,13 @@ describe('buildPolicyOverwriteMessage', () => {
 describe('buildPolicyCountChangedMessage', () => {
   it('reports the current count so the admin can confirm again', () => {
     expect(buildPolicyCountChangedMessage(38)).toContain('ahora son 38')
+  })
+})
+
+describe('buildPolicyAppliedMismatchMessage', () => {
+  it('states both the confirmed and the updated count', () => {
+    const message = buildPolicyAppliedMismatchMessage(37, 36)
+    expect(message).toContain('36 materias activas')
+    expect(message).toContain('confirmado 37')
   })
 })

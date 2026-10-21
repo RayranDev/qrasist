@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Sliders, CheckCircle2, AlertCircle, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import {
@@ -50,22 +50,38 @@ export default function GlobalAbsencePolicyModal({
     null
   )
 
+  // Vuelve el formulario a su estado inicial: valores vigentes de la política,
+  // casilla de aplicar a todas desmarcada y sin paso de confirmación. Así, al
+  // reabrir el modal nunca queda marcada una acción destructiva anterior.
+  const resetFields = () => {
+    setRuleType(initialRuleType)
+    setPercentage(initialPercentage)
+    setCount(initialCount)
+    setPlannedSessions(initialPlannedSessions)
+    setLateAfterMinutes(initialLateAfterMinutes ?? '')
+    setLatesPerAbsence(initialLatesPerAbsence ?? '')
+    setApplyToAll(false)
+    setConfirmCount(null)
+  }
+  const closeModal = () => {
+    setIsOpen(false)
+    setFeedback(null)
+    resetFields()
+  }
+  // Los timeouts y el listener de teclado usan siempre la versión más reciente.
+  const closeModalRef = useRef(closeModal)
+  useEffect(() => {
+    closeModalRef.current = closeModal
+  })
+
   useEffect(() => {
     if (!isOpen) return
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setIsOpen(false)
-        setConfirmCount(null)
-      }
+      if (e.key === 'Escape') closeModalRef.current()
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isOpen])
-
-  const closeModal = () => {
-    setIsOpen(false)
-    setConfirmCount(null)
-  }
 
   // Paso 1: consulta la cantidad exacta en el servidor y pide confirmación.
   const handleReview = async (e: React.FormEvent) => {
@@ -106,18 +122,19 @@ export default function GlobalAbsencePolicyModal({
       })
 
       if (res.success) {
+        const updated = res.countUpdated ?? confirmCount
+        const warning = res.warning
         setFeedback({
-          type: 'success',
-          message: `Política aplicada exitosamente a ${res.countUpdated ?? confirmCount} ${pluralize(res.countUpdated ?? confirmCount, 'materia')}.`,
+          type: warning ? 'error' : 'success',
+          message:
+            warning ??
+            `Política aplicada exitosamente a ${updated} ${pluralize(updated, 'materia')}.`,
         })
-        setConfirmCount(null)
-        setTimeout(() => {
-          setIsOpen(false)
-          setFeedback(null)
-        }, 1400)
+        resetFields()
+        setTimeout(() => closeModalRef.current(), warning ? 6000 : 1400)
       } else {
         // Si la cantidad cambió, se vuelve a pedir confirmación con la nueva.
-        if ('currentCount' in res && typeof res.currentCount === 'number') {
+        if (typeof res.currentCount === 'number') {
           setConfirmCount(res.currentCount)
         }
         setFeedback({

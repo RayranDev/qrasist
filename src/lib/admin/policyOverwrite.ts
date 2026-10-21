@@ -12,6 +12,10 @@ export function buildPolicyOverwriteMessage(activeSubjects: number): string {
 
 export const POLICY_COUNT_CHANGED_PREFIX = 'La cantidad de materias activas cambió'
 
+export function buildPolicyAppliedMismatchMessage(confirmed: number, updated: number): string {
+  return `Se actualizaron ${countOf(updated, 'materia activa', 'materias activas')} y habías confirmado ${confirmed}: la cantidad cambió durante la operación. Quedó registrado en la auditoría.`
+}
+
 export function buildPolicyCountChangedMessage(currentCount: number): string {
   return `${POLICY_COUNT_CHANGED_PREFIX} (ahora son ${currentCount}). Revisa y confirma de nuevo.`
 }

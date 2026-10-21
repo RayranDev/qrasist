@@ -5,7 +5,10 @@ import { revalidatePath } from 'next/cache'
 import { checkAdmin } from './authGuards'
 import { logAudit } from '@/lib/audit/auditLog'
 import { z } from 'zod'
-import { buildPolicyCountChangedMessage } from '@/lib/admin/policyOverwrite'
+import {
+  buildPolicyAppliedMismatchMessage,
+  buildPolicyCountChangedMessage,
+} from '@/lib/admin/policyOverwrite'
 
 const policySchema = z.object({
   absenceRuleType: z.enum(['PERCENTAGE', 'FIXED_COUNT']).default('PERCENTAGE'),
@@ -55,7 +58,13 @@ export async function getActiveSubjectsCount(): Promise<
   return { success: true, count }
 }
 
-export async function updateGlobalAbsencePolicy(rawInput: unknown) {
+type UpdateGlobalAbsencePolicyResult =
+  | { success: true; countUpdated: number; warning?: string }
+  | { success: false; error: string; currentCount?: number }
+
+export async function updateGlobalAbsencePolicy(
+  rawInput: unknown
+): Promise<UpdateGlobalAbsencePolicyResult> {
   const supabase = await createClient()
   const {
     data: { user },
@@ -85,7 +94,22 @@ export async function updateGlobalAbsencePolicy(rawInput: unknown) {
   } = parsed.data
 
   if (applyToAllActiveSubjects) {
+    const policyDetails = {
+      absence_rule_type: absenceRuleType,
+      max_absence_percentage: maxAbsencePercentage,
+      total_planned_sessions: totalPlannedSessions,
+      max_absence_count: absenceRuleType === 'FIXED_COUNT' ? maxAbsenceCount || 4 : null,
+      late_after_minutes: lateAfterMinutes ?? null,
+      lates_per_absence: latesPerAbsence ?? null,
+    }
+
     if (confirmedSubjectsCount === undefined) {
+      await logAudit({
+        actorId: user.id,
+        action: 'policy.update_global_refused',
+        entityType: 'subjects',
+        details: { ...policyDetails, reason: 'missing_confirmation' },
+      })
       return {
         success: false,
         error: 'Confirma la cantidad de materias que se van a actualizar antes de aplicar.',
@@ -96,6 +120,17 @@ export async function updateGlobalAbsencePolicy(rawInput: unknown) {
       return { success: false, error: 'No se pudo contar las materias activas.' }
     }
     if (currentCount !== confirmedSubjectsCount) {
+      await logAudit({
+        actorId: user.id,
+        action: 'policy.update_global_refused',
+        entityType: 'subjects',
+        details: {
+          ...policyDetails,
+          reason: 'count_mismatch',
+          confirmed_count: confirmedSubjectsCount,
+          current_count: currentCount,
+        },
+      })
       return {
         success: false,
         error: buildPolicyCountChangedMessage(currentCount),
@@ -103,14 +138,7 @@ export async function updateGlobalAbsencePolicy(rawInput: unknown) {
       }
     }
 
-    const updatePayload: Record<string, unknown> = {
-      absence_rule_type: absenceRuleType,
-      max_absence_percentage: maxAbsencePercentage,
-      total_planned_sessions: totalPlannedSessions,
-      max_absence_count: absenceRuleType === 'FIXED_COUNT' ? maxAbsenceCount || 4 : null,
-      late_after_minutes: lateAfterMinutes ?? null,
-      lates_per_absence: latesPerAbsence ?? null,
-    }
+    const updatePayload: Record<string, unknown> = { ...policyDetails }
 
     const { error: batchError, count } = await supabase
       .from('subjects')
@@ -121,16 +149,33 @@ export async function updateGlobalAbsencePolicy(rawInput: unknown) {
       return { success: false, error: 'Error al aplicar política a las materias' }
     }
 
+    // La cantidad se confirmó antes del UPDATE: si entre la verificación y la
+    // escritura cambió el número de materias activas, el resultado se conserva
+    // pero queda registrado y se avisa en el mensaje.
+    const updated = count ?? 0
+    const mismatch = updated !== confirmedSubjectsCount
+
     await logAudit({
       actorId: user.id,
       action: 'policy.update_global_absence',
       entityType: 'subjects',
-      details: { ...updatePayload, applied_to_count: count ?? 0 },
+      details: {
+        ...updatePayload,
+        confirmed_count: confirmedSubjectsCount,
+        applied_to_count: updated,
+        ...(mismatch ? { count_mismatch: true } : {}),
+      },
     })
 
     revalidatePath('/admin/dashboard')
     revalidatePath('/admin/subjects')
-    return { success: true, countUpdated: count ?? 0 }
+    return {
+      success: true,
+      countUpdated: updated,
+      ...(mismatch
+        ? { warning: buildPolicyAppliedMismatchMessage(confirmedSubjectsCount, updated) }
+        : {}),
+    }
   }
 
   revalidatePath('/admin/dashboard')
