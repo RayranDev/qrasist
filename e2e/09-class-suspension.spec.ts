@@ -210,7 +210,18 @@ test.describe('class suspension (RF20)', () => {
         expect(restored).toEqual({ is_active: true, suspended_at: null, suspension_reason: null })
         expect(await countHeld()).toBe(heldBefore + 1)
 
-        // The class counts again: student A (who never scanned it) has one more absence.
+        // DEF-QA-05: the class is restored but still LIVE (class_ends_at is in the
+        // future), so it is not held yet for student A, who never scanned it: no
+        // premature absence.
+        expect(await studentStatusLine(studentAPage)).toBe(lineABefore)
+
+        // Once the class has ended it counts as held, and student A (who never
+        // scanned it) has one more absence.
+        const { error: endError } = await admin
+          .from('sessions')
+          .update({ class_ends_at: new Date(Date.now() - 60_000).toISOString() })
+          .eq('id', sessionId)
+        expect(endError).toBeNull()
         expect(await studentStatusLine(studentAPage)).not.toBe(lineABefore)
       } finally {
         await adminContext.close()

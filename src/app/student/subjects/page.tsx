@@ -3,6 +3,7 @@ import SubjectBrowser, { SubjectItem } from './SubjectBrowser'
 import JoinByCode from './JoinByCode'
 import { isSessionAlreadyHeld, isWithinJustificationWindow } from '@/lib/justifications/eligibility'
 import { getAppSettings } from '@/lib/settings/appSettings'
+import { fetchAllRows, unwrapRows } from '@/lib/supabase/fetchAll'
 import { isSessionHeldFor } from '@/lib/attendance/heldSessions'
 import type { JustificationStatus, MissedSessionItem } from './missedSessions'
 import RiskBanner from '@/components/student/RiskBanner'
@@ -36,6 +37,14 @@ interface SubjectCareerRow {
     late_after_minutes?: number | null
     lates_per_absence?: number | null
   } | null
+}
+
+interface AvailableSessionRow {
+  id: string
+  subject_id: string
+  date: string
+  is_active: boolean
+  class_ends_at: string | null
 }
 
 export default async function StudentSubjectsPage() {
@@ -91,7 +100,7 @@ export default async function StudentSubjectsPage() {
     { data: requests },
     { data: studentAttendances },
     { data: myJustifications },
-    { data: availableSubjectSessions },
+    availableSessionsResult,
   ] = await Promise.all([
     supabase.from('enrollments').select('subject_id').eq('student_id', user.id),
     supabase.from('enrollment_requests').select('subject_id, status').eq('student_id', user.id),
@@ -103,22 +112,22 @@ export default async function StudentSubjectsPage() {
       .from('absence_justifications')
       .select('id, session_id, subject_id, status, reason, attachment_path, review_note')
       .eq('student_id', user.id),
+    // PostgREST trunca a 1000 filas: se pagina. Solo sesiones activas (dictadas):
+    // las archivadas/suspendidas no cuentan ni se listan como perdidas.
     availableSubjectIds.length > 0
-      ? supabase
-          .from('sessions')
-          .select('id, subject_id, date, is_active, class_ends_at')
-          .in('subject_id', availableSubjectIds)
-      : Promise.resolve({
-          data: [] as {
-            id: string
-            subject_id: string
-            date: string
-            is_active: boolean
-            class_ends_at: string | null
-          }[],
-        }),
+      ? fetchAllRows<AvailableSessionRow>((from, to) =>
+          supabase
+            .from('sessions')
+            .select('id, subject_id, date, is_active, class_ends_at')
+            .in('subject_id', availableSubjectIds)
+            .eq('is_active', true)
+            .order('id')
+            .range(from, to)
+        )
+      : Promise.resolve({ data: [] as AvailableSessionRow[], error: null }),
   ])
 
+  const availableSubjectSessions = unwrapRows(availableSessionsResult, 'las clases de tus materias')
   const { defaultClassMinutes } = await getAppSettings(supabase)
 
   // Cortes de los períodos de las materias disponibles (period_cuts es de
@@ -252,7 +261,7 @@ export default async function StudentSubjectsPage() {
     const attendanceSummary = isEnrolled ? risksBySubjectId.get(r.subject!.id)?.summary : undefined
 
     const missedSessions: MissedSessionItem[] = isEnrolled
-      ? (availableSubjectSessions || [])
+      ? availableSubjectSessions
           .filter((s) => s.subject_id === r.subject!.id)
           .filter((s) => s.is_active !== false && isSessionAlreadyHeld(s, defaultClassMinutes))
           .filter((s) => !attendedSessionIds.has(s.id))
@@ -287,7 +296,7 @@ export default async function StudentSubjectsPage() {
             r.subject!.period,
             r.subject!.period_id ? cutRowsByPeriod.get(r.subject!.period_id) : []
           ),
-          sessions: (availableSubjectSessions || []).filter((s) => s.subject_id === r.subject!.id),
+          sessions: availableSubjectSessions.filter((s) => s.subject_id === r.subject!.id),
           attendanceBySessionId,
           justifiedSessionIds: approvedJustifiedSessionIds,
           held: { now, defaultClassMinutes },
