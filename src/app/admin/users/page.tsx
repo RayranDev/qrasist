@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+import { requireRole } from '@/lib/auth/requireRole'
 import AdminUserList from './AdminUserList'
 import MobileWarningBanner from '@/components/MobileWarningBanner'
 import AdminHeader from '@/components/admin/AdminHeader'
@@ -23,12 +22,7 @@ export default async function AdminUsersPage({
   }>
 }) {
   const params = await searchParams
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireRole(['ADMIN'])
 
   const roleFilter = (['ALL', 'ADMIN', 'PROFESSOR', 'STUDENT'] as RoleFilter[]).includes(
     params.role as RoleFilter

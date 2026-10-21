@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+import { requireRole } from '@/lib/auth/requireRole'
 import { CreateCareerForm, CareerList, CreatePeriodForm, PeriodList } from './AcademicComponents'
 import MobileWarningBanner from '@/components/MobileWarningBanner'
 import AdminHeader from '@/components/admin/AdminHeader'
@@ -7,12 +6,7 @@ import AdminHeader from '@/components/admin/AdminHeader'
 export const dynamic = 'force-dynamic'
 
 export default async function AdminAcademicPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) redirect('/login')
+  const { supabase } = await requireRole(['ADMIN'])
 
   const { data: careers } = await supabase
     .from('careers')

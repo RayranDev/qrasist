@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/auth/requireRole'
 import { redirect } from 'next/navigation'
 import EnrollmentManager from './EnrollmentManager'
 import MobileWarningBanner from '@/components/MobileWarningBanner'
@@ -13,12 +13,7 @@ export default async function SubjectEnrollmentsPage({
 }) {
   const { id } = await params
 
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) redirect('/login')
+  const { supabase } = await requireRole(['ADMIN'])
 
   // Obtener la materia
   const { data: subject } = await supabase.from('subjects').select('*').eq('id', id).single()

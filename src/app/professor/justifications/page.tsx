@@ -1,6 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/auth/requireRole'
 import { redirect } from 'next/navigation'
-import { checkAdmin } from '@/lib/actions/authGuards'
 import Link from 'next/link'
 import InstitutionMark from '@/components/brand/InstitutionMark'
 import JustificationsList, {
@@ -15,16 +14,10 @@ export const dynamic = 'force-dynamic'
  * rechazar) la hace coordinación desde /admin/justifications.
  */
 export default async function ProfessorJustificationsPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) redirect('/login')
-
-  // checkAdmin exige cuenta activa: un admin desactivado con sesion viva
+  // requireRole exige cuenta activa: un admin desactivado con sesion viva
   // no debe ver datos de toda la institucion.
-  if (await checkAdmin(supabase, user.id)) redirect('/admin/justifications')
+  const { supabase, user, role } = await requireRole(['PROFESSOR', 'ADMIN'])
+  if (role === 'ADMIN') redirect('/admin/justifications')
 
   const { data: subjects } = await supabase
     .from('subjects')

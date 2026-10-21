@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+import { requireRole } from '@/lib/auth/requireRole'
 import AdminHeader from '@/components/admin/AdminHeader'
 import PaginatedConsolidatedBoard from '@/components/admin/PaginatedConsolidatedBoard'
 import GlobalAbsencePolicyModal from '@/components/admin/GlobalAbsencePolicyModal'
@@ -27,18 +26,7 @@ export default async function AdminDashboardPage({
   searchParams: Promise<{ tab?: string }>
 }) {
   const params = await searchParams
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, name')
-    .eq('id', user.id)
-    .single()
-  if (!profile || profile.role !== 'ADMIN') redirect('/login')
+  const { supabase } = await requireRole(['ADMIN'])
 
   const appSettings = await getAppSettings(supabase)
 

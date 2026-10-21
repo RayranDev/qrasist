@@ -1,6 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/auth/requireRole'
 import { redirect } from 'next/navigation'
-import { checkAdmin } from '@/lib/actions/authGuards'
 import Link from 'next/link'
 import RequestsList from './RequestsList'
 
@@ -8,16 +7,10 @@ export const dynamic = 'force-dynamic'
 
 export default async function SubjectRequestsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: subjectId } = await params
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) redirect('/login')
-
-  // checkAdmin exige cuenta activa: un admin desactivado con sesion viva
+  // requireRole exige cuenta activa: un admin desactivado con sesion viva
   // no debe ver datos de toda la institucion.
-  const isAdmin = await checkAdmin(supabase, user.id)
+  const { supabase, user, role } = await requireRole(['PROFESSOR', 'ADMIN'])
+  const isAdmin = role === 'ADMIN'
 
   // Un admin puede revisar solicitudes de cualquier materia (mismo
   // permiso que ya usa la server action `approveEnrollmentRequest` vía

@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+import { requireRole } from '@/lib/auth/requireRole'
 import Link from 'next/link'
 import {
   CreateSubjectForm,
@@ -39,12 +38,7 @@ export default async function AdminSubjectsPage({
   }>
 }) {
   const params = await searchParams
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) redirect('/login')
+  const { supabase } = await requireRole(['ADMIN'])
 
   const statusFilter: StatusFilter = params.status === 'inactive' ? 'inactive' : 'active'
   const currentPage = Math.max(1, parseInt(params.page || '1', 10) || 1)
