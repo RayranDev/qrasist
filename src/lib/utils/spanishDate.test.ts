@@ -5,6 +5,7 @@ import {
   formatBogotaDateNumeric,
   formatBogotaDateTimeLong,
   formatBogotaDayLong,
+  INVALID_DATE_TEXT,
 } from './spanishDate'
 
 describe('capitalizeFirst', () => {
@@ -65,5 +66,31 @@ describe('formatBogotaDateNumeric', () => {
   it('pads day and month and uses the Bogotá calendar day', () => {
     expect(formatBogotaDateNumeric('2026-03-02T15:00:00Z')).toBe('02/03/2026')
     expect(formatBogotaDateNumeric('2026-03-03T03:30:00Z')).toBe('02/03/2026')
+  })
+})
+
+describe('invalid dates', () => {
+  const inputs: (string | Date)[] = ['', 'not a date', '2026-13-45', '2026-02-31', new Date(NaN)]
+
+  it.each(inputs.map((v) => [String(v), v] as const))(
+    'every formatter returns the placeholder for %j',
+    (_label, value) => {
+      expect(formatBogotaDayLong(value)).toBe(INVALID_DATE_TEXT)
+      expect(formatBogotaClock(value)).toBe(INVALID_DATE_TEXT)
+      expect(formatBogotaDateTimeLong(value)).toBe(INVALID_DATE_TEXT)
+      expect(formatBogotaDateNumeric(value)).toBe(INVALID_DATE_TEXT)
+    }
+  )
+
+  it('never leaks NaN or throws', () => {
+    expect(() => formatBogotaDateTimeLong(new Date(NaN))).not.toThrow()
+    expect(formatBogotaDateTimeLong('garbage')).not.toMatch(/NaN|undefined/)
+  })
+})
+
+describe('date-only strings', () => {
+  it('are a civil day, not UTC midnight (which would be the previous day in Bogotá)', () => {
+    expect(formatBogotaDayLong('2026-10-21')).toBe('miércoles 21 de octubre')
+    expect(formatBogotaDateNumeric('2026-10-21')).toBe('21/10/2026')
   })
 })
