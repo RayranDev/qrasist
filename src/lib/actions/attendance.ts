@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { headers } from 'next/headers'
+import { getClientIp, sanitizeCoords } from '@/lib/utils/clientIp'
 import { checkRateLimit } from '@/lib/utils/rateLimiter'
 import { formatBogotaTime, getBogotaDayRange } from '@/lib/utils/bogotaDay'
 
@@ -47,7 +48,7 @@ export async function registerAttendance(
 
   // Capturar la IP real (Next.js headers)
   const headersList = await headers()
-  const ipAddress = headersList.get('x-forwarded-for') || 'unknown'
+  const ipAddress = getClientIp(headersList)
 
   // 1. Obtener usuario autenticado
   const {
@@ -217,12 +218,13 @@ export async function registerAttendance(
   //     mismo saltándose el QR, la ventana de registro o la inscripción.
   //     student_id sale del usuario autenticado y session_id de la sesión
   //     validada, nunca de datos del cliente.
+  const safeCoords = sanitizeCoords(coords)
   const { error: insertError } = await admin.from('attendances').insert({
     session_id: session.id,
     student_id: user.id,
     ip_address: ipAddress,
-    latitude: coords?.latitude ?? null,
-    longitude: coords?.longitude ?? null,
+    latitude: safeCoords?.latitude ?? null,
+    longitude: safeCoords?.longitude ?? null,
     status,
   })
 

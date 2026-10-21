@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
+import { getClientIp } from '@/lib/utils/clientIp'
 import { checkRateLimit } from '@/lib/utils/rateLimiter'
 import { z } from 'zod'
 
@@ -26,7 +27,7 @@ export async function requestPasswordReset(formData: FormData) {
   const parsed = emailSchema.safeParse(rawEmail)
 
   const headersList = await headers()
-  const ipAddress = headersList.get('x-forwarded-for') || 'unknown'
+  const ipAddress = getClientIp(headersList)
 
   // Límite por IP y por correo (3 cada 15 min): sin esto, este endpoint
   // permitiría bombardear cualquier bandeja con correos de recuperación,

@@ -14,6 +14,17 @@
 --          qr_token / previous_qr_token de `sessions`.
 --   2. Aplicar ESTA migración (031) DESPUÉS del despliegue.
 --
+-- ROLLBACK (solo si se revierte el código en Vercel a una versión anterior
+-- a fix/attendance-insert-security; con el código nuevo NO hace falta):
+--
+--   GRANT SELECT ON public.sessions TO anon, authenticated;
+--   CREATE POLICY attendances_insert ON public.attendances
+--     FOR INSERT WITH CHECK (public.my_role() = 'STUDENT' AND student_id = auth.uid());
+--
+-- Ojo: eso reabre DEF-QA-01. Antes de aplicar, comparar la lista de
+-- columnas del GRANT de abajo con information_schema.columns de producción
+-- (una columna creada a mano fuera de las migraciones quedaría sin SELECT).
+--
 -- NO aplicar 031 antes del despliegue: el código anterior inserta la
 -- asistencia con el JWT del estudiante (necesita attendances_insert) y la
 -- página del QR del profesor lee qr_token con su JWT (necesita el SELECT
