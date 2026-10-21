@@ -16,7 +16,7 @@ import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
 import { fetchAllRows } from '@/lib/supabase/fetchAll'
 import { getAppSettings } from '@/lib/settings/appSettings'
 import { buildHeldCounter } from '@/lib/attendance/heldSessions'
-import { countOf } from '@/lib/utils/plural'
+import { countOf, pluralize } from '@/lib/utils/plural'
 
 export default async function ProfessorSubjectsPage() {
   const { supabase, user } = await requireRole(['PROFESSOR'])
@@ -277,7 +277,7 @@ export default async function ProfessorSubjectsPage() {
                       <p className="text-sm text-gray-400 mt-1 flex items-center gap-1.5">
                         <Users className="w-4 h-4" strokeWidth={2} />
                         <span className="font-semibold text-gray-600">{studentCount}</span>{' '}
-                        estudiante{studentCount !== 1 ? 's' : ''} inscritos
+                        {pluralize(studentCount, 'estudiante inscrito', 'estudiantes inscritos')}
                       </p>
                       <div className="flex flex-wrap gap-2 mt-2">
                         {pendingJustificationsCount > 0 && (
