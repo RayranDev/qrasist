@@ -319,9 +319,18 @@ export function CareerList({ careers }: { careers: Career[] }) {
   )
 }
 
+// Fin debe ser estrictamente posterior al inicio (mismo criterio que el
+// CHECK periods_dates_order y las server actions).
+function periodRangeError(start: string, end: string) {
+  return start && end && start >= end ? 'La fecha de fin debe ser posterior a la de inicio.' : null
+}
+
 export function CreatePeriodForm() {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const rangeError = periodRangeError(startDate, endDate)
   const showToast = useToast()
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -339,6 +348,8 @@ export function CreatePeriodForm() {
     const result = await createPeriod(formData)
     if (result.success) {
       ;(e.target as HTMLFormElement).reset()
+      setStartDate('')
+      setEndDate('')
       setOpen(false)
       showToast(`Período "${name}" creado.`, 'success')
     } else {
@@ -377,17 +388,42 @@ export function CreatePeriodForm() {
           <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">
             Inicio (opcional)
           </label>
-          <input name="start_date" type="date" className={inputClass} />
+          <input
+            name="start_date"
+            type="date"
+            value={startDate}
+            max={endDate || undefined}
+            onChange={(e) => setStartDate(e.target.value)}
+            className={inputClass}
+          />
         </div>
         <div>
           <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">
             Fin (opcional)
           </label>
-          <input name="end_date" type="date" className={inputClass} />
+          <input
+            name="end_date"
+            type="date"
+            value={endDate}
+            min={startDate || undefined}
+            onChange={(e) => setEndDate(e.target.value)}
+            aria-invalid={rangeError ? true : undefined}
+            aria-describedby={rangeError ? 'create-period-range-error' : undefined}
+            className={`${inputClass} ${rangeError ? 'border-red-400 focus:ring-red-200' : ''}`}
+          />
         </div>
       </div>
+      {rangeError && (
+        <p
+          id="create-period-range-error"
+          role="alert"
+          className="mt-2 text-xs font-semibold text-red-600"
+        >
+          {rangeError}
+        </p>
+      )}
       <button
-        disabled={loading}
+        disabled={loading || Boolean(rangeError)}
         type="submit"
         className="mt-4 px-5 py-2.5 bg-navy-800 text-white rounded-xl text-sm font-bold hover:bg-navy-900 transition disabled:opacity-50"
       >
@@ -405,6 +441,7 @@ export function PeriodList({ periods }: { periods: Period[] }) {
   const [editName, setEditName] = useState('')
   const [editStart, setEditStart] = useState('')
   const [editEnd, setEditEnd] = useState('')
+  const editRangeError = periodRangeError(editStart, editEnd)
 
   const handleReactivate = async (period: Period) => {
     setLoadingId(period.id)
@@ -503,6 +540,7 @@ export function PeriodList({ periods }: { periods: Period[] }) {
                 <input
                   id="edit-period-start"
                   value={editStart}
+                  max={editEnd || undefined}
                   onChange={(e) => setEditStart(e.target.value)}
                   type="date"
                   className={inputClass}
@@ -518,10 +556,22 @@ export function PeriodList({ periods }: { periods: Period[] }) {
                 <input
                   id="edit-period-end"
                   value={editEnd}
+                  min={editStart || undefined}
                   onChange={(e) => setEditEnd(e.target.value)}
                   type="date"
-                  className={inputClass}
+                  aria-invalid={editRangeError ? true : undefined}
+                  aria-describedby={editRangeError ? 'edit-period-range-error' : undefined}
+                  className={`${inputClass} ${editRangeError ? 'border-red-400 focus:ring-red-200' : ''}`}
                 />
+                {editRangeError && (
+                  <p
+                    id="edit-period-range-error"
+                    role="alert"
+                    className="mt-1.5 text-xs font-semibold text-red-600"
+                  >
+                    {editRangeError}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -542,7 +592,7 @@ export function PeriodList({ periods }: { periods: Period[] }) {
                 Cancelar
               </button>
               <button
-                disabled={loadingId === editing.id}
+                disabled={loadingId === editing.id || Boolean(editRangeError)}
                 onClick={handleSaveEdit}
                 className="flex-1 py-2 bg-navy-800 text-white rounded-xl text-sm font-bold hover:bg-navy-900 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
               >
