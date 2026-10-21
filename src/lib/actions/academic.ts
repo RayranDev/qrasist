@@ -172,6 +172,8 @@ export async function createPeriod(formData: FormData) {
 
   if (error) {
     if (error.code === '23505') return { success: false, error: 'Ese período ya existe' }
+    if (error.code === '23514')
+      return { success: false, error: 'La fecha de inicio debe ser anterior a la fecha de fin' }
     return { success: false, error: 'Error al crear el período' }
   }
 
@@ -222,6 +224,27 @@ export async function updatePeriod(
     return { success: false, error: 'La fecha de inicio debe ser anterior a la fecha de fin' }
   }
 
+  // Los cortes viven dentro del período: no se puede mover el rango
+  // dejando un corte por fuera (rompería el desglose por corte).
+  if (data.start_date || data.end_date) {
+    const { data: cuts, error: cutsError } = await supabase
+      .from('period_cuts')
+      .select('name, start_date, end_date')
+      .eq('period_id', periodId)
+    if (cutsError) return { success: false, error: 'Error al validar los cortes del período' }
+    const outside = (cuts || []).find(
+      (c) =>
+        (data.start_date && c.start_date < data.start_date) ||
+        (data.end_date && c.end_date > data.end_date)
+    )
+    if (outside) {
+      return {
+        success: false,
+        error: `El corte "${outside.name}" (${outside.start_date} → ${outside.end_date}) quedaría fuera del período. Ajusta o elimina ese corte primero.`,
+      }
+    }
+  }
+
   const { error } = await supabase
     .from('periods')
     .update({ name, start_date: data.start_date, end_date: data.end_date })
@@ -229,6 +252,8 @@ export async function updatePeriod(
 
   if (error) {
     if (error.code === '23505') return { success: false, error: 'Ese período ya existe' }
+    if (error.code === '23514')
+      return { success: false, error: 'La fecha de inicio debe ser anterior a la fecha de fin' }
     return { success: false, error: 'Error al actualizar el período' }
   }
 
