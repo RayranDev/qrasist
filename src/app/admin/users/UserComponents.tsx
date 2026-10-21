@@ -184,11 +184,13 @@ export function StudentHistoryModal({
                   </div>
                   <div className="text-xs text-gray-500 font-medium whitespace-nowrap">
                     {new Date(record.scanned_at).toLocaleDateString('es-CO', {
+                      timeZone: 'America/Bogota',
                       day: '2-digit',
                       month: '2-digit',
                       year: 'numeric',
                     })}{' '}
                     {new Date(record.scanned_at).toLocaleTimeString('es-CO', {
+                      timeZone: 'America/Bogota',
                       hour: '2-digit',
                       minute: '2-digit',
                     })}

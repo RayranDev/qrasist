@@ -44,3 +44,16 @@ export function formatBogotaDateTime(iso: string): string {
     hour12: true,
   }).format(new Date(iso))
 }
+
+/**
+ * Hora del día ("8:59 a. m.") en hora de Colombia. El servidor y el
+ * navegador pueden estar en UTC, así que la zona va explícita.
+ */
+export function formatBogotaTime(date: Date | string): string {
+  return new Intl.DateTimeFormat('es-CO', {
+    timeZone: 'America/Bogota',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  }).format(typeof date === 'string' ? new Date(date) : date)
+}
