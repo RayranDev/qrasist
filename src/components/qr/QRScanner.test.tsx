@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react'
+import { renderToString } from 'react-dom/server'
 import QRScanner from './QRScanner'
 
 const TOKEN_A = '3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b'
@@ -51,6 +52,10 @@ describe('QRScanner', () => {
     decoders.length = 0
     mockRegister.mockReset()
     mockRegister.mockResolvedValue(okResult)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('sends exactly one registerAttendance call when the camera decodes many frames', async () => {
@@ -136,5 +141,46 @@ describe('QRScanner', () => {
     expect(await screen.findByText('¡Asistencia Confirmada!')).toBeInTheDocument()
     expect(mockRegister).toHaveBeenCalledTimes(2)
     expect(mockRegister).toHaveBeenLastCalledWith(TOKEN_A, undefined)
+  })
+
+  describe('connectivity banner', () => {
+    const OFFLINE_TEXT = /Sin conexión a internet/
+
+    it('server-renders without the offline banner so hydration matches the browser (DEF-QA-08)', () => {
+      // Node >= 21 exposes a global `navigator` whose `onLine` is undefined;
+      // the old initializer read it during SSR and rendered the banner.
+      vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+
+      const html = renderToString(<QRScanner />)
+
+      expect(html).not.toMatch(OFFLINE_TEXT)
+      expect(html).toContain('id="qr-reader"')
+    })
+
+    it('shows the banner right after mount when the device is offline', async () => {
+      vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+
+      render(<QRScanner />)
+
+      expect(await screen.findByText(OFFLINE_TEXT)).toBeInTheDocument()
+    })
+
+    it('follows the online and offline events', async () => {
+      const onLine = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true)
+      render(<QRScanner />)
+      expect(screen.queryByText(OFFLINE_TEXT)).not.toBeInTheDocument()
+
+      onLine.mockReturnValue(false)
+      act(() => {
+        window.dispatchEvent(new Event('offline'))
+      })
+      expect(await screen.findByText(OFFLINE_TEXT)).toBeInTheDocument()
+
+      onLine.mockReturnValue(true)
+      act(() => {
+        window.dispatchEvent(new Event('online'))
+      })
+      await waitFor(() => expect(screen.queryByText(OFFLINE_TEXT)).not.toBeInTheDocument())
+    })
   })
 })

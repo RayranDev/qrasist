@@ -1,11 +1,26 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useSyncExternalStore } from 'react'
 import { Html5Qrcode } from 'html5-qrcode'
 import { registerAttendance, AttendanceErrorCode } from '@/lib/actions/attendance'
 import { getBestEffortLocation } from '@/lib/utils/geolocation'
 import { Check, TriangleAlert, CircleX, WifiOff, RefreshCw, Clock3 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+
+// Estado de conexión como store externo. En el servidor (Node >= 21 expone un
+// `navigator` global sin `onLine`) y durante la hidratación el snapshot es
+// siempre `true`, así que el HTML inicial coincide con el del cliente aun si
+// el dispositivo está offline; el valor real entra justo después de hidratar.
+function subscribeOnline(onChange: () => void) {
+  window.addEventListener('online', onChange)
+  window.addEventListener('offline', onChange)
+  return () => {
+    window.removeEventListener('online', onChange)
+    window.removeEventListener('offline', onChange)
+  }
+}
+const getOnlineSnapshot = () => navigator.onLine
+const getServerOnlineSnapshot = () => true
 
 export default function QRScanner() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'late' | 'error' | 'guest'>(
@@ -13,9 +28,7 @@ export default function QRScanner() {
   )
   const [message, setMessage] = useState('')
   const [errorCode, setErrorCode] = useState<AttendanceErrorCode | null>(null)
-  const [isOnline, setIsOnline] = useState(() =>
-    typeof navigator !== 'undefined' ? navigator.onLine : true
-  )
+  const isOnline = useSyncExternalStore(subscribeOnline, getOnlineSnapshot, getServerOnlineSnapshot)
   const [lastDecodedToken, setLastDecodedToken] = useState<string | null>(null)
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null)
   // html5-qrcode invoca el callback de éxito en cada frame decodificado (10
@@ -23,19 +36,6 @@ export default function QRScanner() {
   // decenas de registerAttendance. Es un ref (no estado) para que el
   // chequeo sea síncrono; se libera solo en reset() o al reintentar.
   const scanHandledRef = useRef(false)
-
-  // Detector de conectividad en tiempo real
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true)
-    const handleOffline = () => setIsOnline(false)
-
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-    return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-    }
-  }, [])
 
   const handleProcessScan = useCallback(async (decodedText: string) => {
     if (scanHandledRef.current) return
