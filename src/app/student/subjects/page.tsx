@@ -13,6 +13,8 @@ import {
 } from '@/lib/attendance/studentSummaries'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { GraduationCap } from 'lucide-react'
+import { buildStudentCutBreakdown, usableCuts, type PeriodCutRow } from '@/lib/attendance/cutsView'
+import type { SessionAttendance } from '@/lib/attendance/cutsBreakdown'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +27,8 @@ interface SubjectCareerRow {
     name: string
     code: string
     is_active: boolean | null
+    period_id?: string | null
+    period?: { start_date: string | null; end_date: string | null } | null
     absence_rule_type?: 'PERCENTAGE' | 'FIXED_COUNT'
     max_absence_percentage?: number
     max_absence_count?: number | null
@@ -68,6 +72,8 @@ export default async function StudentSubjectsPage() {
           name,
           code,
           is_active,
+          period_id,
+          period:periods ( start_date, end_date ),
           absence_rule_type,
           max_absence_percentage,
           max_absence_count,
@@ -122,6 +128,23 @@ export default async function StudentSubjectsPage() {
 
   const { defaultClassMinutes } = await getAppSettings(supabase)
 
+  // Cortes de los períodos de las materias disponibles (period_cuts es de
+  // lectura abierta a cualquier usuario activo).
+  const periodIds = [
+    ...new Set(available.map((r) => r.subject!.period_id).filter((id): id is string => !!id)),
+  ]
+  const { data: cutRows } =
+    periodIds.length > 0
+      ? await supabase
+          .from('period_cuts')
+          .select('id, period_id, name, start_date, end_date, sequence')
+          .in('period_id', periodIds)
+      : { data: [] as (PeriodCutRow & { period_id: string })[] }
+  const cutRowsByPeriod = new Map<string, PeriodCutRow[]>()
+  for (const cut of (cutRows || []) as (PeriodCutRow & { period_id: string })[]) {
+    cutRowsByPeriod.set(cut.period_id, [...(cutRowsByPeriod.get(cut.period_id) || []), cut])
+  }
+
   const enrolledIds = new Set((enrollments || []).map((e) => e.subject_id))
   const requestStatusBySubject = new Map(
     (requests || []).map((r) => [r.subject_id, r.status as string])
@@ -161,6 +184,17 @@ export default async function StudentSubjectsPage() {
   }
 
   const attendedSessionIds = new Set((studentAttendances || []).map((a) => a.session_id))
+  const attendanceBySessionId = new Map<string, SessionAttendance>(
+    (studentAttendances || []).map((a) => [
+      a.session_id,
+      { status: a.status === 'LATE' ? ('LATE' as const) : ('PRESENT' as const) },
+    ])
+  )
+  const approvedJustifiedSessionIds = new Set(
+    ((myJustifications || []) as { session_id: string; status: string }[])
+      .filter((j) => j.status === 'APPROVED')
+      .map((j) => j.session_id)
+  )
 
   // Mapear asistencias (y tardanzas) del estudiante por materia
   const studentAttendancesBySubject = new Map<string, number>()
@@ -246,6 +280,20 @@ export default async function StudentSubjectsPage() {
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       : []
 
+    // Desglose por corte (informativo): vacío si el período no tiene cortes
+    // o tiene fechas inválidas; la UI oculta la sección.
+    const cutBreakdown = isEnrolled
+      ? buildStudentCutBreakdown({
+          cuts: usableCuts(
+            r.subject!.period,
+            r.subject!.period_id ? cutRowsByPeriod.get(r.subject!.period_id) : []
+          ),
+          sessions: (availableSubjectSessions || []).filter((s) => s.subject_id === r.subject!.id),
+          attendanceBySessionId,
+          justifiedSessionIds: approvedJustifiedSessionIds,
+        })
+      : []
+
     return {
       subjectCareerId: r.id,
       level: r.level,
@@ -264,6 +312,7 @@ export default async function StudentSubjectsPage() {
             : ('none' as const),
       attendanceSummary,
       missedSessions,
+      cutBreakdown,
     }
   })
 

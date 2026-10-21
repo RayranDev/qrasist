@@ -20,6 +20,8 @@ import { Button } from '@/components/ui/Button'
 import type { StudentAttendanceSummary } from '@/lib/utils/attendancePolicy'
 import type { MissedSessionItem } from './missedSessions'
 import JustifyModal from './JustifyModal'
+import CutsBreakdownList from '@/components/attendance/CutsBreakdownList'
+import type { CutBreakdown } from '@/lib/attendance/cutsBreakdown'
 
 interface Career {
   id: string
@@ -37,6 +39,8 @@ export interface SubjectItem {
   status: Status
   attendanceSummary?: StudentAttendanceSummary
   missedSessions?: MissedSessionItem[]
+  /** Desglose por corte (informativo); vacío = sin cortes, se oculta. */
+  cutBreakdown?: CutBreakdown[]
 }
 
 export default function SubjectBrowser({
@@ -222,6 +226,13 @@ export default function SubjectBrowser({
                       )}
                     </div>
                   </div>
+                )}
+
+                {status === 'enrolled' && item.cutBreakdown && item.cutBreakdown.length > 0 && (
+                  <CutsBreakdownList
+                    cuts={item.cutBreakdown}
+                    className="pt-2.5 border-t border-gray-100"
+                  />
                 )}
 
                 {status === 'enrolled' && item.missedSessions && item.missedSessions.length > 0 && (

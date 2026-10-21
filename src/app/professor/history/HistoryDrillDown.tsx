@@ -21,6 +21,9 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
 import AttendanceRowActions from '@/components/attendance/AttendanceRowActions'
 import { PAST_CLASS_EDIT_MESSAGE } from '@/lib/sessions/classWindow'
+import CutsBreakdownList, { CutsInline } from '@/components/attendance/CutsBreakdownList'
+import { buildStudentCutBreakdown } from '@/lib/attendance/cutsView'
+import type { CutInput, SessionAttendance } from '@/lib/attendance/cutsBreakdown'
 
 interface EnrolledProfile {
   id: string
@@ -110,7 +113,9 @@ interface Subject {
   lates_per_absence?: number | null
   enrollments: Enrollment[]
   sessions: Session[]
-  absence_justifications?: { student_id: string; status: string }[]
+  absence_justifications?: { student_id: string; status: string; session_id?: string }[]
+  /** Cortes utilizables del período de la materia (vacío = sin cortes). Lo calcula el servidor. */
+  cuts?: CutInput[]
 }
 
 export default function HistoryDrillDown({
@@ -462,6 +467,26 @@ export default function HistoryDrillDown({
       justifiedCountMap.set(j.student_id, (justifiedCountMap.get(j.student_id) || 0) + 1)
     }
 
+    const cuts = selectedSubject.cuts || []
+    const approvedJustifiedByStudent = new Map<string, Set<string>>()
+    for (const j of selectedSubject.absence_justifications || []) {
+      if (j.status !== 'APPROVED' || !j.session_id) continue
+      const set = approvedJustifiedByStudent.get(j.student_id) || new Set<string>()
+      set.add(j.session_id)
+      approvedJustifiedByStudent.set(j.student_id, set)
+    }
+    const attendanceByStudent = new Map<string, Map<string, SessionAttendance>>()
+    if (cuts.length > 0) {
+      for (const session of activeSessions) {
+        for (const att of session.attendances || []) {
+          const map =
+            attendanceByStudent.get(att.student_id) || new Map<string, SessionAttendance>()
+          map.set(session.id, { status: att.status === 'LATE' ? 'LATE' : 'PRESENT' })
+          attendanceByStudent.set(att.student_id, map)
+        }
+      }
+    }
+
     const studentMetrics = enrolledStudents.map((st) => {
       const attended = attendanceCountMap.get(st.id) || 0
       const lateCount = lateCountMap.get(st.id) || 0
@@ -482,6 +507,13 @@ export default function HistoryDrillDown({
       return {
         student: st,
         summary,
+        // Informativo; vacío cuando la materia no tiene cortes utilizables.
+        cutBreakdown: buildStudentCutBreakdown({
+          cuts,
+          sessions: activeSessions,
+          attendanceBySessionId: attendanceByStudent.get(st.id) || new Map(),
+          justifiedSessionIds: approvedJustifiedByStudent.get(st.id) || new Set(),
+        }),
       }
     })
 
@@ -913,13 +945,18 @@ export default function HistoryDrillDown({
                         <th className="px-6 py-3.5 text-xs font-bold text-gray-500 uppercase">
                           Faltas Restantes
                         </th>
+                        {cuts.length > 0 && (
+                          <th className="px-6 py-3.5 text-xs font-bold text-gray-500 uppercase">
+                            Por corte
+                          </th>
+                        )}
                         <th className="px-6 py-3.5 text-xs font-bold text-gray-500 uppercase text-right">
                           Estado
                         </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {displayedStudents.map(({ student, summary }) => (
+                      {displayedStudents.map(({ student, summary, cutBreakdown }) => (
                         <tr key={student.id} className="hover:bg-gray-50/50 transition">
                           <td className="px-6 py-3.5 font-bold text-gray-900 text-sm">
                             {student.name}
@@ -944,6 +981,11 @@ export default function HistoryDrillDown({
                           <td className="px-6 py-3.5 text-xs text-gray-600 font-medium">
                             {summary.remainingAbsences} permitida(s)
                           </td>
+                          {cuts.length > 0 && (
+                            <td className="px-6 py-3.5">
+                              <CutsInline cuts={cutBreakdown} />
+                            </td>
+                          )}
                           <td className="px-6 py-3.5 text-right">
                             <Badge
                               variant={
@@ -970,7 +1012,7 @@ export default function HistoryDrillDown({
 
                 {/* Mobile Cards */}
                 <div className="block md:hidden space-y-3">
-                  {displayedStudents.map(({ student, summary }) => (
+                  {displayedStudents.map(({ student, summary, cutBreakdown }) => (
                     <div
                       key={student.id}
                       className="p-4 rounded-2xl border border-gray-200/80 bg-white shadow-xs"
@@ -1032,6 +1074,10 @@ export default function HistoryDrillDown({
                           </span>
                         </div>
                       </div>
+                      <CutsBreakdownList
+                        cuts={cutBreakdown}
+                        className="pt-2 mt-2 border-t border-gray-100"
+                      />
                     </div>
                   ))}
                 </div>

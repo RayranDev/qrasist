@@ -39,9 +39,9 @@ describe('computeCutsBreakdown', () => {
 
   it('includes sessions on the exact start/end boundary dates (inclusive)', () => {
     const sessions: SessionInput[] = [
-      { id: 's1', date: '2026-02-01T00:00:00.000Z' }, // cut1 start
-      { id: 's2', date: '2026-03-15T23:59:59.000Z' }, // cut1 end
-      { id: 's3', date: '2026-03-16T00:00:00.000Z' }, // cut2 start
+      { id: 's1', date: '2026-02-01T05:00:00.000Z' }, // cut1 start (00:00 Bogotá)
+      { id: 's2', date: '2026-03-16T04:59:00.000Z' }, // cut1 end (23:59 Bogotá)
+      { id: 's3', date: '2026-03-16T05:00:00.000Z' }, // cut2 start (00:00 Bogotá)
     ]
     const result = computeCutsBreakdown(
       [cut1, cut2],
@@ -58,10 +58,24 @@ describe('computeCutsBreakdown', () => {
     expect(result.find((r) => r.cutId === 'cut-2')?.sessionsHeld).toBe(1)
   })
 
+  it('assigns an evening class by its Bogotá day, not its UTC day', () => {
+    // 20:00 Bogotá del último día del corte 1 = 01:00 UTC del día siguiente.
+    const sessions: SessionInput[] = [{ id: 's1', date: '2026-03-16T01:00:00.000Z' }]
+    const result = computeCutsBreakdown(
+      [cut1, cut2],
+      sessions,
+      new Map([['s1', { status: 'PRESENT' }]]),
+      new Set()
+    )
+
+    expect(result.find((r) => r.cutId === 'cut-1')?.sessionsHeld).toBe(1)
+    expect(result.find((r) => r.cutId === 'cut-2')?.sessionsHeld).toBe(0)
+  })
+
   it('puts a session outside every cut into the synthetic "Sin corte asignado" bucket', () => {
     const sessions: SessionInput[] = [
-      { id: 's1', date: '2026-01-01T00:00:00.000Z' }, // before cut1
-      { id: 's2', date: '2026-02-10T00:00:00.000Z' }, // inside cut1
+      { id: 's1', date: '2026-01-01T15:00:00.000Z' }, // before cut1
+      { id: 's2', date: '2026-02-10T15:00:00.000Z' }, // inside cut1
     ]
     const result = computeCutsBreakdown(
       [cut1, cut2],
@@ -81,7 +95,7 @@ describe('computeCutsBreakdown', () => {
   })
 
   it('omits the "Sin corte asignado" bucket entirely when every session matches a cut', () => {
-    const sessions: SessionInput[] = [{ id: 's1', date: '2026-02-10T00:00:00.000Z' }]
+    const sessions: SessionInput[] = [{ id: 's1', date: '2026-02-10T15:00:00.000Z' }]
     const result = computeCutsBreakdown(
       [cut1, cut2],
       sessions,
@@ -93,7 +107,7 @@ describe('computeCutsBreakdown', () => {
   })
 
   it('still includes a cut with zero sessions, with everything zeroed out', () => {
-    const sessions: SessionInput[] = [{ id: 's1', date: '2026-02-10T00:00:00.000Z' }]
+    const sessions: SessionInput[] = [{ id: 's1', date: '2026-02-10T15:00:00.000Z' }]
     const result = computeCutsBreakdown(
       [cut1, cut2],
       sessions,
@@ -114,10 +128,10 @@ describe('computeCutsBreakdown', () => {
 
   it('counts justified, late and real absences independently', () => {
     const sessions: SessionInput[] = [
-      { id: 'present', date: '2026-02-05T00:00:00.000Z' },
-      { id: 'late', date: '2026-02-06T00:00:00.000Z' },
-      { id: 'justified', date: '2026-02-07T00:00:00.000Z' },
-      { id: 'absent', date: '2026-02-08T00:00:00.000Z' },
+      { id: 'present', date: '2026-02-05T15:00:00.000Z' },
+      { id: 'late', date: '2026-02-06T15:00:00.000Z' },
+      { id: 'justified', date: '2026-02-07T15:00:00.000Z' },
+      { id: 'absent', date: '2026-02-08T15:00:00.000Z' },
     ]
     const result = computeCutsBreakdown(
       [cut1],
@@ -140,9 +154,9 @@ describe('computeCutsBreakdown', () => {
 
   it('computes percentage as attended / sessionsHeld, rounded to one decimal', () => {
     const sessions: SessionInput[] = [
-      { id: 's1', date: '2026-02-01T00:00:00.000Z' },
-      { id: 's2', date: '2026-02-02T00:00:00.000Z' },
-      { id: 's3', date: '2026-02-03T00:00:00.000Z' },
+      { id: 's1', date: '2026-02-01T15:00:00.000Z' },
+      { id: 's2', date: '2026-02-02T15:00:00.000Z' },
+      { id: 's3', date: '2026-02-03T15:00:00.000Z' },
     ]
     const result = computeCutsBreakdown(
       [cut1],
@@ -159,7 +173,7 @@ describe('computeCutsBreakdown', () => {
   })
 
   it('with an empty cuts array, every session lands in "Sin corte asignado"', () => {
-    const sessions: SessionInput[] = [{ id: 's1', date: '2026-02-10T00:00:00.000Z' }]
+    const sessions: SessionInput[] = [{ id: 's1', date: '2026-02-10T15:00:00.000Z' }]
     const result = computeCutsBreakdown(
       [],
       sessions,

@@ -6,6 +6,8 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { History } from 'lucide-react'
 import { getStudentSubjectRisks, formatSubjectStatusLine } from '@/lib/attendance/studentSummaries'
 import type { AttendanceStatus } from '@/lib/utils/attendancePolicy'
+import { getStudentCutBreakdowns } from '@/lib/attendance/studentCuts'
+import CutsBreakdownList from '@/components/attendance/CutsBreakdownList'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,7 +45,7 @@ export default async function StudentHistoryPage() {
     redirect('/login')
   }
 
-  const [{ data: attendances }, risks] = await Promise.all([
+  const [{ data: attendances }, risks, cutsBySubject] = await Promise.all([
     supabase
       .from('attendances')
       .select(
@@ -68,6 +70,7 @@ export default async function StudentHistoryPage() {
       .eq('student_id', user.id)
       .order('scanned_at', { ascending: false }),
     getStudentSubjectRisks(supabase, user.id),
+    getStudentCutBreakdowns(supabase, user.id),
   ])
 
   const records = (attendances || []) as unknown as AttendanceRecord[]
@@ -125,6 +128,10 @@ export default async function StudentHistoryPage() {
                   >
                     {formatSubjectStatusLine(risk.summary)}
                   </p>
+                  <CutsBreakdownList
+                    cuts={cutsBySubject.get(risk.subjectId) || []}
+                    className="mt-2"
+                  />
                 </div>
 
                 {subjectRecords.length > 0 ? (

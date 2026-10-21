@@ -5,6 +5,7 @@ import HistoryDrillDown from './HistoryDrillDown'
 import BackLink from '@/components/BackLink'
 import { getAppSettings } from '@/lib/settings/appSettings'
 import { canProfessorEditSession } from '@/lib/sessions/classWindow'
+import { usableCuts, type PeriodCutRow, type PeriodDates } from '@/lib/attendance/cutsView'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,6 +34,11 @@ export default async function ProfessorHistoryPage({
       name,
       code,
       is_active,
+      period_id,
+      period:periods (
+        start_date,
+        end_date
+      ),
       absence_rule_type,
       max_absence_percentage,
       max_absence_count,
@@ -49,7 +55,8 @@ export default async function ProfessorHistoryPage({
       ),
       absence_justifications (
         student_id,
-        status
+        status,
+        session_id
       ),
       sessions (
         id,
@@ -98,9 +105,30 @@ export default async function ProfessorHistoryPage({
   // UI oculte las acciones; la regla real la vuelve a aplicar la server
   // action en cada intento.
   const { defaultClassMinutes } = await getAppSettings(supabase)
+
+  // Cortes de los períodos de estas materias (informativos: el veredicto de
+  // pérdida por fallas sigue siendo semestral).
+  const periodIds = [
+    ...new Set((subjects || []).map((s) => s.period_id).filter((id): id is string => !!id)),
+  ]
+  const { data: cutRows } =
+    periodIds.length > 0
+      ? await supabase
+          .from('period_cuts')
+          .select('id, period_id, name, start_date, end_date, sequence')
+          .in('period_id', periodIds)
+      : { data: [] as (PeriodCutRow & { period_id: string })[] }
+  const cutRowsByPeriod = new Map<string, PeriodCutRow[]>()
+  for (const cut of (cutRows || []) as (PeriodCutRow & { period_id: string })[]) {
+    cutRowsByPeriod.set(cut.period_id, [...(cutRowsByPeriod.get(cut.period_id) || []), cut])
+  }
   const now = new Date()
   const subjectsWithEditFlag = (subjects || []).map((sub) => ({
     ...sub,
+    cuts: usableCuts(
+      sub.period as unknown as PeriodDates | null,
+      sub.period_id ? cutRowsByPeriod.get(sub.period_id) : []
+    ),
     sessions: ((sub.sessions || []) as { date: string; class_ends_at: string | null }[]).map(
       (session) => ({
         ...session,
