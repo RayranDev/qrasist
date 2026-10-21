@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { useToast } from '@/components/toast/ToastProvider'
 import ReasonModal from '@/components/attendance/ReasonModal'
 import { reviewJustification, getJustificationAttachmentUrl } from '@/lib/actions/justifications'
+import { countOf } from '@/lib/utils/plural'
 
 export interface JustificationRow {
   id: string
@@ -145,8 +146,8 @@ export default function JustificationsList({
             ? 'No hay justificaciones pendientes.'
             : 'Ninguna justificación está en revisión.'
           : canReview
-            ? `${pendingCount} justificación${pendingCount > 1 ? 'es' : ''} pendiente${pendingCount > 1 ? 's' : ''}`
-            : `${pendingCount} justificación${pendingCount > 1 ? 'es' : ''} en revisión por coordinación`}
+            ? `${countOf(pendingCount, 'justificación pendiente', 'justificaciones pendientes')}`
+            : `${countOf(pendingCount, 'justificación', 'justificaciones')} en revisión por coordinación`}
       </p>
 
       {sorted.length === 0 ? (
@@ -162,7 +163,7 @@ export default function JustificationsList({
               subjectFilter
                 ? undefined
                 : emptyDescription ||
-                  'Las justificaciones enviadas por los estudiantes van a aparecer acá.'
+                  'Las justificaciones enviadas por los estudiantes van a aparecer aquí.'
             }
             action={
               subjectFilter ? (

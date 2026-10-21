@@ -304,7 +304,7 @@ export function CareerList({ careers }: { careers: Career[] }) {
         <EmptyState
           icon={<Layers className="w-5 h-5" />}
           title="Sin carreras registradas"
-          description="Usá el formulario de arriba para crear la primera carrera."
+          description="Usa el formulario de arriba para crear la primera carrera."
           action={
             <a
               href="#crear-carrera"
@@ -663,7 +663,7 @@ export function PeriodList({ periods }: { periods: Period[] }) {
         <EmptyState
           icon={<CalendarRange className="w-5 h-5" />}
           title="Sin períodos registrados"
-          description="Usá el formulario de arriba para crear el primer período."
+          description="Usa el formulario de arriba para crear el primer período."
           action={
             <a
               href="#crear-periodo"

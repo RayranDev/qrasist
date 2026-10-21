@@ -9,6 +9,7 @@ import AttentionArea from '@/components/admin/dashboard/AttentionArea'
 import AttendanceSummary from '@/components/admin/dashboard/AttendanceSummary'
 import OnboardingChecklist from '@/components/admin/dashboard/OnboardingChecklist'
 import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
+import { buildHeldCounter } from '@/lib/attendance/heldSessions'
 import { getAppSettings } from '@/lib/settings/appSettings'
 import { countUnjustified, fetchClassOmissions } from '@/lib/attendance/classOmissionsData'
 import { countRecentSuspensions } from '@/lib/attendance/suspendedClasses'
@@ -206,7 +207,7 @@ export default async function AdminDashboardPage({
   // Sesiones activas con sus materias
   const { data: allActiveSessions } = await supabase
     .from('sessions')
-    .select('id, subject_id')
+    .select('id, subject_id, date, class_ends_at')
     .eq('is_active', true)
 
   // Registro de asistencias para cálculo de alumnos en riesgo
@@ -226,14 +227,14 @@ export default async function AdminDashboardPage({
     studentSubjectJustifiedCounts.set(key, (studentSubjectJustifiedCounts.get(key) || 0) + 1)
   }
 
-  // Mapeamos sesiones dictadas por materia
-  const sessionsCountBySubject = new Map<string, number>()
-  for (const sess of allActiveSessions || []) {
-    sessionsCountBySubject.set(
-      sess.subject_id,
-      (sessionsCountBySubject.get(sess.subject_id) || 0) + 1
-    )
-  }
+  // Clases dictadas por estudiante y materia (DEF-QA-05): las terminadas,
+  // más las clases en curso donde el estudiante ya escaneó.
+  const heldFor = buildHeldCounter(
+    allActiveSessions || [],
+    allAttendanceRecords || [],
+    new Date(),
+    appSettings.defaultClassMinutes
+  )
 
   // Mapeamos asistencias (y tardanzas) de cada alumno por materia:
   // key = `${studentId}_${subjectId}`
@@ -262,9 +263,8 @@ export default async function AdminDashboardPage({
 
   let totalExpectedAttendances = 0
   for (const s of allSubjects || []) {
-    const enrolled = (s.enrollments as { student_id: string }[] | null)?.length || 0
-    const sessionsHeld = sessionsCountBySubject.get(s.id) || 0
-    totalExpectedAttendances += enrolled * sessionsHeld
+    const enrolledList = (s.enrollments as { student_id: string }[] | null) || []
+    for (const e of enrolledList) totalExpectedAttendances += heldFor(e.student_id, s.id)
   }
 
   const attendanceRate =
@@ -277,11 +277,10 @@ export default async function AdminDashboardPage({
   // Conteo de alumnos en riesgo institucional (WARNING o FAILED_ATTENDANCE)
   const atRiskStudentIds = new Set<string>()
   for (const s of allSubjects || []) {
-    const sessionsHeld = sessionsCountBySubject.get(s.id) || 0
-    if (sessionsHeld === 0) continue
-
     const enrolled = (s.enrollments as { student_id: string }[] | null) || []
     for (const e of enrolled) {
+      const sessionsHeld = heldFor(e.student_id, s.id)
+      if (sessionsHeld === 0) continue
       const key = `${e.student_id}_${s.id}`
       const studentAtt = studentSubjectAttendances.get(key) || 0
       const studentLateCount = studentSubjectLateCounts.get(key) || 0

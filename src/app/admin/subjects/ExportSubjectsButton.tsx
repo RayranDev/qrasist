@@ -1,6 +1,6 @@
 'use client'
 
-import { format } from 'date-fns'
+import { formatBogotaDateNumeric } from '@/lib/utils/spanishDate'
 import { Download } from 'lucide-react'
 
 interface SubjectRow {
@@ -14,7 +14,7 @@ interface SubjectRow {
 export default function ExportSubjectsButton({ subjects }: { subjects: SubjectRow[] }) {
   const handleExport = async () => {
     const { downloadWorkbook } = await import('@/lib/excel/exportWorkbook')
-    await downloadWorkbook(`materias_${format(new Date(), 'dd-MM-yyyy')}`, [
+    await downloadWorkbook(`materias_${formatBogotaDateNumeric(new Date()).replaceAll('/', '-')}`, [
       {
         name: 'Materias',
         columns: [

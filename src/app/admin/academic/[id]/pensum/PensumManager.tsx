@@ -140,7 +140,7 @@ export function PensumByLevel({ careerId, entries }: { careerId: string; entries
         <EmptyState
           icon={<BookMarked className="w-5 h-5" />}
           title="Esta carrera todavía no tiene materias en el pénsum"
-          description="Usá el formulario de arriba para agregar la primera materia."
+          description="Usa el formulario de arriba para agregar la primera materia."
         />
       </div>
     )

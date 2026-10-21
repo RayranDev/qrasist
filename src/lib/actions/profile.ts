@@ -34,7 +34,7 @@ export async function updateOwnProfile(data: {
     if (data.password.length < 6)
       return { success: false, error: 'La contraseña debe tener al menos 6 caracteres.' }
     if (!data.current_password) {
-      return { success: false, error: 'Ingresá tu contraseña actual para poder cambiarla.' }
+      return { success: false, error: 'Ingresa tu contraseña actual para poder cambiarla.' }
     }
 
     // Re-autenticacion: probar la contraseña actual con un cliente

@@ -21,6 +21,7 @@ import {
   ALLOWED_ATTACHMENT_MIME_TYPES,
   MAX_ATTACHMENT_SIZE_BYTES,
 } from '@/lib/justifications/eligibility'
+import { capitalizeFirst } from '@/lib/utils/spanishDate'
 
 const DEFAULT_REASON = 'Excusa médica validada por coordinación.'
 const MAX_REASON = 1000
@@ -303,8 +304,8 @@ export default function RegisterExcuseModal() {
                               {a.subjectCode}
                             </span>
                           </span>
-                          <span className="block text-xs text-gray-500 capitalize">
-                            {formatAbsenceDate(a.date)}
+                          <span className="block text-xs text-gray-500">
+                            {capitalizeFirst(formatAbsenceDate(a.date))}
                           </span>
                         </span>
                         {a.existingStatus && (

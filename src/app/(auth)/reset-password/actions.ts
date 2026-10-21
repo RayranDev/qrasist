@@ -31,7 +31,7 @@ export async function resetPassword(password: string): Promise<ResetPasswordResu
   if (!user) {
     return {
       success: false,
-      error: 'Tu sesión de recuperación expiró. Solicitá un nuevo enlace.',
+      error: 'Tu sesión de recuperación expiró. Solicita un nuevo enlace.',
     }
   }
 
@@ -39,7 +39,7 @@ export async function resetPassword(password: string): Promise<ResetPasswordResu
   if (!hasRecovery) {
     return {
       success: false,
-      error: 'Tu enlace de recuperación expiró o ya se usó. Solicitá uno nuevo.',
+      error: 'Tu enlace de recuperación expiró o ya se usó. Solicita uno nuevo.',
     }
   }
 
@@ -49,7 +49,7 @@ export async function resetPassword(password: string): Promise<ResetPasswordResu
 
   const { error } = await supabase.auth.updateUser({ password })
   if (error) {
-    return { success: false, error: 'No se pudo actualizar la contraseña. Intentá de nuevo.' }
+    return { success: false, error: 'No se pudo actualizar la contraseña. Inténtalo de nuevo.' }
   }
 
   await logAudit({

@@ -7,6 +7,7 @@ import { getSessionRoster, type RosterStudent } from '@/lib/actions/attendanceMa
 import AttendanceRowActions from './AttendanceRowActions'
 import LocalTime from '@/components/LocalTime'
 import { PAST_CLASS_EDIT_MESSAGE } from '@/lib/sessions/classWindow'
+import { countOf, pluralize } from '@/lib/utils/plural'
 
 interface SessionRosterPanelProps {
   sessionId: string
@@ -74,7 +75,8 @@ export default function SessionRosterPanel({
           </div>
           <div className="min-w-0">
             <p className="text-sm font-bold text-gray-900">
-              {totalRegistered} de {totalEnrolled} inscritos registrados
+              {totalRegistered} de {countOf(totalEnrolled, 'inscrito')}{' '}
+              {pluralize(totalEnrolled, 'registrado')}
             </p>
             <p className="text-xs text-gray-400">
               {suspended
@@ -134,7 +136,7 @@ export default function SessionRosterPanel({
                     )}
                     {r.scannedAt && (
                       <span className="text-[11px] text-gray-400">
-                        <LocalTime date={r.scannedAt} formatStr="h:mm a" />
+                        <LocalTime date={r.scannedAt} variant="time" />
                       </span>
                     )}
                   </div>

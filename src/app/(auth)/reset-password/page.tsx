@@ -18,7 +18,7 @@ export default async function ResetPasswordPage() {
   if (!user) {
     redirect(
       '/login?error=' +
-        encodeURIComponent('Tu sesión de recuperación expiró. Solicitá un nuevo enlace.')
+        encodeURIComponent('Tu sesión de recuperación expiró. Solicita un nuevo enlace.')
     )
   }
 
@@ -28,7 +28,7 @@ export default async function ResetPasswordPage() {
   // normal podría entrar acá y cambiar la contraseña sin conocer la
   // actual -- algo que el cambio de contraseña desde el perfil sí exige.
   // Si ya hay sesión, se manda a /dashboard en vez de a /login (no tiene
-  // sentido decirle "iniciá sesión" a alguien que ya lo hizo).
+  // sentido decirle "inicia sesión" a alguien que ya lo hizo).
   const hasRecovery = await hasValidRecoveryCookie(user.id)
   if (!hasRecovery) {
     redirect('/dashboard')
@@ -51,7 +51,7 @@ export default async function ResetPasswordPage() {
           </p>
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">Nueva contraseña</h1>
           <p className="text-gray-500 mt-2 font-medium text-sm">
-            Elegí una nueva contraseña para tu cuenta.
+            Elige una nueva contraseña para tu cuenta.
           </p>
         </div>
 

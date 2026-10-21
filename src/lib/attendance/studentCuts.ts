@@ -6,6 +6,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/supabase/fetchAll'
+import { getAppSettings } from '@/lib/settings/appSettings'
 import type { CutBreakdown, SessionAttendance } from './cutsBreakdown'
 import {
   buildStudentCutBreakdown,
@@ -78,6 +79,7 @@ export async function getStudentCutBreakdowns(
     subject_id: string
     date: string
     is_active: boolean | null
+    class_ends_at: string | null
   }
   interface AttendanceRow {
     session_id: string
@@ -91,7 +93,7 @@ export async function getStudentCutBreakdowns(
     fetchAllRows<SessionRow>((from, to) =>
       supabase
         .from('sessions')
-        .select('id, subject_id, date, is_active')
+        .select('id, subject_id, date, is_active, class_ends_at')
         .in('subject_id', subjectIds)
         .eq('is_active', true)
         .order('id')
@@ -121,6 +123,8 @@ export async function getStudentCutBreakdowns(
     attendances.map((a) => [a.session_id, { status: a.status === 'LATE' ? 'LATE' : 'PRESENT' }])
   )
   const justifiedSessionIds = new Set(justifications.map((j) => j.session_id))
+  const { defaultClassMinutes } = await getAppSettings(supabase)
+  const now = new Date()
 
   for (const { subjectId, cuts } of withCuts) {
     result.set(
@@ -130,6 +134,7 @@ export async function getStudentCutBreakdowns(
         sessions: sessions.filter((s) => s.subject_id === subjectId),
         attendanceBySessionId,
         justifiedSessionIds,
+        held: { now, defaultClassMinutes },
       })
     )
   }

@@ -633,3 +633,112 @@ describe('buildStudentHistory', () => {
     expect(h.countedAbsences).toBe(1)
   })
 })
+
+describe('in-progress classes (DEF-QA-05)', () => {
+  const held = { now: new Date('2026-02-10T18:00:00Z'), defaultClassMinutes: 120 }
+  const ended = session('ended', '2026-02-03T15:00:00Z', { classEndsAt: '2026-02-03T17:00:00Z' })
+  const running = session('running', '2026-02-10T17:00:00Z', {
+    classEndsAt: '2026-02-10T19:00:00Z',
+  })
+
+  it('does not count a running class for students who have not scanned, but credits who did', () => {
+    const report = buildAttendanceReport({
+      subjects: [subject({ cuts: [] })],
+      sessions: [ended, running],
+      enrollments: [enrollment('a'), enrollment('b')],
+      attendances: [attendance('ended', 'a'), attendance('ended', 'b'), attendance('running', 'a')],
+      justifications: [],
+      held,
+    })
+    const byStudent = Object.fromEntries(report.rows.map((r) => [r.studentId, r]))
+    expect(byStudent.a).toMatchObject({ sessionsHeld: 2, present: 2, countedAbsences: 0 })
+    expect(byStudent.b).toMatchObject({ sessionsHeld: 1, present: 1, countedAbsences: 0 })
+    // Subject level: the ended class plus the running one student a already scanned,
+    // so the summary label never falls below any student's row.
+    expect(report.subjectSummaries[0].sessionsHeld).toBe(2)
+    const maxRow = Math.max(...report.rows.map((r) => r.sessionsHeld))
+    expect(report.subjectSummaries[0].sessionsHeld).toBeGreaterThanOrEqual(maxRow)
+    expect(report.totals.sessionsHeld).toBe(2)
+  })
+
+  it('subject-level held stays at the ended classes when nobody scanned the running one', () => {
+    const report = buildAttendanceReport({
+      subjects: [subject({ cuts: [] })],
+      sessions: [ended, running],
+      enrollments: [enrollment('a'), enrollment('b')],
+      attendances: [attendance('ended', 'a'), attendance('ended', 'b')],
+      justifications: [],
+      held,
+    })
+    expect(report.subjectSummaries[0].sessionsHeld).toBe(1)
+    expect(report.rows.every((r) => r.sessionsHeld === 1)).toBe(true)
+  })
+
+  it('the no-schedule professor fallback uses the same held rule', () => {
+    const base = {
+      subjects: [subject({ cuts: [] })],
+      sessions: [ended, running],
+      enrollments: [enrollment('a'), enrollment('b')],
+      justifications: [],
+      held,
+    }
+    const nobody = buildAttendanceReport({
+      ...base,
+      attendances: [attendance('ended', 'a')],
+    })
+    expect(nobody.professors[0]).toMatchObject({ held: 1, subjectsWithoutSchedule: 1 })
+
+    const oneScanned = buildAttendanceReport({
+      ...base,
+      attendances: [attendance('ended', 'a'), attendance('running', 'a')],
+    })
+    expect(oneScanned.professors[0]).toMatchObject({ held: 2, subjectsWithoutSchedule: 1 })
+  })
+
+  it('counts everything when no held context is given (legacy behaviour)', () => {
+    const report = buildAttendanceReport({
+      subjects: [subject({ cuts: [] })],
+      sessions: [ended, running],
+      enrollments: [enrollment('b')],
+      attendances: [attendance('ended', 'b')],
+      justifications: [],
+    })
+    expect(report.rows[0]).toMatchObject({ sessionsHeld: 2, countedAbsences: 1 })
+  })
+
+  it('falls back to date + default minutes for legacy sessions without classEndsAt', () => {
+    const legacy = session('legacy', '2026-02-10T17:00:00Z') // ends 19:00 with 120 min
+    const during = buildAttendanceReport({
+      subjects: [subject({ cuts: [] })],
+      sessions: [legacy],
+      enrollments: [enrollment('b')],
+      attendances: [],
+      justifications: [],
+      held,
+    })
+    expect(during.rows[0].sessionsHeld).toBe(0)
+    const after = buildAttendanceReport({
+      subjects: [subject({ cuts: [] })],
+      sessions: [legacy],
+      enrollments: [enrollment('b')],
+      attendances: [],
+      justifications: [],
+      held: { ...held, now: new Date('2026-02-10T19:30:00Z') },
+    })
+    expect(after.rows[0]).toMatchObject({ sessionsHeld: 1, countedAbsences: 1 })
+  })
+
+  it('history omits a running class the student has not attended', () => {
+    const [h] = buildStudentHistory({
+      studentId: 'b',
+      subjects: [subject({ cuts: [] })],
+      sessions: [ended, running],
+      attendances: [attendance('ended', 'b')],
+      justifications: [],
+      held,
+    })
+    expect(h.sessionsHeld).toBe(1)
+    expect(h.entries.map((e) => e.sessionId)).toEqual(['ended'])
+    expect(h.status).toBe('NORMAL')
+  })
+})

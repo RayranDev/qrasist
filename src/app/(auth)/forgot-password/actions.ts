@@ -10,7 +10,7 @@ import { z } from 'zod'
 // Mensaje siempre idéntico exista o no la cuenta -- evita que alguien
 // use este formulario para enumerar qué correos están registrados.
 const GENERIC_MESSAGE =
-  'Si el correo está registrado, te enviamos un enlace para restablecer tu contraseña. Revisá tu bandeja de entrada (y la carpeta de spam).'
+  'Si el correo está registrado, te enviamos un enlace para restablecer tu contraseña. Revisa tu bandeja de entrada (y la carpeta de spam).'
 
 const emailSchema = z.string().trim().toLowerCase().email()
 
@@ -48,7 +48,7 @@ export async function requestPasswordReset(formData: FormData) {
   if (!ipRate.allowed || !emailRate.allowed) {
     redirect(
       '/forgot-password?error=' +
-        encodeURIComponent('Demasiadas solicitudes. Esperá unos minutos e intentá de nuevo.')
+        encodeURIComponent('Demasiadas solicitudes. Espera unos minutos e inténtalo de nuevo.')
     )
   }
 

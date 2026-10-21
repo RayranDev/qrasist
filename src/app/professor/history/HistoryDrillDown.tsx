@@ -1,9 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { format } from 'date-fns'
 import { useToast } from '@/components/toast/ToastProvider'
-import { es } from 'date-fns/locale'
 import {
   Archive,
   Users,
@@ -23,6 +21,14 @@ import SubjectReportDownload from './SubjectReportDownload'
 import CutsBreakdownList, { CutsInline } from '@/components/attendance/CutsBreakdownList'
 import { buildStudentCutBreakdown } from '@/lib/attendance/cutsView'
 import type { CutInput, SessionAttendance } from '@/lib/attendance/cutsBreakdown'
+import { countOf } from '@/lib/utils/plural'
+import { useRefreshAtClassEnd } from '@/lib/hooks/useRefreshAtClassEnd'
+import {
+  capitalizeFirst,
+  formatBogotaClock,
+  formatBogotaDateNumeric,
+  formatBogotaDayLong,
+} from '@/lib/utils/spanishDate'
 
 interface EnrolledProfile {
   id: string
@@ -91,6 +97,11 @@ interface Session {
   /** false cuando la clase ya terminó (RF21): solo coordinación puede
    * modificar la asistencia. Lo calcula el servidor en page.tsx. */
   can_edit?: boolean
+  /** true cuando la clase ya terminó (calculado en el servidor). Una clase
+   * en curso solo cuenta como dictada para quien ya escaneó (DEF-QA-05). */
+  class_ended?: boolean
+  /** Fin efectivo de la clase (ISO), calculado en el servidor. */
+  class_ends_at_effective?: string
   attendances: Attendance[]
 }
 
@@ -129,10 +140,24 @@ export default function HistoryDrillDown({
    */
   initialSubjectId?: string
 }) {
-  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(
-    () => subjects.find((s) => s.id === initialSubjectId) || null
+  // Se guardan los ids y se resuelve contra `subjects` en cada render: cuando el
+  // servidor refresca las props (p. ej. al terminar una clase) la vista se
+  // actualiza en vez de quedar con una copia vieja de la materia/sesión.
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(
+    () => subjects.find((s) => s.id === initialSubjectId)?.id ?? null
   )
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null)
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
+  const selectedSubject = subjects.find((s) => s.id === selectedSubjectId) ?? null
+  const selectedSession = selectedSubject?.sessions?.find((s) => s.id === selectedSessionId) ?? null
+  const setSelectedSubject = (subject: Subject | null) => setSelectedSubjectId(subject?.id ?? null)
+  const setSelectedSession = (session: Session | null) => setSelectedSessionId(session?.id ?? null)
+  // La bandera class_ended la calcula el servidor: si el docente deja la página
+  // abierta, se refresca justo cuando termina la próxima clase en curso.
+  useRefreshAtClassEnd(
+    (selectedSubject?.sessions ?? [])
+      .filter((s) => s.is_active !== false && s.class_ended === false)
+      .map((s) => s.class_ends_at_effective)
+  )
   const [subjectTab, setSubjectTab] = useState<'sessions' | 'absences'>(
     initialSubjectId ? 'absences' : 'sessions'
   )
@@ -241,10 +266,10 @@ export default function HistoryDrillDown({
                       </div>
                     </td>
                     <td className="px-6 py-4 text-gray-500 font-medium">
-                      {format(dateObj, 'dd/MM/yyyy')}
+                      {formatBogotaDateNumeric(dateObj)}
                     </td>
                     <td className="px-6 py-4 text-gray-600 font-mono">
-                      {format(dateObj, 'hh:mm a')}
+                      {formatBogotaClock(dateObj)}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1.5">
@@ -321,8 +346,7 @@ export default function HistoryDrillDown({
             </button>
             <div className="pl-4 border-l-2 border-gray-100">
               <h3 className="text-xl font-bold text-gray-900">
-                Clase del{' '}
-                {format(new Date(selectedSession.date), "EEEE d 'de' MMMM", { locale: es })}
+                Clase del {formatBogotaDayLong(selectedSession.date)}
               </h3>
               <p className="text-sm text-navy-700 font-semibold">{selectedSubject?.name}</p>
             </div>
@@ -431,15 +455,18 @@ export default function HistoryDrillDown({
       approvedJustifiedByStudent.set(j.student_id, set)
     }
     const attendanceByStudent = new Map<string, Map<string, SessionAttendance>>()
-    if (cuts.length > 0) {
-      for (const session of activeSessions) {
-        for (const att of session.attendances || []) {
-          const map =
-            attendanceByStudent.get(att.student_id) || new Map<string, SessionAttendance>()
-          map.set(session.id, { status: att.status === 'LATE' ? 'LATE' : 'PRESENT' })
-          attendanceByStudent.set(att.student_id, map)
-        }
+    for (const session of activeSessions) {
+      for (const att of session.attendances || []) {
+        const map = attendanceByStudent.get(att.student_id) || new Map<string, SessionAttendance>()
+        map.set(session.id, { status: att.status === 'LATE' ? 'LATE' : 'PRESENT' })
+        attendanceByStudent.set(att.student_id, map)
       }
+    }
+    // Clases terminadas (para todos) + en curso con asistencia propia (DEF-QA-05).
+    const heldSessionsFor = (studentId: string) => {
+      const mine = attendanceByStudent.get(studentId)
+      return activeSessions.filter((s) => s.class_ended !== false || (mine?.has(s.id) ?? false))
+        .length
     }
 
     const studentMetrics = enrolledStudents.map((st) => {
@@ -447,7 +474,7 @@ export default function HistoryDrillDown({
       const lateCount = lateCountMap.get(st.id) || 0
       const justifiedCount = justifiedCountMap.get(st.id) || 0
       const summary = computeAttendanceSummary(
-        activeSessions.length,
+        heldSessionsFor(st.id),
         attended,
         {
           ruleType: selectedSubject.absence_rule_type,
@@ -465,7 +492,9 @@ export default function HistoryDrillDown({
         // Informativo; vacío cuando la materia no tiene cortes utilizables.
         cutBreakdown: buildStudentCutBreakdown({
           cuts,
-          sessions: activeSessions,
+          sessions: activeSessions.filter(
+            (s) => s.class_ended !== false || attendanceByStudent.get(st.id)?.has(s.id)
+          ),
           attendanceBySessionId: attendanceByStudent.get(st.id) || new Map(),
           justifiedSessionIds: approvedJustifiedByStudent.get(st.id) || new Set(),
         }),
@@ -578,9 +607,9 @@ export default function HistoryDrillDown({
             >
               <div className="flex items-center gap-2 flex-wrap">
                 <h4
-                  className={`font-bold capitalize text-sm ${archived ? 'text-gray-500' : 'text-gray-900 group-hover:text-navy-700 transition'}`}
+                  className={`font-bold text-sm ${archived ? 'text-gray-500' : 'text-gray-900 group-hover:text-navy-700 transition'}`}
                 >
-                  {format(new Date(session.date), "EEEE d 'de' MMMM", { locale: es })}
+                  {capitalizeFirst(formatBogotaDayLong(session.date))}
                 </h4>
                 {suspended && (
                   <Badge variant="danger" size="sm">
@@ -600,7 +629,7 @@ export default function HistoryDrillDown({
               ) : (
                 <p className="text-xs font-medium text-gray-500 mt-1 flex items-center gap-1.5">
                   <Users className="w-3.5 h-3.5 text-gray-400" strokeWidth={2} />
-                  {session.attendances?.length || 0} estudiantes
+                  {countOf(session.attendances?.length || 0, 'estudiante')}
                 </p>
               )}
             </div>
@@ -660,7 +689,8 @@ export default function HistoryDrillDown({
             <div className="pl-4 border-l-2 border-gray-100">
               <h3 className="text-xl font-bold text-gray-900">{selectedSubject.name}</h3>
               <p className="text-xs text-gray-500 font-mono mt-0.5">
-                {selectedSubject.code} · {activeSessions.length} clase(s) dictada(s)
+                {selectedSubject.code} ·{' '}
+                {countOf(activeSessions.length, 'clase dictada', 'clases dictadas')}
               </p>
             </div>
           </div>
@@ -748,7 +778,7 @@ export default function HistoryDrillDown({
                 <EmptyState
                   icon={<CalendarX2 className="w-5 h-5" />}
                   title="Esta materia aún no tiene clases registradas"
-                  description="Iniciá una sesión desde Mis Materias para empezar a tomar asistencia."
+                  description="Inicia una sesión desde Mis Materias para empezar a tomar asistencia."
                 />
               </div>
             ) : (
@@ -876,7 +906,7 @@ export default function HistoryDrillDown({
                             {summary.absencePercentage}%
                           </td>
                           <td className="px-6 py-3.5 text-xs text-gray-600 font-medium">
-                            {summary.remainingAbsences} permitida(s)
+                            {countOf(summary.remainingAbsences, 'permitida')}
                           </td>
                           {cuts.length > 0 && (
                             <td className="px-6 py-3.5">
@@ -957,8 +987,7 @@ export default function HistoryDrillDown({
                           </span>
                           {summary.justifiedCount > 0 && (
                             <span className="block text-[10px] font-semibold text-blue-700 mt-0.5">
-                              {summary.justifiedCount} justificada
-                              {summary.justifiedCount > 1 ? 's' : ''}
+                              {countOf(summary.justifiedCount, 'justificada')}
                             </span>
                           )}
                         </div>
@@ -1057,7 +1086,7 @@ export default function HistoryDrillDown({
           <EmptyState
             icon={<BookOpen className="w-5 h-5" />}
             title="Aún no tienes materias asignadas o clases registradas"
-            description="Cuando tengas materias asignadas y dictes tu primera clase, el reporte va a aparecer acá."
+            description="Cuando tengas materias asignadas y dictes tu primera clase, el reporte va a aparecer aquí."
           />
         </div>
       )}

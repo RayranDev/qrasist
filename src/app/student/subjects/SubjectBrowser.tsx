@@ -22,6 +22,7 @@ import type { MissedSessionItem } from './missedSessions'
 import JustifyModal from './JustifyModal'
 import CutsBreakdownList from '@/components/attendance/CutsBreakdownList'
 import type { CutBreakdown } from '@/lib/attendance/cutsBreakdown'
+import { countOf, remainingOf } from '@/lib/utils/plural'
 
 interface Career {
   id: string
@@ -137,7 +138,7 @@ export default function SubjectBrowser({
           <EmptyState
             icon={<SearchX className="w-5 h-5" />}
             title="No hay materias para el filtro seleccionado"
-            description="Probá con otro filtro o carrera."
+            description="Prueba con otro filtro o carrera."
           />
         </div>
       ) : (
@@ -188,19 +189,18 @@ export default function SubjectBrowser({
                       </span>
                       {summary.absencesCount > 0 && (
                         <span className="text-red-700 font-bold">
-                          ({summary.absencesCount} falla{summary.absencesCount > 1 ? 's' : ''})
+                          ({countOf(summary.absencesCount, 'falta')})
                         </span>
                       )}
                       {summary.justifiedCount > 0 && (
                         <Badge variant="info" size="sm">
-                          {summary.justifiedCount} justificada
-                          {summary.justifiedCount > 1 ? 's' : ''}
+                          {countOf(summary.justifiedCount, 'justificada')}
                         </Badge>
                       )}
                       {summary.lateCount > 0 && (
                         <Badge variant="warning" size="sm">
                           <Clock className="w-3 h-3 text-amber-600" />
-                          {summary.lateCount} tarde{summary.lateCount > 1 ? 's' : ''}
+                          {countOf(summary.lateCount, 'tarde')}
                         </Badge>
                       )}
                     </div>
@@ -216,12 +216,12 @@ export default function SubjectBrowser({
                           <AlertTriangle className="w-3 h-3 text-amber-600" />
                           {summary.remainingAbsences === 0
                             ? 'Límite alcanzado'
-                            : `Riesgo: queda ${summary.remainingAbsences} falta`}
+                            : `Riesgo: ${remainingOf(summary.remainingAbsences, 'falta')}`}
                         </Badge>
                       ) : (
                         <Badge variant="success" size="sm">
                           <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          Al día ({summary.remainingAbsences} permitidas)
+                          Al día ({countOf(summary.remainingAbsences, 'permitida')})
                         </Badge>
                       )}
                     </div>

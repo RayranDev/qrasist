@@ -3,6 +3,8 @@ import SubjectBrowser, { SubjectItem } from './SubjectBrowser'
 import JoinByCode from './JoinByCode'
 import { isSessionAlreadyHeld, isWithinJustificationWindow } from '@/lib/justifications/eligibility'
 import { getAppSettings } from '@/lib/settings/appSettings'
+import { fetchAllRows, unwrapRows } from '@/lib/supabase/fetchAll'
+import { isSessionHeldFor } from '@/lib/attendance/heldSessions'
 import type { JustificationStatus, MissedSessionItem } from './missedSessions'
 import RiskBanner from '@/components/student/RiskBanner'
 import {
@@ -35,6 +37,14 @@ interface SubjectCareerRow {
     late_after_minutes?: number | null
     lates_per_absence?: number | null
   } | null
+}
+
+interface AvailableSessionRow {
+  id: string
+  subject_id: string
+  date: string
+  is_active: boolean
+  class_ends_at: string | null
 }
 
 export default async function StudentSubjectsPage() {
@@ -89,9 +99,8 @@ export default async function StudentSubjectsPage() {
     { data: enrollments },
     { data: requests },
     { data: studentAttendances },
-    { data: activeSessions },
     { data: myJustifications },
-    { data: availableSubjectSessions },
+    availableSessionsResult,
   ] = await Promise.all([
     supabase.from('enrollments').select('subject_id').eq('student_id', user.id),
     supabase.from('enrollment_requests').select('subject_id, status').eq('student_id', user.id),
@@ -99,27 +108,26 @@ export default async function StudentSubjectsPage() {
       .from('attendances')
       .select('session_id, status, session:sessions(subject_id, is_active)')
       .eq('student_id', user.id),
-    supabase.from('sessions').select('id, subject_id').eq('is_active', true),
     supabase
       .from('absence_justifications')
       .select('id, session_id, subject_id, status, reason, attachment_path, review_note')
       .eq('student_id', user.id),
+    // PostgREST trunca a 1000 filas: se pagina. Solo sesiones activas (dictadas):
+    // las archivadas/suspendidas no cuentan ni se listan como perdidas.
     availableSubjectIds.length > 0
-      ? supabase
-          .from('sessions')
-          .select('id, subject_id, date, is_active, class_ends_at')
-          .in('subject_id', availableSubjectIds)
-      : Promise.resolve({
-          data: [] as {
-            id: string
-            subject_id: string
-            date: string
-            is_active: boolean
-            class_ends_at: string | null
-          }[],
-        }),
+      ? fetchAllRows<AvailableSessionRow>((from, to) =>
+          supabase
+            .from('sessions')
+            .select('id, subject_id, date, is_active, class_ends_at')
+            .in('subject_id', availableSubjectIds)
+            .eq('is_active', true)
+            .order('id')
+            .range(from, to)
+        )
+      : Promise.resolve({ data: [] as AvailableSessionRow[], error: null }),
   ])
 
+  const availableSubjectSessions = unwrapRows(availableSessionsResult, 'las clases de tus materias')
   const { defaultClassMinutes } = await getAppSettings(supabase)
 
   // Cortes de los períodos de las materias disponibles (period_cuts es de
@@ -144,12 +152,19 @@ export default async function StudentSubjectsPage() {
     (requests || []).map((r) => [r.subject_id, r.status as string])
   )
 
-  // Mapear sesiones activas por materia
-  const activeSessionsCountBySubject = new Map<string, number>()
-  for (const s of activeSessions || []) {
-    activeSessionsCountBySubject.set(
+  const attendedSessionIds = new Set((studentAttendances || []).map((a) => a.session_id))
+
+  // Clases dictadas por materia PARA ESTE ESTUDIANTE (DEF-QA-05): activas y
+  // ya terminadas, o en curso con asistencia propia. Una clase en curso no
+  // cuenta como falta antes de que el estudiante pueda escanear.
+  const now = new Date()
+  const heldSessionsCountBySubject = new Map<string, number>()
+  for (const s of availableSubjectSessions || []) {
+    if (s.is_active === false) continue
+    if (!isSessionHeldFor(s, attendedSessionIds, now, defaultClassMinutes)) continue
+    heldSessionsCountBySubject.set(
       s.subject_id,
-      (activeSessionsCountBySubject.get(s.subject_id) || 0) + 1
+      (heldSessionsCountBySubject.get(s.subject_id) || 0) + 1
     )
   }
 
@@ -177,7 +192,6 @@ export default async function StudentSubjectsPage() {
     }
   }
 
-  const attendedSessionIds = new Set((studentAttendances || []).map((a) => a.session_id))
   const attendanceBySessionId = new Map<string, SessionAttendance>(
     (studentAttendances || []).map((a) => [
       a.session_id,
@@ -231,7 +245,7 @@ export default async function StudentSubjectsPage() {
         totalPlannedSessions: r.subject!.total_planned_sessions,
         latesPerAbsence: r.subject!.lates_per_absence,
       },
-      sessionsHeld: activeSessionsCountBySubject.get(r.subject!.id) || 0,
+      sessionsHeld: heldSessionsCountBySubject.get(r.subject!.id) || 0,
       attendancesCount: studentAttendancesBySubject.get(r.subject!.id) || 0,
       lateCount: studentLateCountBySubject.get(r.subject!.id) || 0,
       justifiedCount: justifiedCountBySubject.get(r.subject!.id) || 0,
@@ -247,7 +261,7 @@ export default async function StudentSubjectsPage() {
     const attendanceSummary = isEnrolled ? risksBySubjectId.get(r.subject!.id)?.summary : undefined
 
     const missedSessions: MissedSessionItem[] = isEnrolled
-      ? (availableSubjectSessions || [])
+      ? availableSubjectSessions
           .filter((s) => s.subject_id === r.subject!.id)
           .filter((s) => s.is_active !== false && isSessionAlreadyHeld(s, defaultClassMinutes))
           .filter((s) => !attendedSessionIds.has(s.id))
@@ -282,9 +296,10 @@ export default async function StudentSubjectsPage() {
             r.subject!.period,
             r.subject!.period_id ? cutRowsByPeriod.get(r.subject!.period_id) : []
           ),
-          sessions: (availableSubjectSessions || []).filter((s) => s.subject_id === r.subject!.id),
+          sessions: availableSubjectSessions.filter((s) => s.subject_id === r.subject!.id),
           attendanceBySessionId,
           justifiedSessionIds: approvedJustifiedSessionIds,
+          held: { now, defaultClassMinutes },
         })
       : []
 
@@ -320,8 +335,8 @@ export default async function StudentSubjectsPage() {
         <div className="bg-white rounded-2xl p-6 border border-gray-200">
           <EmptyState
             icon={<GraduationCap className="w-5 h-5" />}
-            title="Todavía no tenés una carrera asignada"
-            description="Contactá a coordinación académica para que te asignen tu carrera."
+            title="Todavía no tienes una carrera asignada"
+            description="Contacta a coordinación académica para que te asignen tu carrera."
           />
         </div>
       ) : (

@@ -171,4 +171,57 @@ describe('computeAttendanceSummary', () => {
       expect(res.absencesCount).toBe(2)
     })
   })
+
+  describe('percentage WARNING needs a minimum sample (DEF-QA-05)', () => {
+    const policy = { ruleType: 'PERCENTAGE' as const, maxPercentage: 20, totalPlannedSessions: 16 }
+
+    it('is NORMAL while the only class is still running (0 held)', () => {
+      const res = computeAttendanceSummary(0, 0, policy)
+      expect(res.status).toBe('NORMAL')
+    })
+
+    it('does not warn after one miss out of one class: 2 absences still allowed', () => {
+      const res = computeAttendanceSummary(1, 0, policy)
+      expect(res.absencesCount).toBe(1)
+      expect(res.remainingAbsences).toBe(2)
+      expect(res.status).toBe('NORMAL')
+    })
+
+    it('does not warn after one miss out of three classes', () => {
+      const res = computeAttendanceSummary(3, 2, policy)
+      expect(res.status).toBe('NORMAL')
+    })
+
+    it('does not warn on a single miss even with enough classes held', () => {
+      // 1/4 = 25% >= 15%, but one miss alone is never a percentage alert.
+      const res = computeAttendanceSummary(4, 3, policy)
+      expect(res.absencesCount).toBe(1)
+      expect(res.status).toBe('NORMAL')
+    })
+
+    it('still warns by percentage with a real sample and several misses', () => {
+      // 10 allowed (FIXED_COUNT), 3 misses of 10 = 30% >= 15%, 7 left.
+      const res = computeAttendanceSummary(10, 7, { ruleType: 'FIXED_COUNT', maxCount: 10 })
+      expect(res.remainingAbsences).toBe(7)
+      expect(res.status).toBe('WARNING')
+    })
+
+    it('the remaining-absences warning has no minimum sample', () => {
+      // 1 allowed, 1 miss out of 1 class: limit reached.
+      const res = computeAttendanceSummary(1, 0, { ruleType: 'FIXED_COUNT', maxCount: 1 })
+      expect(res.status).toBe('WARNING')
+    })
+
+    it('never relaxes FAILED_ATTENDANCE (semester-wide rule)', () => {
+      const res = computeAttendanceSummary(1, 0, { ruleType: 'FIXED_COUNT', maxCount: 0 })
+      expect(res.status).toBe('FAILED_ATTENDANCE')
+    })
+  })
+
+  it('writes the failed message with singular/plural agreement', () => {
+    const one = computeAttendanceSummary(1, 0, { ruleType: 'FIXED_COUNT', maxCount: 0 })
+    expect(one.statusMessage).toBe('Pérdida por inasistencia (1 falla acumulada de máx 0)')
+    const many = computeAttendanceSummary(5, 0, { ruleType: 'FIXED_COUNT', maxCount: 2 })
+    expect(many.statusMessage).toBe('Pérdida por inasistencia (5 fallas acumuladas de máx 2)')
+  })
 })

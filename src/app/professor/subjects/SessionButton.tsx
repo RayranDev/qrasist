@@ -11,6 +11,8 @@ import {
 import { useToast } from '@/components/toast/ToastProvider'
 import { getBestEffortLocation } from '@/lib/utils/geolocation'
 import { Settings2, ChevronDown } from 'lucide-react'
+import { bogotaCalendarDate } from '@/lib/utils/businessDays'
+import { dayOfWeekOf } from '@/lib/sessions/suspension'
 
 const MIN_MAKEUP_REASON_LENGTH = 5
 
@@ -24,7 +26,9 @@ export interface ScheduleBlock {
  * generar la sesión. Si hoy no coincide con ningún bloque (ej. clase
  * fuera de horario), el default es PRESENCIAL. */
 function defaultModalityForToday(schedules: ScheduleBlock[]): SessionModality {
-  const today = new Date().getDay() // 0 = domingo ... 6 = sábado, igual que day_of_week
+  // Día de la semana en Bogotá (0 = domingo ... 6 = sábado, igual que day_of_week),
+  // no el del navegador: el docente puede abrir la app desde otro huso horario.
+  const today = dayOfWeekOf(bogotaCalendarDate(new Date()))
   return schedules.find((s) => s.day_of_week === today)?.modality || 'PRESENCIAL'
 }
 

@@ -182,8 +182,8 @@ export default async function AdminAuditPage({
                           title="No hay eventos registrados con estos filtros"
                           description={
                             hasActiveFilters
-                              ? 'Probá ampliando el rango de fechas o quitando algún filtro.'
-                              : 'Los eventos aparecen acá a medida que se realizan acciones en el sistema.'
+                              ? 'Prueba ampliando el rango de fechas o quitando algún filtro.'
+                              : 'Los eventos aparecen aquí a medida que se realizan acciones en el sistema.'
                           }
                           action={
                             hasActiveFilters ? (

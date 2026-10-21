@@ -12,9 +12,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows, unwrapRows } from '@/lib/supabase/fetchAll'
 import type { AbsenceRuleType } from '@/lib/utils/attendancePolicy'
 import { usableCuts, type PeriodCutRow } from '@/lib/attendance/cutsView'
+import { getAppSettings } from '@/lib/settings/appSettings'
 import type {
   ReportAttendanceInput,
   ReportEnrollmentInput,
+  ReportHeldContext,
   ReportJustificationInput,
   ReportSessionInput,
   ReportSubjectInput,
@@ -48,6 +50,7 @@ interface SessionRow {
   id: string
   subject_id: string
   date: string
+  class_ends_at: string | null
   is_active: boolean | null
   suspended_at: string | null
   suspension_reason: string | null
@@ -98,6 +101,8 @@ export interface ReportData {
   enrollments: ReportEnrollmentInput[]
   attendances: ReportAttendanceInput[]
   justifications: ReportJustificationInput[]
+  /** Hora actual y duración por defecto, para no contar clases en curso (DEF-QA-05). */
+  held?: ReportHeldContext
 }
 
 const EMPTY: ReportData = {
@@ -219,7 +224,7 @@ export async function loadReportData(
         supabase
           .from('sessions')
           .select(
-            'id, subject_id, date, is_active, suspended_at, suspension_reason, modality, is_makeup, makeup_reason'
+            'id, subject_id, date, class_ends_at, is_active, suspended_at, suspension_reason, modality, is_makeup, makeup_reason'
           )
           .in('subject_id', part)
           .order('id')
@@ -265,6 +270,7 @@ export async function loadReportData(
         id: s.id,
         subjectId: s.subject_id,
         date: s.date,
+        classEndsAt: s.class_ends_at,
         isActive: s.is_active,
         suspendedAt: s.suspended_at,
         suspensionReason: s.suspension_reason,
@@ -303,5 +309,13 @@ export async function loadReportData(
     }
   }
 
-  return { subjects, sessions, enrollments, attendances, justifications }
+  const { defaultClassMinutes } = await getAppSettings(supabase)
+  return {
+    subjects,
+    sessions,
+    enrollments,
+    attendances,
+    justifications,
+    held: { now: new Date(), defaultClassMinutes },
+  }
 }

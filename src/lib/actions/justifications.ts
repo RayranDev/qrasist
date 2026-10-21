@@ -95,7 +95,7 @@ async function checkJustificationEligibility(
     .maybeSingle()
 
   if (attendance) {
-    return { ok: false, error: 'Ya tenés asistencia registrada para esta sesión.' }
+    return { ok: false, error: 'Ya tienes asistencia registrada para esta sesión.' }
   }
 
   return { ok: true, session }

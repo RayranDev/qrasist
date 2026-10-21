@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { AlertTriangle, AlertOctagon } from 'lucide-react'
 import type { StudentSubjectRisk } from '@/lib/attendance/studentSummaries'
+import { remainingOf } from '@/lib/utils/plural'
 
 /**
  * Banner compacto de alerta de inasistencias, pensado para reusarse en
@@ -32,7 +33,9 @@ export default function RiskBanner({ risks }: { risks: StudentSubjectRisk[] }) {
             <span>
               {failed
                 ? `Superaste el límite de faltas en ${r.subjectName}`
-                : `Estás cerca del límite de faltas en ${r.subjectName}: te quedan ${r.summary.remainingAbsences}`}
+                : r.summary.remainingAbsences === 0
+                  ? `Llegaste al límite de faltas en ${r.subjectName}: una más y pierdes la materia`
+                  : `Estás cerca del límite de faltas en ${r.subjectName}: te ${remainingOf(r.summary.remainingAbsences, 'falta')}`}
             </span>
           </Link>
         )

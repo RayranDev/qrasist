@@ -89,4 +89,43 @@ describe('formatting', () => {
       'Corte 1: sin clases dictadas'
     )
   })
+
+  it('with a held context, a running class only counts for who attended it (DEF-QA-05)', () => {
+    const cuts = usableCuts(null, rows)
+    const held = { now: new Date('2026-02-10T16:00:00Z'), defaultClassMinutes: 120 }
+    const sessions = [
+      {
+        id: 'done',
+        date: '2026-02-03T15:00:00Z',
+        is_active: true,
+        class_ends_at: '2026-02-03T17:00:00Z',
+      },
+      {
+        id: 'live',
+        date: '2026-02-10T15:00:00Z',
+        is_active: true,
+        class_ends_at: '2026-02-10T17:00:00Z',
+      },
+    ]
+    const missed = buildStudentCutBreakdown({
+      cuts,
+      sessions,
+      attendanceBySessionId: new Map([['done', { status: 'PRESENT' as const }]]),
+      justifiedSessionIds: new Set(),
+      held,
+    })
+    expect(missed[0]).toMatchObject({ sessionsHeld: 1, attended: 1, absences: 0 })
+
+    const scanned = buildStudentCutBreakdown({
+      cuts,
+      sessions,
+      attendanceBySessionId: new Map([
+        ['done', { status: 'PRESENT' as const }],
+        ['live', { status: 'PRESENT' as const }],
+      ]),
+      justifiedSessionIds: new Set(),
+      held,
+    })
+    expect(scanned[0]).toMatchObject({ sessionsHeld: 2, attended: 2, absences: 0 })
+  })
 })

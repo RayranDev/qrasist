@@ -19,6 +19,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'user.reactivate': 'Reactivó una cuenta',
   'user.update_account': 'Editó una cuenta',
   'policy.update_global_absence': 'Actualizó la política global de inasistencias',
+  'policy.update_global_refused':
+    'Se rechazó actualizar la política global (la cantidad de materias cambió)',
   'settings.update_attendance': 'Actualizó la configuración de asistencia',
   'justification.approve': 'Aprobó una justificación',
   'justification.reject': 'Rechazó una justificación',

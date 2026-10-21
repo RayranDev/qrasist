@@ -90,7 +90,7 @@ export default function ProfileModal({
   const handleSave = async () => {
     if (wantsPasswordChange) {
       if (!currentPassword) {
-        setFeedback({ type: 'error', msg: 'Ingresá tu contraseña actual para poder cambiarla.' })
+        setFeedback({ type: 'error', msg: 'Ingresa tu contraseña actual para poder cambiarla.' })
         return
       }
       if (newPassword !== confirmPassword) {
@@ -144,7 +144,7 @@ export default function ProfileModal({
         <input
           type="hidden"
           name="message"
-          value="Tu contraseña se actualizó. Iniciá sesión de nuevo con la nueva."
+          value="Tu contraseña se actualizó. Inicia sesión de nuevo con la nueva."
         />
       </form>
 
@@ -209,7 +209,7 @@ export default function ProfileModal({
                     onChange={setConfirmPassword}
                     show={showConfirm}
                     onToggleShow={() => setShowConfirm((v) => !v)}
-                    placeholder="Repetí la nueva contraseña"
+                    placeholder="Repite la nueva contraseña"
                   />
                 </div>
               </div>

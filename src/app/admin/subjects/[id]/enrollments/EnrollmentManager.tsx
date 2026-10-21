@@ -115,7 +115,7 @@ export default function EnrollmentManager({
               <EmptyState
                 icon={<UserCheck className="w-5 h-5" />}
                 title="No hay estudiantes inscritos en esta materia"
-                description="Agregalos desde la lista de estudiantes disponibles."
+                description="Agrégalos desde la lista de estudiantes disponibles."
               />
             </div>
           )}
@@ -155,7 +155,7 @@ export default function EnrollmentManager({
                 description={
                   hasEligibleStudents
                     ? undefined
-                    : 'Asigná estudiantes a la carrera correspondiente antes de inscribirlos aquí.'
+                    : 'Asigna estudiantes a la carrera correspondiente antes de inscribirlos aquí.'
                 }
               />
             </div>

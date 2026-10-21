@@ -15,6 +15,8 @@ import InstitutionMark from '@/components/brand/InstitutionMark'
 import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
 import { fetchAllRows } from '@/lib/supabase/fetchAll'
 import { getAppSettings } from '@/lib/settings/appSettings'
+import { buildHeldCounter } from '@/lib/attendance/heldSessions'
+import { countOf, pluralize } from '@/lib/utils/plural'
 
 export default async function ProfessorSubjectsPage() {
   const { supabase, user } = await requireRole(['PROFESSOR'])
@@ -48,15 +50,27 @@ export default async function ProfessorSubjectsPage() {
   // que se pagina con fetchAllRows en vez de confiar en una sola página.
   const { data: activeSessions } =
     subjectIds.length > 0
-      ? await fetchAllRows<{ id: string; subject_id: string }>((from, to) =>
+      ? await fetchAllRows<{
+          id: string
+          subject_id: string
+          date: string
+          class_ends_at: string | null
+        }>((from, to) =>
           supabase
             .from('sessions')
-            .select('id, subject_id')
+            .select('id, subject_id, date, class_ends_at')
             .eq('is_active', true)
             .in('subject_id', subjectIds)
             .range(from, to)
         )
-      : { data: [] as { id: string; subject_id: string }[] }
+      : {
+          data: [] as {
+            id: string
+            subject_id: string
+            date: string
+            class_ends_at: string | null
+          }[],
+        }
 
   // Clase de hoy por materia (hora de Bogotá): alimenta la acción
   // "Suspender clase" (RF20) y bloquea iniciar asistencia si ya se suspendió.
@@ -91,10 +105,8 @@ export default async function ProfessorSubjectsPage() {
     ])
   }
 
-  const sessionsHeldBySubject = new Map<string, number>()
   const subjectIdBySessionId = new Map<string, string>()
   for (const s of activeSessions) {
-    sessionsHeldBySubject.set(s.subject_id, (sessionsHeldBySubject.get(s.subject_id) || 0) + 1)
     subjectIdBySessionId.set(s.id, s.subject_id)
   }
 
@@ -134,15 +146,23 @@ export default async function ProfessorSubjectsPage() {
     }
   }
 
+  // Clases dictadas por estudiante (DEF-QA-05): las terminadas, más las
+  // clases en curso donde el estudiante ya escaneó.
+  const heldFor = buildHeldCounter(
+    activeSessions,
+    attendanceRecords || [],
+    now,
+    defaultClassMinutes
+  )
+
   const atRiskCountBySubject = new Map<string, number>()
   for (const sub of subjects || []) {
-    const sessionsHeld = sessionsHeldBySubject.get(sub.id) || 0
-    if (sessionsHeld === 0) continue
-
     const enrolled = (sub.enrollments as { student_id: string }[] | null) || []
     let count = 0
     for (const e of enrolled) {
       const key = `${e.student_id}_${sub.id}`
+      const sessionsHeld = heldFor(e.student_id, sub.id)
+      if (sessionsHeld === 0) continue
       const summary = computeAttendanceSummary(
         sessionsHeld,
         studentSubjectAttendances.get(key) || 0,
@@ -257,7 +277,7 @@ export default async function ProfessorSubjectsPage() {
                       <p className="text-sm text-gray-400 mt-1 flex items-center gap-1.5">
                         <Users className="w-4 h-4" strokeWidth={2} />
                         <span className="font-semibold text-gray-600">{studentCount}</span>{' '}
-                        estudiante{studentCount !== 1 ? 's' : ''} inscritos
+                        {pluralize(studentCount, 'estudiante inscrito', 'estudiantes inscritos')}
                       </p>
                       <div className="flex flex-wrap gap-2 mt-2">
                         {pendingJustificationsCount > 0 && (
@@ -265,9 +285,12 @@ export default async function ProfessorSubjectsPage() {
                             href="/professor/justifications"
                             className="inline-flex items-center gap-1 text-xs font-bold text-gray-600 bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg hover:bg-gray-100 transition"
                           >
-                            {pendingJustificationsCount} justificación
-                            {pendingJustificationsCount > 1 ? 'es' : ''} en revisión por
-                            coordinación
+                            {countOf(
+                              pendingJustificationsCount,
+                              'justificación',
+                              'justificaciones'
+                            )}{' '}
+                            en revisión por coordinación
                           </Link>
                         )}
                         {atRiskCount > 0 && (

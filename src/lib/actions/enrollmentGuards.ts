@@ -45,7 +45,7 @@ export async function checkProfessorAssignable(
     return {
       ok: false,
       error:
-        'Esta materia no pertenece a ninguna carrera. Asignale una carrera antes de asignar un profesor.',
+        'Esta materia no pertenece a ninguna carrera. Asígnale una carrera antes de asignar un profesor.',
     }
   }
   const professorCareers = await getProfessorCareerIds(supabase, professorId)
@@ -53,7 +53,10 @@ export async function checkProfessorAssignable(
     return { ok: false, error: 'Este profesor no pertenece a ninguna carrera todavía.' }
   }
   if (!hasOverlap(subjectCareers, professorCareers)) {
-    return { ok: false, error: 'Este profesor no pertenece a la(s) carrera(s) de esta materia.' }
+    return {
+      ok: false,
+      error: 'Este profesor no pertenece a ninguna de las carreras de esta materia.',
+    }
   }
   return { ok: true as const }
 }

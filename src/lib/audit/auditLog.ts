@@ -30,6 +30,7 @@ export type AuditAction =
   | 'user.reactivate'
   | 'user.update_account'
   | 'policy.update_global_absence'
+  | 'policy.update_global_refused'
   | 'settings.update_attendance'
   | 'justification.approve'
   | 'justification.reject'

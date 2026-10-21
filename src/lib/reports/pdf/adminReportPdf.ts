@@ -12,6 +12,7 @@ import {
   formatPct,
   statusTone,
 } from './format'
+import { countOf } from '@/lib/utils/plural'
 
 export interface AdminPdfMeta {
   periodName: string
@@ -118,7 +119,7 @@ export async function renderAdminReportPdf(
     )
     pdf.subheading(
       `${summary.subjectCode} · ${summary.subjectName}`,
-      `Docente: ${summary.professorName} · ${summary.career} · ${summary.sessionsHeld} clase(s) en el alcance`
+      `Docente: ${summary.professorName} · ${summary.career} · ${countOf(summary.sessionsHeld, 'clase')} en el alcance`
     )
     pdf.table(
       [

@@ -1,8 +1,9 @@
 import type { MetadataRoute } from 'next'
+import { INSTITUTION_NAME } from '@/lib/brand'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'QR-Asist · Universidad Republicana',
+    name: `QR-Asist · ${INSTITUTION_NAME}`,
     short_name: 'QR-Asist',
     description:
       'Sistema de control de asistencia académica mediante QR de la Corporación Universitaria Republicana.',

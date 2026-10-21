@@ -41,7 +41,7 @@ export default function RequestsList({ requests }: { requests: Request[] }) {
         <EmptyState
           icon={<UserPlus className="w-5 h-5" />}
           title="No hay solicitudes pendientes"
-          description="Cuando un estudiante pida inscribirse con el código de esta materia, va a aparecer acá."
+          description="Cuando un estudiante pida inscribirse con el código de esta materia, va a aparecer aquí."
         />
       </div>
     )

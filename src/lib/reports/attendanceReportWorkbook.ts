@@ -7,6 +7,7 @@
  */
 import type ExcelJS from 'exceljs'
 import { buildWorkbook, type ExportSheet } from '@/lib/excel/exportWorkbook'
+import { INSTITUTION_NAME } from '@/lib/brand'
 import type { AttendanceReport } from './attendanceReport'
 import { COUNTED_ABSENCES_NOTE, formatDateEs, formatGeneratedAt } from './pdf/format'
 
@@ -195,7 +196,7 @@ export async function buildAttendanceReportWorkbook(
       { header: 'Valor', key: 'value', width: 60 },
     ],
     rows: [
-      { field: 'Institución', value: 'Corporación Universitaria Republicana' },
+      { field: 'Institución', value: INSTITUTION_NAME },
       { field: 'Período', value: meta.periodName },
       { field: 'Alcance', value: meta.scopeLabel },
       ...(meta.filtersLabel ? [{ field: 'Filtros', value: meta.filtersLabel }] : []),

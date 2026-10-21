@@ -83,7 +83,7 @@ export default async function ProfessorJustificationsPage() {
             justifications={(justifications || []) as unknown as JustificationRow[]}
             subjects={subjects || []}
             canReview={false}
-            emptyDescription="Cuando tus estudiantes envíen justificaciones, vas a ver acá su estado."
+            emptyDescription="Cuando tus estudiantes envíen justificaciones, vas a ver aquí su estado."
           />
         </div>
       </div>

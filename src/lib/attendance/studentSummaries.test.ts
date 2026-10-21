@@ -95,4 +95,15 @@ describe('formatSubjectStatusLine', () => {
       '0 faltas de 3 permitidas · 1 justificada · 1 tarde'
     )
   })
+
+  it('agrees "permitida" with a limit of exactly 1', () => {
+    const [risk] = computeStudentSubjectRisks([
+      baseRow({
+        policy: { ruleType: 'FIXED_COUNT', maxCount: 1 },
+        sessionsHeld: 4,
+        attendancesCount: 3,
+      }),
+    ])
+    expect(formatSubjectStatusLine(risk.summary)).toBe('1 falta de 1 permitida')
+  })
 })
