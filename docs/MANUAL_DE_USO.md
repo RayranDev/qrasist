@@ -74,7 +74,7 @@ El historial está organizado en tres niveles:
 2. **Sesiones** → Selecciona una fecha/clase
 3. **Asistentes** → Ve la lista de estudiantes regulares (inscritos) e invitados, con nombre, código institucional, fecha y hora exacta.
 
-Desde la lista de asistentes puedes exportar a **CSV** con un clic.
+Desde el detalle de cada materia puedes descargar el reporte de asistencia en **PDF**, para todo el período o para un corte, con un clic. Incluye estudiantes, porcentaje por corte, estado (Normal, En riesgo, Perdida por fallas), lista de clases y observaciones. Los docentes descargan reportes solo en PDF; el Excel es exclusivo de coordinación.
 
 Para eliminar una sesión por error, clic en el ícono de basura junto a la fecha de la sesión (dentro del nivel 2).
 
