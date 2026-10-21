@@ -470,6 +470,16 @@ export function buildAttendanceReport(input: BuildReportInput): AttendanceReport
     })
   }
 
+  // Orden estable y legible: materia y luego estudiante (con números en
+  // orden natural), sin depender del orden en que llegaron las consultas.
+  const collator = new Intl.Collator('es', { numeric: true, sensitivity: 'base' })
+  rows.sort(
+    (x, y) =>
+      collator.compare(x.subjectName, y.subjectName) ||
+      collator.compare(x.studentName, y.studentName)
+  )
+  subjectSummaries.sort((x, y) => collator.compare(x.subjectCode, y.subjectCode))
+
   const professors = buildProfessorRows(subjects, sessionsBySubject, input.classStats || [], range)
 
   return {

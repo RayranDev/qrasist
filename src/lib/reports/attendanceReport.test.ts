@@ -205,6 +205,24 @@ describe('buildAttendanceReport: counts', () => {
   })
 })
 
+describe('buildAttendanceReport: ordering', () => {
+  it('sorts rows by subject and then student name, with natural number order', () => {
+    const report = buildAttendanceReport({
+      subjects: [subject({ id: 'sub-2', code: 'B', name: 'Zeta' }), subject()],
+      sessions: [],
+      enrollments: [
+        enrollment('x10', 'Alumno 10'),
+        enrollment('x2', 'Alumno 2'),
+        { ...enrollment('z'), subjectId: 'sub-2', studentName: 'Ana' },
+      ],
+      attendances: [],
+      justifications: [],
+    })
+    expect(report.rows.map((r) => r.studentName)).toEqual(['Alumno 2', 'Alumno 10', 'Ana'])
+    expect(report.subjectSummaries.map((s) => s.subjectCode)).toEqual(['B', 'MAT101'].sort())
+  })
+})
+
 describe('buildAttendanceReport: held classes only', () => {
   it('excludes suspended and archived sessions and the attendances recorded on them', () => {
     const report = buildAttendanceReport({

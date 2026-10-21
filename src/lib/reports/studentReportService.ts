@@ -6,6 +6,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { buildStudentHistory, type StudentSubjectHistory } from './attendanceReport'
+import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { loadReportData } from './attendanceReportData'
 
 export interface StudentReport {
@@ -37,6 +38,23 @@ export async function generateStudentReport(
   const subjectIds = [...new Set((enrollments || []).map((e) => e.subject_id as string))]
 
   const data = await loadReportData(supabase, { subjectIds, studentId, activeOnly: true })
+  // El estudiante no puede leer el perfil de sus docentes (RLS de profiles),
+  // así que el nombre del docente de SUS materias se resuelve en el servidor
+  // con el cliente de servicio, solo para los ids que salen de esas materias.
+  const professorIds = [
+    ...new Set(data.subjects.map((s) => s.professorId).filter((id): id is string => !!id)),
+  ]
+  if (professorIds.length > 0) {
+    const { data: professors } = await getSupabaseAdmin()
+      .from('profiles')
+      .select('id, name')
+      .in('id', professorIds)
+    const nameById = new Map((professors || []).map((p) => [p.id as string, p.name as string]))
+    for (const subject of data.subjects) {
+      if (subject.professorId) subject.professorName = nameById.get(subject.professorId) ?? null
+    }
+  }
+
   const history = buildStudentHistory({
     studentId,
     subjects: data.subjects,
