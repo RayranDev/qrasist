@@ -53,7 +53,8 @@ export async function GET(request: NextRequest) {
       professorId: params.get('professorId'),
       status: params.get('status'),
     })
-  } catch {
+  } catch (error) {
+    console.error('[reports/admin] No se pudo generar el reporte', error)
     return NextResponse.json({ error: 'No se pudo generar el reporte.' }, { status: 500 })
   }
   if (!result.ok) {

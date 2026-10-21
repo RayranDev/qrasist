@@ -24,7 +24,8 @@ export async function GET() {
   let result
   try {
     result = await generateStudentReport(supabase, user.id)
-  } catch {
+  } catch (error) {
+    console.error('[reports/student] No se pudo generar el reporte', error)
     return NextResponse.json({ error: 'No se pudo generar el reporte.' }, { status: 500 })
   }
   if (!result.ok) {

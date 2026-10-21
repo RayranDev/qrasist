@@ -15,6 +15,7 @@ import {
   type ReportClassStatsInput,
   type ReportFilters,
 } from './attendanceReport'
+import { fetchAllRows, unwrapRows } from '@/lib/supabase/fetchAll'
 import { loadReportData } from './attendanceReportData'
 import { formatDateEs } from './pdf/format'
 
@@ -56,30 +57,61 @@ export async function generateAdminReport(
     return fail(400, 'Estado no válido.')
   }
 
-  const { data: period } = await supabase
+  const { data: period, error: periodError } = await supabase
     .from('periods')
     .select('id, name, start_date, end_date')
     .eq('id', params.periodId)
     .maybeSingle()
+  if (periodError) throw new Error('No se pudo cargar el período.', { cause: periodError })
   if (!period) return fail(404, 'Período no encontrado.')
 
-  const { data: cutRows } = await supabase
+  const { data: cutRows, error: cutsError } = await supabase
     .from('period_cuts')
     .select('id, name, start_date, end_date, sequence')
     .eq('period_id', period.id)
     .order('sequence')
+  if (cutsError) throw new Error('No se pudieron cargar los cortes.', { cause: cutsError })
   const cuts = usableCuts(period, (cutRows || []) as PeriodCutRow[])
 
   const range = resolveReportRange(cuts, params.cutId)
   if (!range) return fail(400, 'El corte no pertenece a este período.')
 
-  const data = await loadReportData(supabase, { periodId: period.id })
-  if (data.subjects.length === 0) return fail(404, 'Este período no tiene materias asociadas.')
-
   const filters: ReportFilters = {
     subjectId: params.subjectId || undefined,
     professorId: params.professorId || undefined,
     status: (params.status as AttendanceStatus | null | undefined) || undefined,
+  }
+
+  // Las materias archivadas quedan fuera del reporte (igual que en el
+  // historial del estudiante): no tienen horario vigente ni dictan clase.
+  // Con filtro de materia o docente la carga se acota a esos ids en lugar
+  // de traer todo el período y filtrar en memoria.
+  let scopedSubjectIds: string[] | null = null
+  if (filters.subjectId || filters.professorId) {
+    const idsResult = await fetchAllRows<{ id: string }>((from, to) => {
+      let q = supabase
+        .from('subjects')
+        .select('id')
+        .eq('period_id', period.id)
+        .eq('is_active', true)
+      if (filters.subjectId) q = q.eq('id', filters.subjectId)
+      if (filters.professorId) q = q.eq('professor_id', filters.professorId)
+      return q.order('id').range(from, to)
+    })
+    scopedSubjectIds = unwrapRows(idsResult, 'las materias del filtro').map((r) => r.id)
+  }
+
+  const data =
+    scopedSubjectIds === null
+      ? await loadReportData(supabase, { periodId: period.id, activeOnly: true })
+      : await loadReportData(supabase, { subjectIds: scopedSubjectIds, activeOnly: true })
+  if (data.subjects.length === 0) {
+    return fail(
+      404,
+      scopedSubjectIds === null
+        ? 'Este período no tiene materias asociadas.'
+        : 'No hay materias que coincidan con los filtros en este período.'
+    )
   }
 
   // Cumplimiento docente por lotes de materias (la URL de PostgREST no

@@ -36,7 +36,8 @@ export async function GET(request: NextRequest) {
   let result
   try {
     result = await generateSubjectReport(supabase, { subjectId, cutId: params.get('cutId') })
-  } catch {
+  } catch (error) {
+    console.error('[reports/professor] No se pudo generar el reporte', error)
     return NextResponse.json({ error: 'No se pudo generar el reporte.' }, { status: 500 })
   }
   if (!result.ok) {

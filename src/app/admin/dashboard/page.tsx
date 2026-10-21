@@ -333,7 +333,14 @@ export default async function AdminDashboardPage({
   // Se calcula al leer a partir de horario x período x sesiones; vacío si no
   // hay materias con período y horario.
   const [classOmissions, recentSuspensionsCount] = await Promise.all([
-    fetchClassOmissions(supabase),
+    // El contador es solo informativo: si la consulta falla (ahora lanza en
+    // lugar de devolver datos parciales) el panel sigue cargando.
+    fetchClassOmissions(supabase).catch(
+      (error): Awaited<ReturnType<typeof fetchClassOmissions>> => {
+        console.error('[dashboard] No se pudieron calcular las clases sin registrar', error)
+        return []
+      }
+    ),
     countRecentSuspensions(supabase),
   ])
   const unregisteredClassesCount = countUnjustified(classOmissions)

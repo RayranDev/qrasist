@@ -9,7 +9,7 @@
  * autorización por su cuenta -- este módulo no decide permisos.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { fetchAllRows } from '@/lib/supabase/fetchAll'
+import { fetchAllRows, unwrapRows } from '@/lib/supabase/fetchAll'
 import type { AbsenceRuleType } from '@/lib/utils/attendancePolicy'
 import { usableCuts, type PeriodCutRow } from '@/lib/attendance/cutsView'
 import type {
@@ -135,7 +135,7 @@ async function loadSubjectRows(
   const rows: SubjectRow[] = []
   if (query.periodId) {
     const periodId = query.periodId
-    const { data } = await fetchAllRows<SubjectRow>((from, to) =>
+    const result = await fetchAllRows<SubjectRow>((from, to) =>
       supabase
         .from('subjects')
         .select(SUBJECT_SELECT)
@@ -143,13 +143,13 @@ async function loadSubjectRows(
         .order('id')
         .range(from, to)
     )
-    rows.push(...data)
+    rows.push(...unwrapRows(result, 'las materias del reporte'))
   } else {
     for (const part of chunk(query.subjectIds || [], SUBJECT_CHUNK)) {
-      const { data } = await fetchAllRows<SubjectRow>((from, to) =>
+      const result = await fetchAllRows<SubjectRow>((from, to) =>
         supabase.from('subjects').select(SUBJECT_SELECT).in('id', part).order('id').range(from, to)
       )
-      rows.push(...data)
+      rows.push(...unwrapRows(result, 'las materias del reporte'))
     }
   }
   return query.activeOnly ? rows.filter((r) => r.is_active !== false) : rows
@@ -168,7 +168,7 @@ export async function loadReportData(
   ]
   const cutRowsByPeriod = new Map<string, PeriodCutRow[]>()
   for (const part of chunk(periodIds, SUBJECT_CHUNK)) {
-    const { data } = await fetchAllRows<PeriodCutRow & { period_id: string }>((from, to) =>
+    const result = await fetchAllRows<PeriodCutRow & { period_id: string }>((from, to) =>
       supabase
         .from('period_cuts')
         .select('id, period_id, name, start_date, end_date, sequence')
@@ -176,7 +176,7 @@ export async function loadReportData(
         .order('id')
         .range(from, to)
     )
-    for (const cut of data) {
+    for (const cut of unwrapRows(result, 'los cortes del período')) {
       cutRowsByPeriod.set(cut.period_id, [...(cutRowsByPeriod.get(cut.period_id) || []), cut])
     }
   }

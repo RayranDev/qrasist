@@ -93,9 +93,12 @@ describe('GET /professor/reports/subject', () => {
     })
     expect((await GET(request('subjectId=sub-1&cutId=x'))).status).toBe(400)
 
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     generateSubjectReport.mockRejectedValueOnce(new Error('db down'))
     const res = await GET(request('subjectId=sub-1'))
     expect(res.status).toBe(500)
     expect(JSON.stringify(await res.json())).not.toContain('db down')
+    expect(logged).toHaveBeenCalled()
+    logged.mockRestore()
   })
 })

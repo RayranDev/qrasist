@@ -44,9 +44,12 @@ describe('GET /student/reports/history', () => {
   })
 
   it('turns unexpected failures into a generic 500', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     generateStudentReport.mockRejectedValue(new Error('db down'))
     const res = await GET()
     expect(res.status).toBe(500)
     expect(JSON.stringify(await res.json())).not.toContain('db down')
+    expect(logged).toHaveBeenCalled()
+    logged.mockRestore()
   })
 })

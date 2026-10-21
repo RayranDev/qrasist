@@ -22,19 +22,23 @@ export async function generateStudentReport(
   supabase: SupabaseClient,
   studentId: string
 ): Promise<StudentReportResult> {
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('name, student_code, role, is_active')
     .eq('id', studentId)
     .maybeSingle()
+  if (profileError) throw new Error('No se pudo cargar el perfil.', { cause: profileError })
   if (!profile || !profile.is_active || profile.role !== 'STUDENT') {
     return { ok: false, status: 403, error: 'No autorizado.' }
   }
 
-  const { data: enrollments } = await supabase
+  const { data: enrollments, error: enrollmentsError } = await supabase
     .from('enrollments')
     .select('subject_id')
     .eq('student_id', studentId)
+  if (enrollmentsError) {
+    throw new Error('No se pudieron cargar las inscripciones.', { cause: enrollmentsError })
+  }
   const subjectIds = [...new Set((enrollments || []).map((e) => e.subject_id as string))]
 
   const data = await loadReportData(supabase, { subjectIds, studentId, activeOnly: true })
@@ -45,10 +49,13 @@ export async function generateStudentReport(
     ...new Set(data.subjects.map((s) => s.professorId).filter((id): id is string => !!id)),
   ]
   if (professorIds.length > 0) {
-    const { data: professors } = await getSupabaseAdmin()
+    const { data: professors, error: professorsError } = await getSupabaseAdmin()
       .from('profiles')
       .select('id, name')
       .in('id', professorIds)
+    if (professorsError) {
+      throw new Error('No se pudieron cargar los docentes.', { cause: professorsError })
+    }
     const nameById = new Map((professors || []).map((p) => [p.id as string, p.name as string]))
     for (const subject of data.subjects) {
       if (subject.professorId) subject.professorName = nameById.get(subject.professorId) ?? null

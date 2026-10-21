@@ -58,3 +58,16 @@ export async function fetchAllRows<T>(
 
   return { data: allRows, error: null }
 }
+
+/**
+ * Devuelve las filas de un resultado de `fetchAllRows` o lanza si la
+ * consulta falló. `fetchAllRows` devuelve en `data` lo que alcanzó a traer
+ * antes del error, así que usar `data` sin mirar `error` produce
+ * resultados truncados en silencio -- inaceptable en un reporte oficial.
+ */
+export function unwrapRows<T>(result: FetchAllResult<T>, what: string): T[] {
+  if (result.error) {
+    throw new Error(`No se pudieron cargar ${what}.`, { cause: result.error })
+  }
+  return result.data
+}

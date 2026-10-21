@@ -104,8 +104,18 @@ describe('GET /admin/reports/attendance', () => {
     const bad = await GET(request('periodId=p1&format=pdf&cutId=nope'))
     expect(bad.status).toBe(400)
     expect((await bad.json()).error).toContain('corte')
+  })
 
-    generateAdminReport.mockRejectedValueOnce(new Error('boom'))
-    expect((await GET(request('periodId=p1&format=pdf'))).status).toBe(500)
+  it('answers 500 (and logs) when the data layer fails, never a degraded report', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const cause = new Error('No se pudieron cargar las materias del reporte.')
+    for (const format of ['xlsx', 'pdf', 'summary']) {
+      generateAdminReport.mockRejectedValueOnce(cause)
+      const res = await GET(request(`periodId=p1&format=${format}`))
+      expect(res.status).toBe(500)
+      expect((await res.json()).error).toBe('No se pudo generar el reporte.')
+    }
+    expect(logged).toHaveBeenCalled()
+    logged.mockRestore()
   })
 })
