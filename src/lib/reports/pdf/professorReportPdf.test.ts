@@ -42,6 +42,7 @@ describe('professor report PDF', () => {
     expect(all).toContain('Reporte de asistencia de la materia')
     expect(all).toContain('DER101')
     expect(all).toContain('% Corte 1')
+    expect(all).toContain('penalización por tardanzas')
     expect(all).toContain('% Corte 2')
     expect(all).toContain('Suspensión: Paro de transporte')
     expect(all).toContain('Reposición: Reposición del paro')

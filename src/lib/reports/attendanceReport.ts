@@ -224,7 +224,13 @@ export interface ProfessorComplianceRow {
   suspended: number
   notRegistered: number
   notRegisteredJustified: number
-  /** (dictadas + suspendidas) / programadas, tope 100; null sin clases programadas. */
+  /**
+   * Clases programadas que quedaron cubiertas: por materia,
+   * min(dictadas + suspendidas, programadas). El tope es POR MATERIA para que
+   * clases extra (reposiciones) en una no tapen clases sin registrar en otra.
+   */
+  covered: number
+  /** covered / programadas; null sin clases programadas. */
   compliancePct: number | null
   /** Materias sin horario semanal: no se puede medir su cumplimiento. */
   subjectsWithoutSchedule: number
@@ -498,10 +504,7 @@ function buildProfessorRows(
   range: ReportRange
 ): ProfessorComplianceRow[] {
   const statsBySubject = new Map(classStats.map((s) => [s.subjectId, s]))
-  const byProfessor = new Map<
-    string,
-    ProfessorComplianceRow & { measuredHeld: number; measuredSuspended: number }
-  >()
+  const byProfessor = new Map<string, ProfessorComplianceRow>()
 
   for (const subject of subjects) {
     const key = subject.professorId ?? '__none__'
@@ -516,10 +519,9 @@ function buildProfessorRows(
         suspended: 0,
         notRegistered: 0,
         notRegisteredJustified: 0,
+        covered: 0,
         compliancePct: null,
         subjectsWithoutSchedule: 0,
-        measuredHeld: 0,
-        measuredSuspended: 0,
       }
       byProfessor.set(key, row)
     }
@@ -532,8 +534,7 @@ function buildProfessorRows(
       row.suspended += stats.suspended
       row.notRegistered += stats.omitted
       row.notRegisteredJustified += stats.omittedJustified
-      row.measuredHeld += stats.held
-      row.measuredSuspended += stats.suspended
+      row.covered += Math.min(stats.held + stats.suspended, stats.scheduled)
     } else {
       // Sin horario semanal (o período sin fechas válidas): no hay clases
       // "programadas" contra las cuales medir, pero lo dictado sí se cuenta.
@@ -547,13 +548,7 @@ function buildProfessorRows(
   }
 
   return [...byProfessor.values()]
-    .map(({ measuredHeld, measuredSuspended, ...row }) => ({
-      ...row,
-      compliancePct:
-        row.scheduled > 0
-          ? Math.min(100, round1(((measuredHeld + measuredSuspended) / row.scheduled) * 100))
-          : null,
-    }))
+    .map((row) => ({ ...row, compliancePct: pct(row.covered, row.scheduled) }))
     .sort((a, b) => a.professorName.localeCompare(b.professorName, 'es'))
 }
 
@@ -575,10 +570,7 @@ function buildTotals(
   const worst = [...worstByStudent.values()]
 
   const scheduled = professors.reduce((sum, p) => sum + p.scheduled, 0)
-  const measured = professors.reduce(
-    (sum, p) => sum + (p.compliancePct === null ? 0 : (p.compliancePct / 100) * p.scheduled),
-    0
-  )
+  const covered = professors.reduce((sum, p) => sum + p.covered, 0)
 
   return {
     subjects: subjectSummaries.length,
@@ -590,7 +582,8 @@ function buildTotals(
     overallAttendancePct: pct(attendedTotal, heldTotal),
     atRiskStudents: worst.filter((s) => s === 'WARNING').length,
     failedStudents: worst.filter((s) => s === 'FAILED_ATTENDANCE').length,
-    complianceOverallPct: scheduled > 0 ? round1((measured / scheduled) * 100) : null,
+    // Del numerador y denominador crudos, no de porcentajes ya redondeados.
+    complianceOverallPct: pct(covered, scheduled),
   }
 }
 

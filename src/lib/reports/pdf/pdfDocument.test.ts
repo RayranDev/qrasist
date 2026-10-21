@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { PdfReport, toPdfText, wrapText } from './pdfDocument'
 import { extractPages } from './reportFixtures'
@@ -12,6 +12,24 @@ describe('PDF primitives', () => {
     expect(toPdfText(font, 'ćžš')).toBe('cžš')
     expect(toPdfText(font, 'ok 😀 fin')).toBe('ok ? fin')
     expect(toPdfText(font, 'a\nb\tc d')).toBe('a b c d')
+  })
+
+  it('normalizes exotic spaces and drops the BOM and zero-width characters', async () => {
+    const doc = await PDFDocument.create()
+    const font = await doc.embedFont(StandardFonts.Helvetica)
+    const exotic = [' ', ' ', ' ', ' ', ' ', ' ', ' ']
+    for (const space of exotic) {
+      expect(toPdfText(font, `a${space}b`)).toBe('a b')
+    }
+    expect(toPdfText(font, '﻿Hola​ mundo')).toBe('Hola mundo')
+  })
+
+  it('builds the supported character set once per font', async () => {
+    const doc = await PDFDocument.create()
+    const font = await doc.embedFont(StandardFonts.Helvetica)
+    const spy = vi.spyOn(font, 'getCharacterSet')
+    for (let i = 0; i < 25; i++) toPdfText(font, 'texto con tildes: áéíóú')
+    expect(spy).toHaveBeenCalledTimes(1)
   })
 
   it('wraps long text and breaks words wider than the column', async () => {

@@ -120,5 +120,8 @@ describe('buildAttendanceReportWorkbook', () => {
     expect(professors.getRow(2).getCell(1).value).toBe('Ana')
     expect(professors.getRow(2).getCell(8).value).toBe(83.3)
     expect(loaded.getWorksheet('Observaciones y excusas')!.rowCount).toBeGreaterThan(1)
+    const info: string[] = []
+    loaded.getWorksheet('Información')!.eachRow((row) => info.push(String(row.getCell(2).value)))
+    expect(info.join(' ')).toContain('penalización por tardanzas')
   })
 })

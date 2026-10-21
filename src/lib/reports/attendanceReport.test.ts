@@ -419,7 +419,7 @@ describe('buildAttendanceReport: professors', () => {
     expect(report.totals.complianceOverallPct).toBe(80)
   })
 
-  it('sums several subjects of the same professor and caps compliance at 100', () => {
+  it('caps compliance per subject so extra classes cannot hide missed ones elsewhere', () => {
     const report = buildAttendanceReport({
       subjects: [subject(), subject({ id: 'sub-2', code: 'FIS102', name: 'Física' })],
       sessions: [],
@@ -443,8 +443,31 @@ describe('buildAttendanceReport: professors', () => {
       scheduled: 14,
       held: 13,
       suspended: 1,
-      compliancePct: 100,
+      // sub-1 cubre 8 de 10 (7 + 1); sub-2 dictó 6 de 4: cuenta 4, no 6.
+      covered: 12,
+      compliancePct: 85.7,
     })
+  })
+
+  it('computes the overall compliance from raw sums, not from rounded percentages', () => {
+    const subjects = [
+      subject({ id: 'a', professorId: 'p1', professorName: 'Uno' }),
+      subject({ id: 'b', professorId: 'p2', professorName: 'Dos' }),
+    ]
+    const report = buildAttendanceReport({
+      subjects,
+      sessions: [],
+      enrollments: [],
+      attendances: [],
+      justifications: [],
+      classStats: [
+        stats({ subjectId: 'a', scheduled: 3, held: 2, suspended: 0, omitted: 1 }),
+        stats({ subjectId: 'b', scheduled: 7, held: 6, suspended: 0, omitted: 1 }),
+      ],
+    })
+    // Por docente (orden alfabético: Dos, Uno): 85,7% y 66,7%. Global: 8/10.
+    expect(report.professors.map((p) => p.compliancePct)).toEqual([85.7, 66.7])
+    expect(report.totals.complianceOverallPct).toBe(80)
   })
 
   it('counts held classes but not compliance for subjects without a weekly schedule', () => {

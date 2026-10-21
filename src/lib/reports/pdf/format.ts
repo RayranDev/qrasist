@@ -58,3 +58,7 @@ export function safeFileName(value: string): string {
       .replace(/^_+|_+$/g, '') || 'reporte'
   )
 }
+
+/** Nota al pie de las "faltas contadas" en los reportes (PDF y Excel). */
+export const COUNTED_ABSENCES_NOTE =
+  'Las faltas contadas descuentan las clases justificadas y suman la penalización por tardanzas (cada N tardanzas cuentan como una falta, según la política de la materia). Esa penalización se calcula sobre el alcance elegido, por lo que las faltas de cada corte no tienen por qué sumar las del semestre.'

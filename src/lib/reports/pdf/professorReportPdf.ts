@@ -11,7 +11,13 @@ import type {
   StudentSubjectRow,
 } from '@/lib/reports/attendanceReport'
 import { PdfReport, type PdfCell, type PdfColumn } from './pdfDocument'
-import { formatDateEs, formatGeneratedAt, formatPct, statusTone } from './format'
+import {
+  COUNTED_ABSENCES_NOTE,
+  formatDateEs,
+  formatGeneratedAt,
+  formatPct,
+  statusTone,
+} from './format'
 
 export interface ProfessorPdfMeta {
   subjectCode: string
@@ -74,6 +80,7 @@ export async function renderProfessorReportPdf(
     'El estado se calcula sobre todo el semestre; los conteos y el porcentaje del alcance corresponden a las clases dictadas dentro del rango elegido. Las clases suspendidas o archivadas no cuentan.',
     { muted: true, size: 8.5 }
   )
+  pdf.paragraph(COUNTED_ABSENCES_NOTE, { muted: true, size: 8.5 })
   pdf.legend([
     { label: 'Normal', tone: 'success' },
     { label: 'En riesgo', tone: 'warning' },

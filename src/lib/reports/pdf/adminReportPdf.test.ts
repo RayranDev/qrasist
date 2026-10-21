@@ -56,6 +56,7 @@ describe('admin report PDF', () => {
     expect(all).toContain('Perdida por fallas')
     expect(all).toContain('En riesgo')
     expect(all).toContain('Cumplimiento docente')
+    expect(all).toContain('penalización por tardanzas')
     expect(all).toContain('Ángela Muñoz')
     // La marca manual con caracteres no codificables se degrada, no rompe.
     expect(all).toContain('Falló el QR del aula cžš ?')

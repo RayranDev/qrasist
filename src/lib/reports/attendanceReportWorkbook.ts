@@ -8,7 +8,7 @@
 import type ExcelJS from 'exceljs'
 import { buildWorkbook, type ExportSheet } from '@/lib/excel/exportWorkbook'
 import type { AttendanceReport } from './attendanceReport'
-import { formatDateEs, formatGeneratedAt } from './pdf/format'
+import { COUNTED_ABSENCES_NOTE, formatDateEs, formatGeneratedAt } from './pdf/format'
 
 export interface WorkbookMeta {
   periodName: string
@@ -200,6 +200,7 @@ export async function buildAttendanceReportWorkbook(
       { field: 'Alcance', value: meta.scopeLabel },
       ...(meta.filtersLabel ? [{ field: 'Filtros', value: meta.filtersLabel }] : []),
       { field: 'Generado (hora de Bogotá)', value: formatGeneratedAt(meta.generatedAt) },
+      { field: 'Faltas contadas', value: COUNTED_ABSENCES_NOTE },
       {
         field: 'Nota',
         value:
@@ -211,6 +212,11 @@ export async function buildAttendanceReportWorkbook(
   const workbook = await buildWorkbook([students, subjects, professors, annex, info])
   const studentsSheet = workbook.getWorksheet('Estudiantes')
   if (studentsSheet) paintStatusColumn(studentsSheet, 'status')
+  const infoSheet = workbook.getWorksheet('Información')
+  if (infoSheet) {
+    infoSheet.getColumn('value').alignment = { wrapText: true, vertical: 'top' }
+    infoSheet.getColumn('field').alignment = { vertical: 'top' }
+  }
   workbook.eachSheet((sheet) => finishSheet(sheet))
   return workbook
 }

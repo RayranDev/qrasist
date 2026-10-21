@@ -92,6 +92,22 @@ function hex(color: string) {
   return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255)
 }
 
+// Espacios no estándar (NBSP, en/em/thin space, narrow NBSP, etc.) que se
+// normalizan a un espacio común para poder partir líneas.
+const SPACE_LIKE = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g
+
+// getCharacterSet() de una fuente estándar arma un arreglo grande en cada
+// llamada; se cachea el Set por fuente.
+const supportedCache = new WeakMap<PDFFont, Set<number>>()
+function supportedCodePoints(font: PDFFont): Set<number> {
+  let cached = supportedCache.get(font)
+  if (!cached) {
+    cached = new Set(font.getCharacterSet())
+    supportedCache.set(font, cached)
+  }
+  return cached
+}
+
 /**
  * Deja el texto en lo que la fuente estándar (WinAnsi) puede dibujar: sin
  * saltos de línea ni caracteres de control, espacios raros normalizados, y
@@ -100,13 +116,18 @@ function hex(color: string) {
  * caracteres exóticos.
  */
 export function toPdfText(font: PDFFont, text: string): string {
-  const supported = new Set(font.getCharacterSet())
+  const supported = supportedCodePoints(font)
   let out = ''
-  for (const char of (text ?? '').replace(/[    ]/g, ' ')) {
+  for (const char of (text ?? '').replace(SPACE_LIKE, ' ')) {
     const code = char.codePointAt(0) as number
     if (char === '\n' || char === '\r' || char === '\t') {
       out += ' '
-    } else if (code < 32 || (code >= 0x7f && code < 0xa0) || (code >= 0x200b && code <= 0x200f)) {
+    } else if (
+      code < 32 ||
+      (code >= 0x7f && code < 0xa0) ||
+      (code >= 0x200b && code <= 0x200f) ||
+      code === 0xfeff
+    ) {
       continue
     } else if (supported.has(code)) {
       out += char

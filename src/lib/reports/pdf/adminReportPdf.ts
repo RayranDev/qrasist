@@ -5,7 +5,13 @@
  */
 import type { AttendanceReport } from '@/lib/reports/attendanceReport'
 import { PdfReport, type PdfCell } from './pdfDocument'
-import { formatDateEs, formatGeneratedAt, formatPct, statusTone } from './format'
+import {
+  COUNTED_ABSENCES_NOTE,
+  formatDateEs,
+  formatGeneratedAt,
+  formatPct,
+  statusTone,
+} from './format'
 
 export interface AdminPdfMeta {
   periodName: string
@@ -17,7 +23,7 @@ export interface AdminPdfMeta {
 }
 
 const NOTE_COMPLIANCE =
-  'Cumplimiento docente = (clases dictadas + suspendidas) / clases programadas en el horario semanal. Las clases programadas sin ningún registro figuran como "no registradas".'
+  'Cumplimiento docente = (clases dictadas + suspendidas) / clases programadas en el horario semanal, con tope por materia (las clases extra de una materia no compensan las no registradas de otra). Las clases programadas sin ningún registro figuran como "no registradas".'
 
 export async function renderAdminReportPdf(
   report: AttendanceReport,
@@ -63,6 +69,7 @@ export async function renderAdminReportPdf(
     'El estado de cada estudiante (Normal, En riesgo, Perdida por fallas) se calcula sobre todo el semestre; los porcentajes y conteos corresponden al alcance del reporte.',
     { muted: true, size: 8.5 }
   )
+  pdf.paragraph(COUNTED_ABSENCES_NOTE, { muted: true, size: 8.5 })
   pdf.legend([
     { label: 'Normal', tone: 'success' },
     { label: 'En riesgo', tone: 'warning' },
