@@ -4,7 +4,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { Download, FileSpreadsheet, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/toast/ToastProvider'
-import { downloadReport } from '@/lib/reports/downloadReport'
+import {
+  downloadReport,
+  isSessionExpired,
+  SESSION_EXPIRED_MESSAGE,
+} from '@/lib/reports/downloadReport'
+
+/** Espera antes de pedir los indicadores: cambiar varios filtros seguidos dispara una sola consulta. */
+const SUMMARY_DEBOUNCE_MS = 400
 
 interface PeriodOption {
   id: string
@@ -108,7 +115,8 @@ export default function AttendanceReportPanel({
   }, [periodId, cutId, professorId, subjectId, status])
 
   // Indicadores del alcance elegido (RF30). Se piden al mismo endpoint de los
-  // archivos, en formato resumen, y se cancelan si el filtro cambia antes.
+  // archivos, en formato resumen, con un debounce, y se cancelan si el filtro
+  // cambia antes de que lleguen.
   const queryKey = query.toString()
   useEffect(() => {
     if (!periodId) return
@@ -116,18 +124,28 @@ export default function AttendanceReportPanel({
     const params = new URLSearchParams(queryKey)
     params.set('format', 'summary')
 
-    fetch(`/admin/reports/attendance?${params.toString()}`, { signal: controller.signal })
-      .then(async (res) => {
-        const body = await res.json().catch(() => null)
-        if (!res.ok) throw new Error(body?.error || 'No se pudieron calcular los indicadores.')
-        setResult({ key: queryKey, summary: body as Summary })
-      })
-      .catch((err: Error) => {
-        if (err.name === 'AbortError') return
-        setResult({ key: queryKey, error: err.message })
-      })
+    const timer = setTimeout(() => {
+      fetch(`/admin/reports/attendance?${params.toString()}`, { signal: controller.signal })
+        .then(async (res) => {
+          // Sesión vencida: el proxy redirige a /login y la respuesta es HTML.
+          if (isSessionExpired(res)) throw new Error(SESSION_EXPIRED_MESSAGE)
+          const body = await res.json().catch(() => null)
+          if (!res.ok) throw new Error(body?.error || 'No se pudieron calcular los indicadores.')
+          if (!body || typeof body !== 'object' || !('totals' in body)) {
+            throw new Error(SESSION_EXPIRED_MESSAGE)
+          }
+          setResult({ key: queryKey, summary: body as Summary })
+        })
+        .catch((err: Error) => {
+          if (err.name === 'AbortError') return
+          setResult({ key: queryKey, error: err.message })
+        })
+    }, SUMMARY_DEBOUNCE_MS)
 
-    return () => controller.abort()
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
   }, [periodId, queryKey])
 
   const loading = result?.key !== queryKey
