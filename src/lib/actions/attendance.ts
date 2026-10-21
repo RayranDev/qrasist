@@ -81,12 +81,17 @@ export async function registerAttendance(
     }
   }
 
-  // 2. Rate Limiting por usuario y por IP (máx 10 intentos por minuto)
+  // 2. Rate Limiting por usuario (10/min) y por IP (200/min). Cada escaneo es
+  //    UNA llamada; el tope por IP es alto a propósito porque un salón de ~40
+  //    estudiantes comparte la IP del NAT del campus y escanea en la misma
+  //    ventana de registro (5 min), a menudo en el primer minuto. 200/min
+  //    cubre varios salones a la vez; el límite que frena el abuso real de
+  //    una cuenta es el de usuario, y adivinar un UUID v4 no es viable.
   const userRateKey = `scan:user:${user.id}`
   const ipRateKey = `scan:ip:${ipAddress}`
   const [userRate, ipRate] = await Promise.all([
     checkRateLimit(userRateKey, { maxAttempts: 10, windowMs: 60_000 }),
-    checkRateLimit(ipRateKey, { maxAttempts: 20, windowMs: 60_000 }),
+    checkRateLimit(ipRateKey, { maxAttempts: 200, windowMs: 60_000 }),
   ])
 
   if (!userRate.allowed || !ipRate.allowed) {

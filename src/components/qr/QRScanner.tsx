@@ -18,6 +18,11 @@ export default function QRScanner() {
   )
   const [lastDecodedToken, setLastDecodedToken] = useState<string | null>(null)
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null)
+  // html5-qrcode invoca el callback de éxito en cada frame decodificado (10
+  // fps) y stop() es asíncrono: sin este candado un solo escaneo disparaba
+  // decenas de registerAttendance. Es un ref (no estado) para que el
+  // chequeo sea síncrono; se libera solo en reset() o al reintentar.
+  const scanHandledRef = useRef(false)
 
   // Detector de conectividad en tiempo real
   useEffect(() => {
@@ -33,6 +38,9 @@ export default function QRScanner() {
   }, [])
 
   const handleProcessScan = useCallback(async (decodedText: string) => {
+    if (scanHandledRef.current) return
+    scanHandledRef.current = true
+
     setLastDecodedToken(decodedText)
 
     if (html5QrCodeRef.current?.isScanning) {
@@ -127,6 +135,7 @@ export default function QRScanner() {
   }, [status, handleProcessScan])
 
   const reset = () => {
+    scanHandledRef.current = false
     setErrorCode(null)
     setLastDecodedToken(null)
     setStatus('idle')
@@ -134,6 +143,7 @@ export default function QRScanner() {
 
   const retryLastScan = () => {
     if (lastDecodedToken) {
+      scanHandledRef.current = false
       handleProcessScan(lastDecodedToken)
     } else {
       reset()

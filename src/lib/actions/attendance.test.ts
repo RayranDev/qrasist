@@ -274,6 +274,20 @@ describe('registerAttendance', () => {
     expect(mockAdminInsert).not.toHaveBeenCalled()
   })
 
+  it('keeps a strict per-user limit and a classroom-sized per-IP limit', async () => {
+    await registerAttendance(TOKEN)
+
+    expect(mockRateLimit).toHaveBeenCalledWith('scan:user:student-1', {
+      maxAttempts: 10,
+      windowMs: 60_000,
+    })
+    // ~40 students share the campus NAT and scan within the same minute.
+    expect(mockRateLimit).toHaveBeenCalledWith('scan:ip:203.0.113.7', {
+      maxAttempts: 200,
+      windowMs: 60_000,
+    })
+  })
+
   it('stops at the rate limiter before touching the database', async () => {
     mockRateLimit.mockResolvedValue({ allowed: false, retryAfterSeconds: 12 })
 
