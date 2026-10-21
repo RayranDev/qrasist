@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+import { requireRole } from '@/lib/auth/requireRole'
 import Link from 'next/link'
 import { CalendarX2, ClipboardCheck, Users } from 'lucide-react'
 import AdminHeader from '@/components/admin/AdminHeader'
@@ -55,19 +54,7 @@ export default async function AdminAttendancePage({
   }>
 }) {
   const params = await searchParams
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .eq('is_active', true)
-    .single()
-  if (!profile || profile.role !== 'ADMIN') redirect('/login')
+  const { supabase } = await requireRole(['ADMIN'])
 
   const [{ data: careers }, { data: subjects }, { data: links }] = await Promise.all([
     supabase.from('careers').select('id, name').eq('is_active', true).order('name'),

@@ -3,8 +3,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { headers } from 'next/headers'
+import { getClientIp, sanitizeCoords } from '@/lib/utils/clientIp'
 import { checkRateLimit } from '@/lib/utils/rateLimiter'
-import { getBogotaDayRange } from '@/lib/utils/bogotaDay'
+import { formatBogotaTime, getBogotaDayRange } from '@/lib/utils/bogotaDay'
 
 interface Coords {
   latitude: number
@@ -47,7 +48,7 @@ export async function registerAttendance(
 
   // Capturar la IP real (Next.js headers)
   const headersList = await headers()
-  const ipAddress = headersList.get('x-forwarded-for') || 'unknown'
+  const ipAddress = getClientIp(headersList)
 
   // 1. Obtener usuario autenticado
   const {
@@ -63,12 +64,35 @@ export async function registerAttendance(
     }
   }
 
-  // 2. Rate Limiting por usuario y por IP (máx 10 intentos por minuto)
+  // 1b. Solo un ESTUDIANTE activo registra asistencia. Antes lo imponía la
+  //     policy `attendances_insert` (my_role() = 'STUDENT'); desde la
+  //     migración 031 esa policy ya no existe y el INSERT va con
+  //     service-role, así que el chequeo vive acá.
+  const { data: callerProfile } = await supabase
+    .from('profiles')
+    .select('role, is_active')
+    .eq('id', user.id)
+    .single()
+
+  if (!callerProfile || callerProfile.is_active !== true || callerProfile.role !== 'STUDENT') {
+    return {
+      ok: false,
+      code: 'UNAUTHENTICATED',
+      message: 'Solo las cuentas de estudiante activas pueden registrar asistencia.',
+    }
+  }
+
+  // 2. Rate Limiting por usuario (10/min) y por IP (200/min). Cada escaneo es
+  //    UNA llamada; el tope por IP es alto a propósito porque un salón de ~40
+  //    estudiantes comparte la IP del NAT del campus y escanea en la misma
+  //    ventana de registro (5 min), a menudo en el primer minuto. 200/min
+  //    cubre varios salones a la vez; el límite que frena el abuso real de
+  //    una cuenta es el de usuario, y adivinar un UUID v4 no es viable.
   const userRateKey = `scan:user:${user.id}`
   const ipRateKey = `scan:ip:${ipAddress}`
   const [userRate, ipRate] = await Promise.all([
     checkRateLimit(userRateKey, { maxAttempts: 10, windowMs: 60_000 }),
-    checkRateLimit(ipRateKey, { maxAttempts: 20, windowMs: 60_000 }),
+    checkRateLimit(ipRateKey, { maxAttempts: 200, windowMs: 60_000 }),
   ])
 
   if (!userRate.allowed || !ipRate.allowed) {
@@ -90,7 +114,10 @@ export async function registerAttendance(
     }
   }
 
-  // 4. Buscar la sesión por el token QR (actual o inmediatamente anterior)
+  // 4. Buscar la sesión por el token QR (actual o inmediatamente anterior).
+  //    Con service-role: desde la migración 031 los roles de usuario no
+  //    pueden leer qr_token / previous_qr_token (si no, un estudiante
+  //    podría pedir el token vigente por PostgREST sin estar en clase).
   const admin = getSupabaseAdmin()
   const { data: session, error: sessionError } = await admin
     .from('sessions')
@@ -185,13 +212,19 @@ export async function registerAttendance(
     }
   }
 
-  // 11. Intentar registrar la asistencia
-  const { error: insertError } = await supabase.from('attendances').insert({
+  // 11. Intentar registrar la asistencia. Con service-role y DESPUÉS de todas
+  //     las validaciones anteriores: `attendances` no tiene policy de INSERT
+  //     (migración 031), así que un estudiante no puede insertarse a sí
+  //     mismo saltándose el QR, la ventana de registro o la inscripción.
+  //     student_id sale del usuario autenticado y session_id de la sesión
+  //     validada, nunca de datos del cliente.
+  const safeCoords = sanitizeCoords(coords)
+  const { error: insertError } = await admin.from('attendances').insert({
     session_id: session.id,
     student_id: user.id,
     ip_address: ipAddress,
-    latitude: coords?.latitude ?? null,
-    longitude: coords?.longitude ?? null,
+    latitude: safeCoords?.latitude ?? null,
+    longitude: safeCoords?.longitude ?? null,
     status,
   })
 
@@ -210,11 +243,9 @@ export async function registerAttendance(
     }
   }
 
-  const timeStr = registeredAt.toLocaleTimeString('es-CO', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-  })
+  // El servidor corre en UTC (Vercel): sin zona explícita la hora saldría
+  // 5 horas adelantada respecto a la del estudiante.
+  const timeStr = formatBogotaTime(registeredAt)
   const subjectName = subject?.name || 'Materia'
   const subjectCode = subject?.code || ''
   const isLate = status === 'LATE'

@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+import { requireRole } from '@/lib/auth/requireRole'
 import Link from 'next/link'
 import HistoryDrillDown from './HistoryDrillDown'
 import BackLink from '@/components/BackLink'
@@ -15,14 +14,7 @@ export default async function ProfessorHistoryPage({
   searchParams: Promise<{ subjectId?: string }>
 }) {
   const { subjectId } = await searchParams
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    redirect('/login')
-  }
+  const { supabase, user } = await requireRole(['PROFESSOR'])
 
   // Obtenemos jerarquía completa: Materias (todas) -> Sesiones (todas) -> Asistencias
   // Incluimos inactivos para mantener historial completo; la UI los diferencia

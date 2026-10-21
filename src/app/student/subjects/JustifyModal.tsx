@@ -139,7 +139,8 @@ export default function JustifyModal({
           </button>
         </div>
         <p className="text-xs text-gray-500 mb-1">
-          {session.subjectName} · {new Date(session.date).toLocaleDateString('es-CO')}
+          {session.subjectName} ·{' '}
+          {new Date(session.date).toLocaleDateString('es-CO', { timeZone: 'America/Bogota' })}
         </p>
         <p className="text-xs text-gray-500 mb-4">
           Plazo: {JUSTIFICATION_BUSINESS_DAYS} días hábiles después de la clase, hasta el{' '}

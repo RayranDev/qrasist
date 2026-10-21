@@ -210,7 +210,7 @@ export async function refreshSessionQrToken(sessionId: string) {
 
   const { data: session } = await supabase
     .from('sessions')
-    .select('id, qr_token, expires_at, is_active, subject_id')
+    .select('id, expires_at, is_active, subject_id')
     .eq('id', sessionId)
     .single()
   if (!session) return { success: false, error: 'Sesión no encontrada.' }
@@ -226,10 +226,21 @@ export async function refreshSessionQrToken(sessionId: string) {
     return { success: false, error: 'Esta sesión ya expiró.' }
   }
 
-  const newToken = crypto.randomUUID()
-  const { error: updateError } = await getSupabaseAdmin()
+  // Desde la migración 031 qr_token no es legible con el JWT del usuario:
+  // se lee con service-role, recién DESPUÉS de comprobar que el profesor es
+  // el dueño de la materia.
+  const admin = getSupabaseAdmin()
+  const { data: current } = await admin
     .from('sessions')
-    .update({ qr_token: newToken, previous_qr_token: session.qr_token })
+    .select('qr_token')
+    .eq('id', sessionId)
+    .single()
+  if (!current) return { success: false, error: 'Sesión no encontrada.' }
+
+  const newToken = crypto.randomUUID()
+  const { error: updateError } = await admin
+    .from('sessions')
+    .update({ qr_token: newToken, previous_qr_token: current.qr_token })
     .eq('id', sessionId)
 
   if (updateError) return { success: false, error: 'No se pudo renovar el código.' }

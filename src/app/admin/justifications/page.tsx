@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+import { requireRole } from '@/lib/auth/requireRole'
 import Link from 'next/link'
 import AdminHeader from '@/components/admin/AdminHeader'
 import MobileWarningBanner from '@/components/MobileWarningBanner'
@@ -33,19 +32,7 @@ export default async function AdminJustificationsPage({
   searchParams: Promise<{ status?: string; page?: string }>
 }) {
   const params = await searchParams
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .eq('is_active', true)
-    .single()
-  if (!profile || profile.role !== 'ADMIN') redirect('/login')
+  const { supabase } = await requireRole(['ADMIN'])
 
   const status: StatusFilter = STATUS_TABS.some((t) => t.value === params.status)
     ? (params.status as StatusFilter)

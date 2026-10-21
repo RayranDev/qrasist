@@ -194,6 +194,7 @@ export default function JustificationsList({
                       {j.subject?.name} ({j.subject?.code}) ·{' '}
                       {j.session?.date
                         ? new Date(j.session.date).toLocaleDateString('es-CO', {
+                            timeZone: 'America/Bogota',
                             day: '2-digit',
                             month: 'short',
                             year: 'numeric',

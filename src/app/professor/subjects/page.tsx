@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+import { requireRole } from '@/lib/auth/requireRole'
 import SessionButton from './SessionButton'
 import Link from 'next/link'
 import ProfileModal from './ProfileModal'
@@ -18,12 +17,7 @@ import { fetchAllRows } from '@/lib/supabase/fetchAll'
 import { getAppSettings } from '@/lib/settings/appSettings'
 
 export default async function ProfessorSubjectsPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireRole(['PROFESSOR'])
 
   const { data: profile } = await supabase
     .from('profiles')

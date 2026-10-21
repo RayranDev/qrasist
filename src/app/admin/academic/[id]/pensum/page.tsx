@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/auth/requireRole'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { AssignSubjectForm, PensumByLevel } from './PensumManager'
@@ -9,12 +9,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function CareerPensumPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: careerId } = await params
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) redirect('/login')
+  const { supabase } = await requireRole(['ADMIN'])
 
   const { data: career } = await supabase.from('careers').select('*').eq('id', careerId).single()
   if (!career) redirect('/admin/academic')

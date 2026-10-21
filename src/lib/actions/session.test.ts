@@ -9,6 +9,8 @@ const mockInsert = vi.fn()
 const mockInsertSingle = vi.fn()
 const mockSessionSingle = vi.fn()
 const mockAdminUpdate = vi.fn()
+const mockAdminTokenRead = vi.fn()
+const mockUserSessionSelect = vi.fn()
 const mockSuspendedToday = vi.fn()
 const mockKeptAttendances = vi.fn()
 const mockMoveUpdate = vi.fn()
@@ -44,6 +46,11 @@ vi.mock('@/lib/supabase/adminClient', () => ({
       }
       if (table !== 'sessions') throw new Error(`unexpected admin table in test: ${table}`)
       return {
+        // qr_token is not readable with a user JWT (migration 031): the QR
+        // rotation reads it here, with the service role.
+        select: vi.fn((columns: string) => ({
+          eq: vi.fn(() => ({ single: vi.fn(async () => mockAdminTokenRead(columns)) })),
+        })),
         insert: vi.fn((row: unknown) => {
           mockInsert(row)
           return { select: vi.fn(() => ({ single: mockInsertSingle })) }
@@ -68,7 +75,12 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'sessions') {
         // `single` serves refresh/close; `lte` is the awaited tail of the
         // "is today's class suspended?" lookup in createSession.
-        return chain({ single: mockSessionSingle, lte: () => mockSuspendedToday() })
+        const c = chain({ single: mockSessionSingle, lte: () => mockSuspendedToday() })
+        c.select = vi.fn((columns: string) => {
+          mockUserSessionSelect(columns)
+          return c
+        })
+        return c
       }
       if (table === 'app_settings') return chain({ maybeSingle: mockSettingsMaybeSingle })
       if (table === 'subject_schedules') {
@@ -304,13 +316,15 @@ describe('QR token refresh and manual close (service-role writes)', () => {
     mockCheckSubjectProfessor.mockReset()
     mockSessionSingle.mockReset()
     mockAdminUpdate.mockReset()
+    mockAdminTokenRead.mockReset()
+    mockUserSessionSelect.mockReset()
+    mockAdminTokenRead.mockResolvedValue({ data: { qr_token: 'old' } })
     mockGetUser.mockResolvedValue({ data: { user: { id: 'prof-1' } } })
     mockCheckSubjectProfessor.mockResolvedValue(true)
     mockSessionSingle.mockResolvedValue({
       data: {
         id: 'session-1',
         subject_id: 'subject-1',
-        qr_token: 'old',
         is_active: true,
         expires_at: new Date(Date.now() + 60_000).toISOString(),
       },
@@ -326,12 +340,24 @@ describe('QR token refresh and manual close (service-role writes)', () => {
     )
   })
 
+  it('never asks the user client for the QR token columns', async () => {
+    await refreshSessionQrToken('session-1')
+
+    expect(mockUserSessionSelect).toHaveBeenCalled()
+    for (const [columns] of mockUserSessionSelect.mock.calls) {
+      expect(columns).not.toMatch(/qr_token/)
+    }
+    expect(mockAdminTokenRead).toHaveBeenCalledWith('qr_token')
+  })
+
   it('does not rotate or close for someone who does not own the subject', async () => {
     mockCheckSubjectProfessor.mockResolvedValue(false)
 
     expect((await refreshSessionQrToken('session-1')).success).toBe(false)
     expect((await closeSession('session-1')).success).toBe(false)
     expect(mockAdminUpdate).not.toHaveBeenCalled()
+    // The token is only read after the ownership check passes.
+    expect(mockAdminTokenRead).not.toHaveBeenCalled()
   })
 
   it('closes the QR window through the service role', async () => {

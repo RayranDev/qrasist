@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+import { requireRole } from '@/lib/auth/requireRole'
 import QRScanner from '@/components/qr/QRScanner'
 import LocalTime from '@/components/LocalTime'
 import RiskBanner from '@/components/student/RiskBanner'
@@ -15,12 +14,7 @@ interface LastAttendance {
 }
 
 export default async function StudentScannerPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireRole(['STUDENT'])
 
   const [{ data: lastAttendance }, risks] = await Promise.all([
     supabase

@@ -56,7 +56,7 @@ export default function RequestsList({ requests }: { requests: Request[] }) {
               <p className="font-bold text-gray-900">{req.student?.name || 'Estudiante'}</p>
               <p className="text-xs text-gray-400 font-mono">
                 {req.student?.student_code || '---'} ·{' '}
-                {new Date(req.requested_at).toLocaleString('es-CO')}
+                {new Date(req.requested_at).toLocaleString('es-CO', { timeZone: 'America/Bogota' })}
               </p>
             </div>
             <div className="flex items-center gap-2">
