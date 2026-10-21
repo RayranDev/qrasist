@@ -17,8 +17,9 @@
  */
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib'
 import { CREST_PNG_BASE64 } from './crest'
+import { INSTITUTION_NAME } from '@/lib/brand'
 
-export const INSTITUTION_NAME = 'Corporación Universitaria Republicana'
+export { INSTITUTION_NAME }
 
 export const PDF_COLORS = {
   /** Vinotinto cercano al escudo. */

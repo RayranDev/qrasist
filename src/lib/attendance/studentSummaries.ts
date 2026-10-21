@@ -7,6 +7,7 @@ import {
 import { fetchAllRows } from '@/lib/supabase/fetchAll'
 import { getAppSettings } from '@/lib/settings/appSettings'
 import { isSessionHeldFor } from '@/lib/attendance/heldSessions'
+import { countOf } from '@/lib/utils/plural'
 
 export interface EnrolledSubjectCounts {
   subjectId: string
@@ -62,13 +63,13 @@ export function filterAtRiskSubjects(risks: StudentSubjectRisk[]): StudentSubjec
  */
 export function formatSubjectStatusLine(summary: StudentAttendanceSummary): string {
   const parts = [
-    `${summary.absencesCount} falta${summary.absencesCount === 1 ? '' : 's'} de ${summary.maxAbsencesAllowed} permitidas`,
+    `${countOf(summary.absencesCount, 'falta')} de ${countOf(summary.maxAbsencesAllowed, 'permitida')}`,
   ]
   if (summary.justifiedCount > 0) {
-    parts.push(`${summary.justifiedCount} justificada${summary.justifiedCount === 1 ? '' : 's'}`)
+    parts.push(countOf(summary.justifiedCount, 'justificada'))
   }
   if (summary.lateCount > 0) {
-    parts.push(`${summary.lateCount} tarde${summary.lateCount === 1 ? '' : 's'}`)
+    parts.push(countOf(summary.lateCount, 'tarde'))
   }
   return parts.join(' · ')
 }

@@ -9,6 +9,7 @@ import { useToast } from '@/components/toast/ToastProvider'
 import { justifyClassOmission } from '@/lib/actions/classOmissions'
 import { formatBlockTime } from '@/lib/attendance/classOmissions'
 import { formatCivilDate } from '@/lib/utils/civilDate'
+import { capitalizeFirst } from '@/lib/utils/spanishDate'
 
 export interface OmissionRow {
   date: string
@@ -97,8 +98,8 @@ export default function ClassOmissionsPanel({
             {sorted.map((omission) => (
               <li key={omission.date} className="py-2 flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 capitalize">
-                    {formatCivilDate(omission.date)}
+                  <p className="text-sm font-semibold text-gray-900">
+                    {capitalizeFirst(formatCivilDate(omission.date))}
                   </p>
                   <p className="text-[11px] text-gray-500">
                     {formatBlockTime(omission.startTime)} – {formatBlockTime(omission.endTime)}

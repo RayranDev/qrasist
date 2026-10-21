@@ -34,7 +34,7 @@ export default function JoinByCode() {
         onClick={() => setOpen(true)}
         className="text-xs font-bold text-gray-400 hover:text-navy-700 transition text-center"
       >
-        ¿Tu docente te dio un código? Ingresalo acá
+        ¿Tu docente te dio un código? Ingrésalo aquí
       </button>
     )
   }

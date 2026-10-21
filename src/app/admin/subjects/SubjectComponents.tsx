@@ -415,7 +415,7 @@ export function SubjectActionButtons({
                 </select>
               ) : (
                 <p className="text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5">
-                  Vinculá esta materia a una carrera primero para poder asignar profesor.
+                  Vincula esta materia a una carrera primero para poder asignar profesor.
                 </p>
               )}
             </div>
@@ -813,7 +813,7 @@ function SubjectScheduleManager({
     if (total === null) {
       showToast(
         count === 0
-          ? 'Agregá al menos un bloque de horario para poder calcular.'
+          ? 'Agrega al menos un bloque de horario para poder calcular.'
           : 'El período seleccionado no tiene fechas de inicio y fin válidas.',
         'error'
       )

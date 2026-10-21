@@ -291,7 +291,7 @@ export function StudentCareersModal({
         <div className="overflow-y-auto flex-1 space-y-2">
           {careers.length === 0 ? (
             <p className="text-center py-10 text-gray-400 italic text-sm">
-              No hay carreras registradas. Creá una en Carreras y Períodos.
+              No hay carreras registradas. Crea una en Carreras y Períodos.
             </p>
           ) : (
             careers.map((career) => (
@@ -401,7 +401,7 @@ export function ProfessorCareersModal({
         <div className="overflow-y-auto flex-1 space-y-2">
           {careers.length === 0 ? (
             <p className="text-center py-10 text-gray-400 italic text-sm">
-              No hay carreras registradas. Creá una en Carreras y Períodos.
+              No hay carreras registradas. Crea una en Carreras y Períodos.
             </p>
           ) : (
             careers.map((career) => (
@@ -817,7 +817,7 @@ export function ActionButtons({
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     type={showConfirmPassword ? 'text' : 'password'}
-                    placeholder="Repetí la contraseña"
+                    placeholder="Repite la contraseña"
                     className={`${inputClass} pr-8`}
                   />
                   <button

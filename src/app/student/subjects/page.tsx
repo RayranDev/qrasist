@@ -326,8 +326,8 @@ export default async function StudentSubjectsPage() {
         <div className="bg-white rounded-2xl p-6 border border-gray-200">
           <EmptyState
             icon={<GraduationCap className="w-5 h-5" />}
-            title="Todavía no tenés una carrera asignada"
-            description="Contactá a coordinación académica para que te asignen tu carrera."
+            title="Todavía no tienes una carrera asignada"
+            description="Contacta a coordinación académica para que te asignen tu carrera."
           />
         </div>
       ) : (

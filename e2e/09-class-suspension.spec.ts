@@ -51,7 +51,7 @@ test.beforeEach(async () => {
 
 async function studentStatusLine(page: Page): Promise<string> {
   await page.goto('/student/history')
-  const line = page.getByText(/falta.*de \d+ permitidas/)
+  const line = page.getByText(/falta.*de \d+ permitidas?/)
   await expect(line).toBeVisible()
   return (await line.textContent()) ?? ''
 }

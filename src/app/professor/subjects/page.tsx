@@ -16,6 +16,7 @@ import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
 import { fetchAllRows } from '@/lib/supabase/fetchAll'
 import { getAppSettings } from '@/lib/settings/appSettings'
 import { buildHeldCounter } from '@/lib/attendance/heldSessions'
+import { countOf } from '@/lib/utils/plural'
 
 export default async function ProfessorSubjectsPage() {
   const { supabase, user } = await requireRole(['PROFESSOR'])
@@ -284,9 +285,12 @@ export default async function ProfessorSubjectsPage() {
                             href="/professor/justifications"
                             className="inline-flex items-center gap-1 text-xs font-bold text-gray-600 bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg hover:bg-gray-100 transition"
                           >
-                            {pendingJustificationsCount} justificación
-                            {pendingJustificationsCount > 1 ? 'es' : ''} en revisión por
-                            coordinación
+                            {countOf(
+                              pendingJustificationsCount,
+                              'justificación',
+                              'justificaciones'
+                            )}{' '}
+                            en revisión por coordinación
                           </Link>
                         )}
                         {atRiskCount > 0 && (

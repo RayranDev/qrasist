@@ -1,9 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { format } from 'date-fns'
 import { useToast } from '@/components/toast/ToastProvider'
-import { es } from 'date-fns/locale'
 import {
   Archive,
   Users,
@@ -23,6 +21,13 @@ import SubjectReportDownload from './SubjectReportDownload'
 import CutsBreakdownList, { CutsInline } from '@/components/attendance/CutsBreakdownList'
 import { buildStudentCutBreakdown } from '@/lib/attendance/cutsView'
 import type { CutInput, SessionAttendance } from '@/lib/attendance/cutsBreakdown'
+import { countOf } from '@/lib/utils/plural'
+import {
+  capitalizeFirst,
+  formatBogotaClock,
+  formatBogotaDateNumeric,
+  formatBogotaDayLong,
+} from '@/lib/utils/spanishDate'
 
 interface EnrolledProfile {
   id: string
@@ -244,10 +249,10 @@ export default function HistoryDrillDown({
                       </div>
                     </td>
                     <td className="px-6 py-4 text-gray-500 font-medium">
-                      {format(dateObj, 'dd/MM/yyyy')}
+                      {formatBogotaDateNumeric(dateObj)}
                     </td>
                     <td className="px-6 py-4 text-gray-600 font-mono">
-                      {format(dateObj, 'hh:mm a')}
+                      {formatBogotaClock(dateObj)}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1.5">
@@ -324,8 +329,7 @@ export default function HistoryDrillDown({
             </button>
             <div className="pl-4 border-l-2 border-gray-100">
               <h3 className="text-xl font-bold text-gray-900">
-                Clase del{' '}
-                {format(new Date(selectedSession.date), "EEEE d 'de' MMMM", { locale: es })}
+                Clase del {formatBogotaDayLong(selectedSession.date)}
               </h3>
               <p className="text-sm text-navy-700 font-semibold">{selectedSubject?.name}</p>
             </div>
@@ -586,9 +590,9 @@ export default function HistoryDrillDown({
             >
               <div className="flex items-center gap-2 flex-wrap">
                 <h4
-                  className={`font-bold capitalize text-sm ${archived ? 'text-gray-500' : 'text-gray-900 group-hover:text-navy-700 transition'}`}
+                  className={`font-bold text-sm ${archived ? 'text-gray-500' : 'text-gray-900 group-hover:text-navy-700 transition'}`}
                 >
-                  {format(new Date(session.date), "EEEE d 'de' MMMM", { locale: es })}
+                  {capitalizeFirst(formatBogotaDayLong(session.date))}
                 </h4>
                 {suspended && (
                   <Badge variant="danger" size="sm">
@@ -608,7 +612,7 @@ export default function HistoryDrillDown({
               ) : (
                 <p className="text-xs font-medium text-gray-500 mt-1 flex items-center gap-1.5">
                   <Users className="w-3.5 h-3.5 text-gray-400" strokeWidth={2} />
-                  {session.attendances?.length || 0} estudiantes
+                  {countOf(session.attendances?.length || 0, 'estudiante')}
                 </p>
               )}
             </div>
@@ -668,7 +672,8 @@ export default function HistoryDrillDown({
             <div className="pl-4 border-l-2 border-gray-100">
               <h3 className="text-xl font-bold text-gray-900">{selectedSubject.name}</h3>
               <p className="text-xs text-gray-500 font-mono mt-0.5">
-                {selectedSubject.code} · {activeSessions.length} clase(s) dictada(s)
+                {selectedSubject.code} ·{' '}
+                {countOf(activeSessions.length, 'clase dictada', 'clases dictadas')}
               </p>
             </div>
           </div>
@@ -756,7 +761,7 @@ export default function HistoryDrillDown({
                 <EmptyState
                   icon={<CalendarX2 className="w-5 h-5" />}
                   title="Esta materia aún no tiene clases registradas"
-                  description="Iniciá una sesión desde Mis Materias para empezar a tomar asistencia."
+                  description="Inicia una sesión desde Mis Materias para empezar a tomar asistencia."
                 />
               </div>
             ) : (
@@ -884,7 +889,7 @@ export default function HistoryDrillDown({
                             {summary.absencePercentage}%
                           </td>
                           <td className="px-6 py-3.5 text-xs text-gray-600 font-medium">
-                            {summary.remainingAbsences} permitida(s)
+                            {countOf(summary.remainingAbsences, 'permitida')}
                           </td>
                           {cuts.length > 0 && (
                             <td className="px-6 py-3.5">
@@ -965,8 +970,7 @@ export default function HistoryDrillDown({
                           </span>
                           {summary.justifiedCount > 0 && (
                             <span className="block text-[10px] font-semibold text-blue-700 mt-0.5">
-                              {summary.justifiedCount} justificada
-                              {summary.justifiedCount > 1 ? 's' : ''}
+                              {countOf(summary.justifiedCount, 'justificada')}
                             </span>
                           )}
                         </div>
@@ -1065,7 +1069,7 @@ export default function HistoryDrillDown({
           <EmptyState
             icon={<BookOpen className="w-5 h-5" />}
             title="Aún no tienes materias asignadas o clases registradas"
-            description="Cuando tengas materias asignadas y dictes tu primera clase, el reporte va a aparecer acá."
+            description="Cuando tengas materias asignadas y dictes tu primera clase, el reporte va a aparecer aquí."
           />
         </div>
       )}

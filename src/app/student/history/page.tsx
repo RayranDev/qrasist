@@ -142,7 +142,7 @@ export default async function StudentHistoryPage() {
                         className="px-4 py-3 flex items-center justify-between gap-3"
                       >
                         <p className="text-xs text-gray-400 shrink-0">
-                          <LocalTime date={record.scanned_at} />
+                          <LocalTime date={record.scanned_at} capitalize />
                         </p>
                         <div className="flex items-center gap-1.5 shrink-0">
                           {record.session?.is_active === false ? (
@@ -181,8 +181,8 @@ export default async function StudentHistoryPage() {
       ) : (
         <EmptyState
           icon={<History className="w-5 h-5" strokeWidth={2} />}
-          title="Aún no tenés historial de asistencias"
-          description="Cuando te inscribas en una materia y escanees tu primera sesión, va a aparecer acá agrupado por materia."
+          title="Aún no tienes historial de asistencias"
+          description="Cuando te inscribas en una materia y escanees tu primera sesión, va a aparecer aquí agrupado por materia."
         />
       )}
     </div>

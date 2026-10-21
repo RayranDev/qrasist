@@ -255,7 +255,7 @@ export default async function AdminSubjectsPage({
                   <EmptyState
                     icon={<BookMarked className="w-5 h-5" />}
                     title="Ninguna materia coincide con estos filtros"
-                    description="Probá ajustando los filtros, o creá una materia nueva."
+                    description="Prueba ajustando los filtros, o crea una materia nueva."
                     action={
                       <a
                         href="#crear-materia"

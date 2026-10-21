@@ -16,7 +16,7 @@ export default function OnboardingChecklist({ steps }: { steps: OnboardingStep[]
         Primeros pasos
       </h2>
       <p className="text-xs text-neutral-500 mb-3">
-        Completá esta configuración inicial para dejar la institución lista.
+        Completa esta configuración inicial para dejar la institución lista.
       </p>
       <ol className="space-y-1.5">
         {steps.map((step, index) => (

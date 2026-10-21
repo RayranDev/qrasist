@@ -14,6 +14,7 @@ import {
   formatPct,
   statusTone,
 } from './format'
+import { countOf } from '@/lib/utils/plural'
 
 export interface StudentPdfMeta {
   studentName: string
@@ -29,7 +30,7 @@ export async function renderStudentReportPdf(
     title: 'Historial de asistencia',
     subtitleLines: [
       `Estudiante: ${meta.studentName}${meta.studentCode ? ` (${meta.studentCode})` : ''}`,
-      `${history.length} materia${history.length === 1 ? '' : 's'} inscrita${history.length === 1 ? '' : 's'}`,
+      `${countOf(history.length, 'materia inscrita', 'materias inscritas')}`,
     ],
     orientation: 'portrait',
     generatedAt: formatGeneratedAt(meta.generatedAt),
@@ -72,7 +73,7 @@ export async function renderStudentReportPdf(
   for (const h of history) {
     pdf.section(`${h.subjectCode} · ${h.subjectName}`)
     pdf.paragraph(
-      `Docente: ${h.professorName} · Estado: ${h.statusLabel} · ${h.attended} de ${h.sessionsHeld} clases asistidas${h.late > 0 ? `, ${h.late} con tardanza` : ''}${h.justified > 0 ? `, ${h.justified} justificada(s)` : ''}.`,
+      `Docente: ${h.professorName} · Estado: ${h.statusLabel} · ${h.attended} de ${countOf(h.sessionsHeld, 'clase asistida', 'clases asistidas')}${h.late > 0 ? `, ${countOf(h.late, 'con tardanza', 'con tardanza')}` : ''}${h.justified > 0 ? `, ${countOf(h.justified, 'justificada')}` : ''}.`,
       { size: 9 }
     )
 

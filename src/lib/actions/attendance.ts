@@ -136,7 +136,7 @@ export async function registerAttendance(
     return {
       ok: false,
       code: 'RATE_LIMITED',
-      message: `Demasiados intentos de escaneo. Esperá ${retrySec} segundos antes de reintentar.`,
+      message: `Demasiados intentos de escaneo. Espera ${retrySec} segundos antes de reintentar.`,
     }
   }
 
@@ -185,7 +185,7 @@ export async function registerAttendance(
     return {
       ok: false,
       code: 'EXPIRED',
-      message: 'Este código QR ha expirado. Solicitá al profesor que genere uno nuevo.',
+      message: 'Este código QR ha expirado. Solicita al profesor que genere uno nuevo.',
     }
   }
 

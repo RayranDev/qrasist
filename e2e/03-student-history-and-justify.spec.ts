@@ -11,9 +11,9 @@ test.describe('student: history + justify a missed session', () => {
 
     await expect(page.getByRole('heading', { name: 'Historial' })).toBeVisible()
     await expect(page.getByText(TEST_SUBJECT.name)).toBeVisible()
-    // Status line format: "<n> falta(s) de <n> permitidas [· ...]"
+    // Status line format: "<n> falta(s) de <n> permitida(s) [· ...]"
     // (see formatSubjectStatusLine in src/lib/attendance/studentSummaries.ts).
-    await expect(page.getByText(/falta.*de \d+ permitidas/)).toBeVisible()
+    await expect(page.getByText(/falta.*de \d+ permitidas?/)).toBeVisible()
   })
 
   test('justifies the missed session and shows "En revisión"', async ({ page }) => {

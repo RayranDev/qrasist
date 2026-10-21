@@ -1,3 +1,4 @@
+import { countOf } from '@/lib/utils/plural'
 /**
  * Lógica pura de cálculo de inasistencias, semaforización y proyección de reprobación.
  * Permite configuración por PORCENTAJE (ej. 20%) o por CANTIDAD FIJA (ej. 4 faltas).
@@ -92,7 +93,7 @@ export function computeAttendanceSummary(
 
   if (absencesCount > maxAbsencesAllowed) {
     status = 'FAILED_ATTENDANCE'
-    statusMessage = `Pérdida por inasistencia (${absencesCount} fallas acumuladas de máx ${maxAbsencesAllowed})`
+    statusMessage = `Pérdida por inasistencia (${countOf(absencesCount, 'falla acumulada', 'fallas acumuladas')} de máx ${maxAbsencesAllowed})`
   } else if (remainingAbsences <= 1) {
     status = 'WARNING'
     statusMessage =

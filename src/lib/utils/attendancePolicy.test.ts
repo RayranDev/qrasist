@@ -217,4 +217,11 @@ describe('computeAttendanceSummary', () => {
       expect(res.status).toBe('FAILED_ATTENDANCE')
     })
   })
+
+  it('writes the failed message with singular/plural agreement', () => {
+    const one = computeAttendanceSummary(1, 0, { ruleType: 'FIXED_COUNT', maxCount: 0 })
+    expect(one.statusMessage).toBe('Pérdida por inasistencia (1 falla acumulada de máx 0)')
+    const many = computeAttendanceSummary(5, 0, { ruleType: 'FIXED_COUNT', maxCount: 2 })
+    expect(many.statusMessage).toBe('Pérdida por inasistencia (5 fallas acumuladas de máx 2)')
+  })
 })

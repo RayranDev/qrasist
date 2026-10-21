@@ -322,7 +322,7 @@ export default function AdminUserList({
                 ? 'No hay usuarios inactivos'
                 : 'No hay usuarios con este rol'
             }
-            description="Probá cambiando los filtros, o creá un usuario nuevo."
+            description="Prueba cambiando los filtros, o crea un usuario nuevo."
             action={
               <a
                 href="#crear-usuario"
@@ -439,7 +439,7 @@ export default function AdminUserList({
                         ? 'No hay usuarios inactivos'
                         : 'No hay usuarios con este rol'
                     }
-                    description="Probá cambiando los filtros, o creá un usuario nuevo."
+                    description="Prueba cambiando los filtros, o crea un usuario nuevo."
                     action={
                       <a
                         href="#crear-usuario"

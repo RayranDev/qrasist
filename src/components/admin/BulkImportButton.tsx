@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import Modal from '@/components/Modal'
 import { useToast } from '@/components/toast/ToastProvider'
 import { IMPORT_CONFIG, type ImportType, type ImportResult } from '@/lib/excel/importConfig'
+import { countOf } from '@/lib/utils/plural'
 
 export default function BulkImportButton({ types }: { types: ImportType[] }) {
   const [open, setOpen] = useState(false)
@@ -40,10 +41,13 @@ export default function BulkImportButton({ types }: { types: ImportType[] }) {
     if (response.success) {
       setResult(response)
       if (response.errors.length === 0) {
-        showToast(`${response.successCount} registro(s) importado(s) correctamente.`, 'success')
+        showToast(
+          `${countOf(response.successCount, 'registro importado', 'registros importados')} correctamente.`,
+          'success'
+        )
       } else {
         showToast(
-          `${response.successCount} importado(s), ${response.errors.length} con errores.`,
+          `${countOf(response.successCount, 'importado')}, ${countOf(response.errors.length, 'error', 'errores')}.`,
           response.successCount > 0 ? 'success' : 'error'
         )
       }
@@ -120,11 +124,11 @@ export default function BulkImportButton({ types }: { types: ImportType[] }) {
             <div className="border-t border-gray-100 pt-5">
               <div className="flex items-center gap-4 mb-4">
                 <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 text-sm font-bold rounded-lg">
-                  {result.successCount} exitoso{result.successCount !== 1 ? 's' : ''}
+                  {countOf(result.successCount, 'exitoso')}
                 </span>
                 {result.errors.length > 0 && (
                   <span className="px-3 py-1.5 bg-red-50 text-red-600 text-sm font-bold rounded-lg">
-                    {result.errors.length} con error{result.errors.length !== 1 ? 'es' : ''}
+                    {countOf(result.errors.length, 'error', 'errores')}
                   </span>
                 )}
               </div>

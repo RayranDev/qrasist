@@ -1,31 +1,28 @@
-'use client'
+import {
+  capitalizeFirst,
+  formatBogotaClock,
+  formatBogotaDateTimeLong,
+} from '@/lib/utils/spanishDate'
 
-import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
-import { useSyncExternalStore } from 'react'
-
-// No hay ningún store externo real al que suscribirse: usamos useSyncExternalStore
-// únicamente para diferenciar el snapshot de servidor (false) del de cliente (true)
-// sin llamar a setState dentro de un efecto (evita cascading renders).
-function subscribe() {
-  return () => {}
-}
-
+/**
+ * Fecha/hora en hora de Colombia, idéntica en el servidor y en el navegador
+ * (sin zona horaria del visitante ni locales de ICU), así no hay desajuste
+ * de hidratación ni se muestra la hora del huso del navegador.
+ *
+ *  - variant 'datetime' (por defecto): "miércoles 21 de octubre, 6:02 p. m."
+ *  - variant 'time': "6:02 p. m."
+ * `capitalize` pone en mayúscula solo la primera letra, para cuando el texto
+ * abre una etiqueta; dentro de una frase se deja en minúscula.
+ */
 export default function LocalTime({
   date,
-  formatStr = "EEEE d 'de' MMMM, h:mm a",
+  variant = 'datetime',
+  capitalize = false,
 }: {
   date: string
-  formatStr?: string
+  variant?: 'datetime' | 'time'
+  capitalize?: boolean
 }) {
-  const mounted = useSyncExternalStore(
-    subscribe,
-    () => true,
-    () => false
-  )
-
-  // Evita errores de hidratación mostrando algo neutro hasta que el cliente renderice
-  if (!mounted) return <span className="opacity-0">Cargando hora...</span>
-
-  return <span>{format(new Date(date), formatStr, { locale: es })}</span>
+  const text = variant === 'time' ? formatBogotaClock(date) : formatBogotaDateTimeLong(date)
+  return <span>{capitalize ? capitalizeFirst(text) : text}</span>
 }

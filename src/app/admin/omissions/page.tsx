@@ -9,6 +9,7 @@ import { fetchClassOmissions } from '@/lib/attendance/classOmissionsData'
 import { fetchSuspendedClasses } from '@/lib/attendance/suspendedClasses'
 import { formatBlockTime } from '@/lib/attendance/classOmissions'
 import { formatCivilDate } from '@/lib/utils/civilDate'
+import { capitalizeFirst } from '@/lib/utils/spanishDate'
 import { bogotaCalendarDate } from '@/lib/utils/businessDays'
 import { formatBogotaDateTime } from '@/lib/utils/bogotaDay'
 import PastClassModal from '../attendance/PastClassModal'
@@ -168,8 +169,8 @@ export default async function AdminOmissionsPage({
                   >
                     <div className="min-w-0 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-bold text-gray-900 capitalize">
-                          {formatCivilDate(bogotaCalendarDate(new Date(c.date)))}
+                        <p className="text-sm font-bold text-gray-900">
+                          {capitalizeFirst(formatCivilDate(bogotaCalendarDate(new Date(c.date))))}
                         </p>
                         <Badge variant="danger" size="sm">
                           Suspendida
@@ -235,8 +236,8 @@ export default async function AdminOmissionsPage({
                 >
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-bold text-gray-900 capitalize">
-                        {formatCivilDate(o.date)}
+                      <p className="text-sm font-bold text-gray-900">
+                        {capitalizeFirst(formatCivilDate(o.date))}
                       </p>
                       <Badge variant={o.justified ? 'success' : 'warning'} size="sm">
                         {o.justified ? 'Justificada' : 'Sin justificar'}

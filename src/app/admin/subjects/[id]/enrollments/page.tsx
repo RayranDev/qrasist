@@ -78,7 +78,7 @@ export default async function SubjectEnrollmentsPage({
                 Esta materia no pertenece a ninguna carrera todavía.
               </p>
               <p className="text-sm text-amber-700">
-                Asignale una carrera desde{' '}
+                Asígnale una carrera desde{' '}
                 <a href="/admin/subjects" className="underline font-semibold">
                   Materias
                 </a>{' '}

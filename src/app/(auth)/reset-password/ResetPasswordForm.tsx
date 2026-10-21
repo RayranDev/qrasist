@@ -82,7 +82,7 @@ export default function ResetPasswordForm() {
 
     setDone(true)
     router.push(
-      '/login?info=' + encodeURIComponent('Tu contraseña se actualizó. Iniciá sesión con la nueva.')
+      '/login?info=' + encodeURIComponent('Tu contraseña se actualizó. Inicia sesión con la nueva.')
     )
   }
 
@@ -116,7 +116,7 @@ export default function ResetPasswordForm() {
         onChange={setConfirmPassword}
         show={showConfirm}
         onToggleShow={() => setShowConfirm((v) => !v)}
-        placeholder="Repetí la nueva contraseña"
+        placeholder="Repite la nueva contraseña"
       />
 
       <Button type="submit" variant="primary" size="lg" className="w-full mt-2" isLoading={loading}>

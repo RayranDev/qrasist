@@ -1,3 +1,4 @@
+import { countOf } from '@/lib/utils/plural'
 export interface AttendanceSummaryProps {
   attendanceRate: number
   totalAttendances: number
@@ -42,7 +43,7 @@ export default function AttendanceSummary({
         </div>
         <p className="text-sm text-neutral-500">
           {hasExpectedAttendances
-            ? `${totalAttendances} marcas registradas en ${totalSessions} sesiones`
+            ? `${countOf(totalAttendances, 'marca registrada', 'marcas registradas')} en ${countOf(totalSessions, 'sesión', 'sesiones')}`
             : 'Sin sesiones dictadas todavía'}
         </p>
       </div>
