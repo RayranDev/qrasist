@@ -1,18 +1,19 @@
 name: Keepalive
 
-# Pings /api/health, which runs a real query against Postgres, so the
-# free-tier Supabase project gets database activity and isn't
-# auto-paused after 7 idle days.
+# Backup layer: the primary daily activity is the Vercel Cron in
+# vercel.json (/api/cron/maintenance), which does real cleanup and
+# reads. Supabase pauses free projects without "a few user requests to
+# the database each day", and a single query every 2 days was not
+# enough (the project paused anyway on Oct 2026).
 #
-# Runs every 2 days: a weekly cadence left zero margin against the
-# 7-day pause, and a single delayed or failed run paused the project.
-# /api/health answers 503 when the database is down, so this job fails
-# visibly (GitHub emails the repo owner on a failed scheduled run)
-# instead of reporting success while the database is paused, which is
-# what happened when it pinged /login.
+# This job pings /api/health every 6 hours (4 real queries a day even
+# if the Vercel cron fails) and fails visibly when the database is down
+# (GitHub emails the repo owner). Note: GitHub disables scheduled
+# workflows in public repos after 60 days without repo activity, so it
+# must not be the only layer.
 on:
   schedule:
-    - cron: '0 12 */2 * *'
+    - cron: '17 */6 * * *'
   workflow_dispatch:
 
 permissions:
