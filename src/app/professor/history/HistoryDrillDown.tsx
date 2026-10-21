@@ -5,14 +5,12 @@ import { format } from 'date-fns'
 import { useToast } from '@/components/toast/ToastProvider'
 import { es } from 'date-fns/locale'
 import {
-  Download,
   Archive,
   Users,
   ChevronRight,
   BookOpen,
   TriangleAlert,
   CheckCircle2,
-  FileSpreadsheet,
   CalendarX2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -21,6 +19,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
 import AttendanceRowActions from '@/components/attendance/AttendanceRowActions'
 import { PAST_CLASS_EDIT_MESSAGE } from '@/lib/sessions/classWindow'
+import SubjectReportDownload from './SubjectReportDownload'
 import CutsBreakdownList, { CutsInline } from '@/components/attendance/CutsBreakdownList'
 import { buildStudentCutBreakdown } from '@/lib/attendance/cutsView'
 import type { CutInput, SessionAttendance } from '@/lib/attendance/cutsBreakdown'
@@ -146,42 +145,6 @@ export default function HistoryDrillDown({
       selectedSession.attendances?.filter((a) => enrolledIds.has(a.student_id)) || []
     const guestAttendances =
       selectedSession.attendances?.filter((a) => !enrolledIds.has(a.student_id)) || []
-
-    const exportToExcel = async () => {
-      const toRow = (a: Attendance, tipo: 'Regular' | 'Invitado') => {
-        const d = new Date(a.scanned_at)
-        return {
-          nombre: a.student?.name || 'Desconocido',
-          codigo: a.student?.student_code || 'N/A',
-          fecha: format(d, 'dd/MM/yyyy'),
-          hora: format(d, 'hh:mm a'),
-          tipo,
-          ip: a.ip_address && a.ip_address !== 'unknown' ? a.ip_address : 'N/A',
-        }
-      }
-
-      const { downloadWorkbook } = await import('@/lib/excel/exportWorkbook')
-      await downloadWorkbook(
-        `asistencia_${selectedSubject!.code}_${format(new Date(selectedSession.date), 'dd-MM-yyyy')}`,
-        [
-          {
-            name: 'Asistencia',
-            columns: [
-              { header: 'Nombre Completo', key: 'nombre', width: 30 },
-              { header: 'Código Estudiantil', key: 'codigo', width: 20 },
-              { header: 'Fecha de Registro', key: 'fecha', width: 16 },
-              { header: 'Hora Exacta', key: 'hora', width: 14 },
-              { header: 'Tipo de Asistente', key: 'tipo', width: 16 },
-              { header: 'IP de Registro', key: 'ip', width: 18 },
-            ],
-            rows: [
-              ...enrolledAttendances.map((a) => toRow(a, 'Regular')),
-              ...guestAttendances.map((a) => toRow(a, 'Invitado')),
-            ],
-          },
-        ]
-      )
-    }
 
     const groupIp = mostCommonIp(selectedSession.attendances || [])
 
@@ -364,14 +327,6 @@ export default function HistoryDrillDown({
               <p className="text-sm text-navy-700 font-semibold">{selectedSubject?.name}</p>
             </div>
           </div>
-          <Button
-            onClick={exportToExcel}
-            variant="secondary"
-            size="sm"
-            leftIcon={<Download className="w-4 h-4" />}
-          >
-            Exportar Sesión (.xlsx)
-          </Button>
         </div>
 
         <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
@@ -526,61 +481,6 @@ export default function HistoryDrillDown({
     const displayedStudents = onlyRiskStudents
       ? studentMetrics.filter((m) => m.summary.status !== 'NORMAL')
       : studentMetrics
-
-    // Exportación consolidada de la materia
-    const exportSubjectConsolidated = async () => {
-      const { downloadWorkbook } = await import('@/lib/excel/exportWorkbook')
-
-      const summaryRows = studentMetrics.map((sm) => ({
-        nombre: sm.student.name,
-        codigo: sm.student.student_code || '---',
-        clases_dictadas: sm.summary.sessionsHeld,
-        asistencias: sm.summary.attendancesCount,
-        inasistencias: sm.summary.absencesCount,
-        porcentaje: `${sm.summary.absencePercentage}%`,
-        max_permitidas: sm.summary.maxAbsencesAllowed,
-        faltas_restantes: sm.summary.remainingAbsences,
-        estado:
-          sm.summary.status === 'FAILED_ATTENDANCE'
-            ? 'Reprobado por Inasistencias'
-            : sm.summary.status === 'WARNING'
-              ? 'En Riesgo de Pérdida'
-              : 'Regular',
-      }))
-
-      const sessionRows = activeSessions.map((s) => ({
-        fecha: format(new Date(s.date), 'dd/MM/yyyy'),
-        asistentes: s.attendances?.length || 0,
-        duracion: `${s.duration_minutes || 15} min`,
-      }))
-
-      await downloadWorkbook(`asistencia_${selectedSubject.code}_consolidado`, [
-        {
-          name: 'Resumen Inasistencias',
-          columns: [
-            { header: 'Estudiante', key: 'nombre', width: 30 },
-            { header: 'Código', key: 'codigo', width: 16 },
-            { header: 'Clases Dictadas', key: 'clases_dictadas', width: 16 },
-            { header: 'Asistencias', key: 'asistencias', width: 14 },
-            { header: 'Inasistencias', key: 'inasistencias', width: 14 },
-            { header: '% Inasistencia', key: 'porcentaje', width: 16 },
-            { header: 'Máx Faltas', key: 'max_permitidas', width: 14 },
-            { header: 'Faltas Restantes', key: 'faltas_restantes', width: 16 },
-            { header: 'Estado Académico', key: 'estado', width: 28 },
-          ],
-          rows: summaryRows,
-        },
-        {
-          name: 'Sesiones Dictadas',
-          columns: [
-            { header: 'Fecha', key: 'fecha', width: 16 },
-            { header: 'Total Asistentes', key: 'asistentes', width: 20 },
-            { header: 'Duración', key: 'duracion', width: 16 },
-          ],
-          rows: sessionRows,
-        },
-      ])
-    }
 
     const SessionCard = ({
       session,
@@ -765,14 +665,11 @@ export default function HistoryDrillDown({
             </div>
           </div>
 
-          <Button
-            onClick={exportSubjectConsolidated}
-            variant="secondary"
-            size="sm"
-            leftIcon={<FileSpreadsheet className="w-4 h-4 text-navy-700" />}
-          >
-            Exportar Planilla Completa (.xlsx)
-          </Button>
+          <SubjectReportDownload
+            subjectId={selectedSubject.id}
+            subjectCode={selectedSubject.code}
+            cuts={cuts.map((c) => ({ id: c.id, name: c.name }))}
+          />
         </div>
 
         {/* Tarjetas resumen de inasistencia / semáforo de la materia */}
