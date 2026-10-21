@@ -97,7 +97,7 @@ export default async function StudentSubjectsPage() {
     supabase.from('enrollment_requests').select('subject_id, status').eq('student_id', user.id),
     supabase
       .from('attendances')
-      .select('session_id, status, session:sessions(subject_id)')
+      .select('session_id, status, session:sessions(subject_id, is_active)')
       .eq('student_id', user.id),
     supabase.from('sessions').select('id, subject_id').eq('is_active', true),
     supabase
@@ -166,8 +166,13 @@ export default async function StudentSubjectsPage() {
   const studentAttendancesBySubject = new Map<string, number>()
   const studentLateCountBySubject = new Map<string, number>()
   for (const att of studentAttendances || []) {
-    const sessionObj = att.session as unknown as { subject_id: string } | null
-    if (sessionObj?.subject_id) {
+    const sessionObj = att.session as unknown as {
+      subject_id: string
+      is_active: boolean | null
+    } | null
+    // Una asistencia en una clase archivada o suspendida no cuenta: esa
+    // clase tampoco está en las clases dictadas (activeSessions).
+    if (sessionObj?.subject_id && sessionObj.is_active !== false) {
       studentAttendancesBySubject.set(
         sessionObj.subject_id,
         (studentAttendancesBySubject.get(sessionObj.subject_id) || 0) + 1

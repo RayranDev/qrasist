@@ -9,10 +9,14 @@ const mockInsert = vi.fn()
 const mockInsertSingle = vi.fn()
 const mockSessionSingle = vi.fn()
 const mockAdminUpdate = vi.fn()
+const mockSuspendedToday = vi.fn()
+const mockKeptAttendances = vi.fn()
+const mockMoveUpdate = vi.fn()
+const mockLogAudit = vi.fn()
 
 function chain(terminal: Record<string, unknown> = {}) {
   const c: Record<string, unknown> = {}
-  for (const method of ['select', 'eq']) {
+  for (const method of ['select', 'eq', 'not', 'gte', 'lte']) {
     c[method] = vi.fn(() => c)
   }
   return Object.assign(c, terminal)
@@ -27,6 +31,17 @@ vi.mock('./authGuards', () => ({
 vi.mock('@/lib/supabase/adminClient', () => ({
   getSupabaseAdmin: () => ({
     from: vi.fn((table: string) => {
+      if (table === 'attendances') {
+        return {
+          select: vi.fn(() => ({ in: vi.fn(async () => mockKeptAttendances()) })),
+          update: vi.fn((values: unknown) => ({
+            in: vi.fn(async (...args: unknown[]) => {
+              mockMoveUpdate(values, ...args)
+              return { error: null }
+            }),
+          })),
+        }
+      }
       if (table !== 'sessions') throw new Error(`unexpected admin table in test: ${table}`)
       return {
         insert: vi.fn((row: unknown) => {
@@ -42,11 +57,19 @@ vi.mock('@/lib/supabase/adminClient', () => ({
   }),
 }))
 
+vi.mock('@/lib/audit/auditLog', () => ({
+  logAudit: (...args: unknown[]) => mockLogAudit(...args),
+}))
+
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
     auth: { getUser: mockGetUser },
     from: vi.fn((table: string) => {
-      if (table === 'sessions') return chain({ single: mockSessionSingle })
+      if (table === 'sessions') {
+        // `single` serves refresh/close; `lte` is the awaited tail of the
+        // "is today's class suspended?" lookup in createSession.
+        return chain({ single: mockSessionSingle, lte: () => mockSuspendedToday() })
+      }
       if (table === 'app_settings') return chain({ maybeSingle: mockSettingsMaybeSingle })
       if (table === 'subject_schedules') {
         // awaited directly after .eq(...)
@@ -71,6 +94,12 @@ describe('createSession', () => {
     mockSchedulesResult.mockReset()
     mockInsert.mockReset()
     mockInsertSingle.mockReset()
+    mockSuspendedToday.mockReset()
+    mockSuspendedToday.mockResolvedValue({ data: [] })
+    mockKeptAttendances.mockReset()
+    mockKeptAttendances.mockResolvedValue({ data: [] })
+    mockMoveUpdate.mockReset()
+    mockLogAudit.mockReset()
 
     mockGetUser.mockResolvedValue({ data: { user: { id: 'prof-1' } } })
     mockCheckSubjectProfessor.mockResolvedValue(true)
@@ -109,6 +138,80 @@ describe('createSession', () => {
 
     expect(result.success).toBe(false)
     expect(mockInsert).not.toHaveBeenCalled()
+  })
+
+  it('refuses to open attendance when the class of the day was suspended', async () => {
+    mockSuspendedToday.mockResolvedValue({ data: [{ id: 'suspended-1' }] })
+
+    const result = await createSession('subject-1')
+
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/suspendida/i)
+    expect(mockInsert).not.toHaveBeenCalled()
+  })
+
+  it('still allows a makeup class on a day whose regular class was suspended', async () => {
+    mockSuspendedToday.mockResolvedValue({ data: [{ id: 'suspended-1' }] })
+
+    const result = await createSession('subject-1', undefined, undefined, {
+      isMakeup: true,
+      makeupReason: 'Reposición de la clase suspendida',
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockInsert).toHaveBeenCalledTimes(1)
+  })
+
+  it('moves the attendances kept in the suspended class into the makeup class, and audits it', async () => {
+    mockSuspendedToday.mockResolvedValue({ data: [{ id: 'suspended-1' }] })
+    mockKeptAttendances.mockResolvedValue({
+      data: [
+        { id: 'att-1', student_id: 'stu-1', session_id: 'suspended-1' },
+        { id: 'att-2', student_id: 'stu-2', session_id: 'suspended-1' },
+      ],
+    })
+
+    const result = await createSession('subject-1', undefined, undefined, {
+      isMakeup: true,
+      makeupReason: 'Reposición de la clase suspendida',
+    })
+
+    expect(result.success).toBe(true)
+    // only session_id changes: scanned_at / ip / status stay as scanned
+    expect(mockMoveUpdate).toHaveBeenCalledWith({ session_id: 'session-1' }, 'session_id', [
+      'suspended-1',
+    ])
+    expect(mockLogAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'attendance.relocate',
+        entityId: 'session-1',
+        subjectId: 'subject-1',
+        details: expect.objectContaining({
+          path: 'makeup_after_suspension',
+          moved: 2,
+          attendance_ids: ['att-1', 'att-2'],
+        }),
+      })
+    )
+  })
+
+  it('moves nothing for a makeup on a day without a suspended class', async () => {
+    const result = await createSession('subject-1', undefined, undefined, {
+      isMakeup: true,
+      makeupReason: 'Reposición por paro de transporte',
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockMoveUpdate).not.toHaveBeenCalled()
+    expect(mockLogAudit).not.toHaveBeenCalled()
+  })
+
+  it('does not touch attendances when a regular class is refused on a suspended day', async () => {
+    mockSuspendedToday.mockResolvedValue({ data: [{ id: 'suspended-1' }] })
+
+    await createSession('subject-1')
+
+    expect(mockMoveUpdate).not.toHaveBeenCalled()
   })
 
   it('takes the registration window from app_settings, not from the caller', async () => {

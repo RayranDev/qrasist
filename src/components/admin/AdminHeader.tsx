@@ -13,6 +13,7 @@ const NAV_LINKS: AdminNavLink[] = [
   { href: '/admin/dashboard', label: 'Dashboard' },
   { href: '/admin/subjects', label: 'Materias' },
   { href: '/admin/attendance', label: 'Asistencias' },
+  { href: '/admin/omissions', label: 'Omisiones' },
   { href: '/admin/justifications', label: 'Justificaciones' },
   { href: '/admin/users', label: 'Usuarios' },
   { href: '/admin/academic', label: 'Carreras' },

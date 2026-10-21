@@ -7,6 +7,8 @@ import { DEFAULT_ROTATION_SECONDS } from '@/lib/qrRotation'
 import { sessionConfigSchema } from '@/lib/validations/schemas'
 import { getAppSettings } from '@/lib/settings/appSettings'
 import { computeClassEndsAt, type ScheduleBlockTime } from '@/lib/sessions/classWindow'
+import { getBogotaDayRange } from '@/lib/utils/bogotaDay'
+import { logAudit } from '@/lib/audit/auditLog'
 
 interface Coords {
   latitude: number
@@ -85,6 +87,28 @@ export async function createSession(
   ])
 
   const startedAt = new Date()
+
+  // RF20: si la clase de hoy fue suspendida no se toma asistencia (la
+  // suspensión cancela la toma). Solo coordinación puede deshacerla; una
+  // reposición sí puede abrirse el mismo día (ver más abajo qué pasa con
+  // las asistencias que ya habían quedado en la clase suspendida).
+  const { start: dayStart, end: dayEnd } = getBogotaDayRange(startedAt)
+  const { data: suspendedToday } = await supabase
+    .from('sessions')
+    .select('id')
+    .eq('subject_id', subjectId)
+    .not('suspended_at', 'is', null)
+    .gte('date', dayStart.toISOString())
+    .lte('date', dayEnd.toISOString())
+  const suspendedTodayIds = (suspendedToday || []).map((row: { id: string }) => row.id)
+  if (!isMakeup && suspendedTodayIds.length > 0) {
+    return {
+      success: false,
+      error:
+        'La clase de hoy está suspendida. Coordinación debe deshacer la suspensión para tomar asistencia.',
+    }
+  }
+
   const registrationWindowMinutes = settings.registrationWindowMinutes
   const expiresAt = new Date(startedAt.getTime() + registrationWindowMinutes * 60_000)
   const classEndsAt = computeClassEndsAt({
@@ -94,7 +118,8 @@ export async function createSession(
     minimumEnd: expiresAt,
   })
 
-  const { data: newSession, error } = await getSupabaseAdmin()
+  const admin = getSupabaseAdmin()
+  const { data: newSession, error } = await admin
     .from('sessions')
     .insert({
       subject_id: subjectId,
@@ -116,7 +141,63 @@ export async function createSession(
     return { success: false, error: 'No se pudo crear la sesión.' }
   }
 
+  // Reposición el mismo día de una clase suspendida: las asistencias que se
+  // escanearon antes de suspender seguirían ocupando el candado de "una
+  // asistencia por materia por día" (migración 007) y esos estudiantes no
+  // podrían registrarse en la reposición. Se mueven a la nueva sesión
+  // (solo cambia session_id: scanned_at, ip y estado se conservan) y queda
+  // en la bitácora.
+  if (isMakeup && suspendedTodayIds.length > 0) {
+    await moveKeptAttendancesToMakeup(admin, {
+      actorId: user.id,
+      subjectId,
+      fromSessionIds: suspendedTodayIds,
+      toSessionId: newSession.id,
+    })
+  }
+
   return { success: true, sessionId: newSession.id, registrationWindowMinutes }
+}
+
+async function moveKeptAttendancesToMakeup(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  {
+    actorId,
+    subjectId,
+    fromSessionIds,
+    toSessionId,
+  }: { actorId: string; subjectId: string; fromSessionIds: string[]; toSessionId: string }
+) {
+  const { data: kept } = await admin
+    .from('attendances')
+    .select('id, student_id, session_id')
+    .in('session_id', fromSessionIds)
+  if (!kept || kept.length === 0) return
+
+  const { error } = await admin
+    .from('attendances')
+    .update({ session_id: toSessionId })
+    .in('session_id', fromSessionIds)
+  if (error) {
+    // La reposición ya existe y es válida: no se tumba, pero queda el rastro.
+    console.error('[session] failed to move kept attendances into the makeup class', error)
+    return
+  }
+
+  await logAudit({
+    actorId,
+    action: 'attendance.relocate',
+    entityType: 'session',
+    entityId: toSessionId,
+    subjectId,
+    details: {
+      path: 'makeup_after_suspension',
+      from_session_ids: fromSessionIds,
+      to_session_id: toSessionId,
+      attendance_ids: kept.map((row: { id: string }) => row.id),
+      moved: kept.length,
+    },
+  })
 }
 
 export async function refreshSessionQrToken(sessionId: string) {

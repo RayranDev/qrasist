@@ -11,6 +11,8 @@ import { formatBogotaDateTime } from '@/lib/utils/bogotaDay'
 import SubjectPicker from './SubjectPicker'
 import PastClassModal from './PastClassModal'
 import SessionActiveToggle from './SessionActiveToggle'
+import SessionSuspensionControl from './SessionSuspensionControl'
+import SuspendDayModal from './SuspendDayModal'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,6 +26,8 @@ interface SessionRow {
   is_active: boolean | null
   expires_at: string | null
   note: string | null
+  suspended_at: string | null
+  suspension_reason: string | null
   attendances: { count: number }[] | null
 }
 
@@ -102,9 +106,10 @@ export default async function AdminAttendancePage({
     const [{ data, count }, { count: enrolled }] = await Promise.all([
       supabase
         .from('sessions')
-        .select('id, date, modality, is_makeup, is_active, expires_at, note, attendances(count)', {
-          count: 'exact',
-        })
+        .select(
+          'id, date, modality, is_makeup, is_active, expires_at, note, suspended_at, suspension_reason, attendances(count)',
+          { count: 'exact' }
+        )
         .eq('subject_id', selectedSubject.id)
         .order('date', { ascending: false })
         .range(from, to),
@@ -173,11 +178,17 @@ export default async function AdminAttendancePage({
                       {enrolledCount === 1 ? '' : 's'}
                     </p>
                   </div>
-                  <PastClassModal
-                    subjectId={selectedSubject.id}
-                    subjectName={selectedSubject.name}
-                    careerId={careerId || undefined}
-                  />
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <SuspendDayModal
+                      subjectId={selectedSubject.id}
+                      subjectName={selectedSubject.name}
+                    />
+                    <PastClassModal
+                      subjectId={selectedSubject.id}
+                      subjectName={selectedSubject.name}
+                      careerId={careerId || undefined}
+                    />
+                  </div>
                 </div>
 
                 {sessions.length === 0 ? (
@@ -192,6 +203,7 @@ export default async function AdminAttendancePage({
                   <ul className="divide-y divide-gray-50">
                     {sessions.map((s) => {
                       const registered = s.attendances?.[0]?.count ?? 0
+                      const isSuspended = !!s.suspended_at
                       const isOpenNow =
                         s.is_active !== false && !!s.expires_at && new Date(s.expires_at) > now
                       const isSelected = s.id === selectedSession?.id
@@ -229,10 +241,20 @@ export default async function AdminAttendancePage({
                                     Registro abierto
                                   </Badge>
                                 )}
-                                {s.is_active === false && (
+                                {isSuspended && (
+                                  <Badge variant="danger" size="sm">
+                                    Suspendida
+                                  </Badge>
+                                )}
+                                {s.is_active === false && !isSuspended && (
                                   <Badge variant="warning" size="sm">
                                     Archivada
                                   </Badge>
+                                )}
+                                {isSuspended && s.suspension_reason && (
+                                  <span className="text-[11px] text-gray-500 truncate max-w-64">
+                                    {s.suspension_reason}
+                                  </span>
                                 )}
                                 {s.note && (
                                   <span className="text-[11px] text-gray-400 truncate max-w-48">
@@ -246,7 +268,15 @@ export default async function AdminAttendancePage({
                               {registered} registrado{registered === 1 ? '' : 's'}
                             </p>
                           </Link>
-                          <SessionActiveToggle sessionId={s.id} isActive={s.is_active !== false} />
+                          {!isSuspended && (
+                            <SessionActiveToggle
+                              sessionId={s.id}
+                              isActive={s.is_active !== false}
+                            />
+                          )}
+                          {(isSuspended || s.is_active !== false) && (
+                            <SessionSuspensionControl sessionId={s.id} isSuspended={isSuspended} />
+                          )}
                         </li>
                       )
                     })}

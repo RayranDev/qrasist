@@ -10,6 +10,8 @@ import {
 const links: AttentionLinks = {
   enrollmentRequestsHref: '/professor/subjects/s1/requests',
   justificationsHref: '/admin/justifications?status=PENDING',
+  unregisteredClassesHref: '/admin/omissions?status=unjustified',
+  recentSuspensionsHref: '/admin/omissions?status=suspended',
   atRiskStudentsHref: '/admin/dashboard#consolidado',
   activeSessionsHref: '/admin/dashboard#consolidado',
 }
@@ -19,6 +21,8 @@ describe('buildAttentionItems', () => {
     const counts: AttentionCounts = {
       pendingEnrollmentRequests: 0,
       pendingJustifications: 0,
+      unregisteredClasses: 0,
+      recentSuspensions: 0,
       atRiskStudents: 0,
       activeSessionsNow: 0,
     }
@@ -29,17 +33,27 @@ describe('buildAttentionItems', () => {
     const counts: AttentionCounts = {
       pendingEnrollmentRequests: 2,
       pendingJustifications: 0,
+      unregisteredClasses: 4,
+      recentSuspensions: 2,
       atRiskStudents: 5,
       activeSessionsNow: 1,
     }
     const items = buildAttentionItems(counts, links)
-    expect(items.map((i) => i.key)).toEqual(['enrollment-requests', 'at-risk', 'active-sessions'])
+    expect(items.map((i) => i.key)).toEqual([
+      'enrollment-requests',
+      'unregistered-classes',
+      'recent-suspensions',
+      'at-risk',
+      'active-sessions',
+    ])
   })
 
   it('uses singular labels for count of 1', () => {
     const counts: AttentionCounts = {
       pendingEnrollmentRequests: 1,
       pendingJustifications: 1,
+      unregisteredClasses: 1,
+      recentSuspensions: 0,
       atRiskStudents: 1,
       activeSessionsNow: 1,
     }
@@ -54,12 +68,54 @@ describe('buildAttentionItems', () => {
       'Estudiante en riesgo por inasistencias'
     )
     expect(items.find((i) => i.key === 'active-sessions')?.label).toBe('Sesión activa ahora')
+    expect(items.find((i) => i.key === 'unregistered-classes')?.label).toBe(
+      'Clase no registrada por un docente'
+    )
+  })
+
+  it('surfaces recent suspensions as an informational item linked to the suspended tab', () => {
+    const counts: AttentionCounts = {
+      pendingEnrollmentRequests: 0,
+      pendingJustifications: 0,
+      unregisteredClasses: 0,
+      recentSuspensions: 1,
+      atRiskStudents: 0,
+      activeSessionsNow: 0,
+    }
+    const [item] = buildAttentionItems(counts, links)
+    expect(item).toMatchObject({
+      key: 'recent-suspensions',
+      label: 'Clase suspendida (últimos 7 días)',
+      href: '/admin/omissions?status=suspended',
+      tone: 'info',
+    })
+  })
+
+  it('links unregistered classes to the omissions page and uses the plural label', () => {
+    const counts: AttentionCounts = {
+      pendingEnrollmentRequests: 0,
+      pendingJustifications: 0,
+      unregisteredClasses: 7,
+      recentSuspensions: 0,
+      atRiskStudents: 0,
+      activeSessionsNow: 0,
+    }
+    const [item] = buildAttentionItems(counts, links)
+    expect(item).toMatchObject({
+      key: 'unregistered-classes',
+      label: 'Clases no registradas por docentes',
+      count: 7,
+      href: '/admin/omissions?status=unjustified',
+      tone: 'warning',
+    })
   })
 
   it('assigns danger tone to at-risk students and warning to pending actions', () => {
     const counts: AttentionCounts = {
       pendingEnrollmentRequests: 1,
       pendingJustifications: 1,
+      unregisteredClasses: 1,
+      recentSuspensions: 0,
       atRiskStudents: 1,
       activeSessionsNow: 1,
     }
@@ -74,6 +130,8 @@ describe('buildAttentionItems', () => {
     const counts: AttentionCounts = {
       pendingEnrollmentRequests: 3,
       pendingJustifications: 0,
+      unregisteredClasses: 0,
+      recentSuspensions: 0,
       atRiskStudents: 0,
       activeSessionsNow: 0,
     }
