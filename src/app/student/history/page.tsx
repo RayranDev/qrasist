@@ -8,6 +8,7 @@ import { getStudentSubjectRisks, formatSubjectStatusLine } from '@/lib/attendanc
 import type { AttendanceStatus } from '@/lib/utils/attendancePolicy'
 import { getStudentCutBreakdowns } from '@/lib/attendance/studentCuts'
 import CutsBreakdownList from '@/components/attendance/CutsBreakdownList'
+import ReportDownloadButton from '@/components/ReportDownloadButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -114,6 +115,13 @@ export default async function StudentHistoryPage() {
 
       {orderedSubjects.length > 0 ? (
         <div className="flex flex-col gap-5">
+          <div className="flex justify-end">
+            <ReportDownloadButton
+              url="/student/reports/history"
+              label="Descargar historial (PDF)"
+              fallbackName="historial_asistencia.pdf"
+            />
+          </div>
           {orderedSubjects.map((risk) => {
             const subjectRecords = recordsBySubject.get(risk.subjectId) || []
             return (

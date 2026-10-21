@@ -1,0 +1,118 @@
+/**
+ * PDF del historial de asistencia del estudiante (RF33): resumen por
+ * materia con su estado semestral, desglose por corte y la lista fechada
+ * de cada clase (Presente / Tarde / Justificada / Falta / Suspendida, y si
+ * la marca fue manual). Vertical A4.
+ */
+import type { StudentSubjectHistory } from '@/lib/reports/attendanceReport'
+import { PdfReport, type PdfCell } from './pdfDocument'
+import {
+  HISTORY_STATE_LABELS,
+  HISTORY_STATE_TONES,
+  formatDateEs,
+  formatGeneratedAt,
+  formatPct,
+  statusTone,
+} from './format'
+
+export interface StudentPdfMeta {
+  studentName: string
+  studentCode: string | null
+  generatedAt?: Date
+}
+
+export async function renderStudentReportPdf(
+  history: StudentSubjectHistory[],
+  meta: StudentPdfMeta
+): Promise<Uint8Array> {
+  const pdf = await PdfReport.create({
+    title: 'Historial de asistencia',
+    subtitleLines: [
+      `Estudiante: ${meta.studentName}${meta.studentCode ? ` (${meta.studentCode})` : ''}`,
+      `${history.length} materia${history.length === 1 ? '' : 's'} inscrita${history.length === 1 ? '' : 's'}`,
+    ],
+    orientation: 'portrait',
+    generatedAt: formatGeneratedAt(meta.generatedAt),
+    runningTitle: `Historial de asistencia · ${meta.studentName}`,
+  })
+
+  pdf.section('Resumen por materia')
+  pdf.table(
+    [
+      { header: 'Materia', width: 30 },
+      { header: 'Clases', width: 7, align: 'right' },
+      { header: 'Asist.', width: 7, align: 'right' },
+      { header: 'Faltas', width: 7, align: 'right' },
+      { header: 'Máx.', width: 7, align: 'right' },
+      { header: '% Asist.', width: 9, align: 'right' },
+      { header: 'Estado', width: 20 },
+    ],
+    history.map((h): (string | PdfCell)[] => [
+      `${h.subjectCode} · ${h.subjectName}`,
+      String(h.sessionsHeld),
+      String(h.attended),
+      String(h.countedAbsences),
+      String(h.maxAbsencesAllowed),
+      formatPct(h.attendancePct),
+      { text: h.statusLabel, tone: statusTone(h.status) },
+    ]),
+    { emptyMessage: 'No tienes materias inscritas.' }
+  )
+  pdf.legend([
+    { label: 'Presente / Normal', tone: 'success' },
+    { label: 'Tarde / En riesgo', tone: 'warning' },
+    { label: 'Falta / Perdida por fallas', tone: 'danger' },
+    { label: 'Justificada', tone: 'info' },
+  ])
+  pdf.paragraph(
+    'El estado se calcula sobre todo el semestre. Las clases suspendidas no cuentan como dictadas. "Máx." es el máximo de faltas permitido en la materia.',
+    { muted: true, size: 8.5 }
+  )
+
+  for (const h of history) {
+    pdf.section(`${h.subjectCode} · ${h.subjectName}`)
+    pdf.paragraph(
+      `Docente: ${h.professorName} · Estado: ${h.statusLabel} · ${h.attended} de ${h.sessionsHeld} clases asistidas${h.late > 0 ? `, ${h.late} con tardanza` : ''}${h.justified > 0 ? `, ${h.justified} justificada(s)` : ''}.`,
+      { size: 9 }
+    )
+
+    if (h.cuts.length > 0) {
+      pdf.table(
+        [
+          { header: 'Corte', width: 28 },
+          { header: 'Clases', width: 12, align: 'right' },
+          { header: 'Asistidas', width: 14, align: 'right' },
+          { header: 'Tardes', width: 12, align: 'right' },
+          { header: 'Justificadas', width: 16, align: 'right' },
+          { header: '% Asist.', width: 14, align: 'right' },
+        ],
+        h.cuts.map((c): (string | PdfCell)[] => [
+          c.name,
+          String(c.sessionsHeld),
+          String(c.attended),
+          String(c.late),
+          String(c.justified),
+          c.sessionsHeld === 0 ? '---' : { text: formatPct(c.percentage), bold: true },
+        ])
+      )
+    }
+
+    pdf.table(
+      [
+        { header: 'Fecha', width: 14 },
+        { header: 'Estado', width: 16 },
+        { header: 'Registro', width: 14 },
+        { header: 'Observación', width: 56 },
+      ],
+      h.entries.map((e): (string | PdfCell)[] => [
+        formatDateEs(e.date),
+        { text: HISTORY_STATE_LABELS[e.state], tone: HISTORY_STATE_TONES[e.state] },
+        e.state === 'PRESENT' || e.state === 'LATE' ? (e.manual ? 'Manual' : 'Código QR') : '---',
+        e.note,
+      ]),
+      { emptyMessage: 'Aún no hay clases dictadas en esta materia.' }
+    )
+  }
+
+  return pdf.save()
+}
