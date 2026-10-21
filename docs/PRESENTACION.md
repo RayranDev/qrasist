@@ -118,7 +118,7 @@ El sistema **no permite duplicados** → un escaneo por materia por día.
 ### 👨‍🏫 Docente
 - Genera QR con un clic
 - Ve cuántos estudiantes tiene por materia
-- Historial detallado exportable a Excel (CSV)
+- Reporte de asistencia por materia y por corte, descargable en PDF
 - Puede editar su propio perfil
 
 ### 🎓 Estudiante
@@ -128,7 +128,7 @@ El sistema **no permite duplicados** → un escaneo por materia por día.
 - Registro propio con código institucional de 12 dígitos
 
 **Qué decir:**
-> *"Cada perfil tiene una experiencia diferente, diseñada para su necesidad. El estudiante solo necesita abrir la app, la cámara se activa sola y escanea. El docente tiene el historial completo con exportación a Excel."*
+> *"Cada perfil tiene una experiencia diferente, diseñada para su necesidad. El estudiante solo necesita abrir la app, la cámara se activa sola y escanea. El docente tiene el historial completo y descarga su reporte en PDF."*
 
 ---
 
@@ -227,7 +227,7 @@ El sistema **no permite duplicados** → un escaneo por materia por día.
 > Un estudiante de otro grupo entra equivocado y escanea. El sistema lo registra como "invitado" y el docente puede verlo diferenciado en el historial.
 
 **Caso 4: Docente necesita el listado para el decano**
-> Dos clics: entra al historial, selecciona la fecha, descarga el CSV. Listo para entregar.
+> Dos clics: entra al historial, elige la materia y el corte, descarga el PDF. Listo para entregar.
 
 **Caso 5: Estudiante dado de baja**
 > El admin desactiva el usuario. El estudiante no puede volver a iniciar sesión. Sus registros históricos se conservan.
@@ -247,7 +247,7 @@ El sistema **no permite duplicados** → un escaneo por materia por día.
 | Sin papel | ✅ | ❌ | ✅ | ✅ |
 | Anti-fraude | ✅ | ❌ | ❌ | Parcial |
 | Datos organizados | ✅ | ❌ | Parcial | Parcial |
-| Exportación CSV | ✅ | ❌ | ✅ | Parcial |
+| Reportes PDF / Excel | ✅ | ❌ | ✅ | Parcial |
 | Hecho para la U. Rep. | ✅ | ❌ | ❌ | ❌ |
 | Sin instalar app | ✅ | ✅ | ✅ | ❌ |
 | Funciona offline | ❌ | ✅ | ❌ | Parcial |

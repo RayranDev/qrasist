@@ -253,7 +253,9 @@ ALTER TABLE profiles ADD CONSTRAINT chk_email_domain CHECK (
 | Ver mis materias | ❌ | ✅ | ❌ |
 | Generar QR para sesión | ❌ | ✅ | ❌ |
 | Ver historial de asistencia | ❌ | ✅ | ❌ |
-| Exportar CSV de asistencia | ❌ | ✅ | ❌ |
+| Descargar reporte de asistencia en PDF (sus materias) | ✅ | ✅ | ❌ |
+| Descargar reporte por corte en Excel | ✅ | ❌ | ❌ |
+| Descargar su historial de asistencia en PDF | ❌ | ❌ | ✅ |
 | Archivar sesiones propias | ❌ | ✅ | ❌ |
 | Editar perfil propio | ❌ | ✅ | ❌ |
 | Escanear QR | ❌ | ❌ | ✅ |
@@ -274,7 +276,7 @@ ALTER TABLE profiles ADD CONSTRAINT chk_email_domain CHECK (
 
 - **Panel de materias:** saludo personalizado, cantidad de estudiantes por materia.
 - **Generación de QR:** crea una sesión de 15 min por defecto con QR único. Countdown en tiempo real. El QR se puede proyectar en pantalla para que los estudiantes escaneen.
-- **Historial:** navegación drill-down en 3 niveles: materias → sesiones → asistentes. Diferencia entre estudiantes regulares (inscritos) e invitados. Exporta CSV por sesión. Puede archivar/reactivar sesiones.
+- **Historial:** navegación drill-down en 3 niveles: materias → sesiones → asistentes. Diferencia entre estudiantes regulares (inscritos) e invitados. Descarga el reporte de la materia en PDF (todo el período o un corte). Puede archivar/reactivar sesiones.
 - **Perfil:** editar nombre y contraseña desde la misma pantalla.
 
 ### Estudiante
@@ -398,7 +400,7 @@ Al expirar → QR se muestra como inactivo
 - Nivel 1: cards de materias (activas y archivadas diferenciadas)
 - Nivel 2: sesiones activas y archivadas con botón archivar/reactivar
 - Nivel 3: tabla de asistentes con columnas nombre, código, fecha, hora
-- Exporta CSV completo por sesión
+- Descarga el reporte PDF de la materia (selector de corte), generado en `/professor/reports/subject`
 
 ### `NavigationProgress.tsx`
 - Detecta cambios de ruta con `usePathname`

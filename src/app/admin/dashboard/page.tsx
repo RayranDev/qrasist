@@ -4,7 +4,8 @@ import AdminHeader from '@/components/admin/AdminHeader'
 import PaginatedConsolidatedBoard from '@/components/admin/PaginatedConsolidatedBoard'
 import GlobalAbsencePolicyModal from '@/components/admin/GlobalAbsencePolicyModal'
 import AttendanceSettingsModal from '@/components/admin/AttendanceSettingsModal'
-import PeriodReportExport from '@/components/admin/PeriodReportExport'
+import AttendanceReportPanel from '@/components/admin/AttendanceReportPanel'
+import { usableCuts, type PeriodCutRow } from '@/lib/attendance/cutsView'
 import AttentionArea from '@/components/admin/dashboard/AttentionArea'
 import AttendanceSummary from '@/components/admin/dashboard/AttendanceSummary'
 import OnboardingChecklist from '@/components/admin/dashboard/OnboardingChecklist'
@@ -88,8 +89,25 @@ export default async function AdminDashboardPage({
 
   const { data: periods } = await supabase
     .from('periods')
-    .select('id, name')
+    .select('id, name, start_date, end_date')
     .order('name', { ascending: false })
+
+  // Cortes por período para el reporte por corte. Un período con fechas
+  // invertidas queda sin cortes (usableCuts), así el selector solo ofrece
+  // "Todo el período".
+  const { data: periodCutRows } = await supabase
+    .from('period_cuts')
+    .select('id, period_id, name, start_date, end_date, sequence')
+    .order('sequence')
+  const cutsByPeriod: Record<string, { id: string; name: string }[]> = {}
+  for (const period of periods || []) {
+    cutsByPeriod[period.id] = usableCuts(
+      period,
+      ((periodCutRows || []) as (PeriodCutRow & { period_id: string })[]).filter(
+        (c) => c.period_id === period.id
+      )
+    ).map((c) => ({ id: c.id, name: c.name }))
+  }
 
   const { data: studentCareerLinks } = await supabase
     .from('student_careers')
@@ -315,7 +333,14 @@ export default async function AdminDashboardPage({
   // Se calcula al leer a partir de horario x período x sesiones; vacío si no
   // hay materias con período y horario.
   const [classOmissions, recentSuspensionsCount] = await Promise.all([
-    fetchClassOmissions(supabase),
+    // El contador es solo informativo: si la consulta falla (ahora lanza en
+    // lugar de devolver datos parciales) el panel sigue cargando.
+    fetchClassOmissions(supabase).catch(
+      (error): Awaited<ReturnType<typeof fetchClassOmissions>> => {
+        console.error('[dashboard] No se pudieron calcular las clases sin registrar', error)
+        return []
+      }
+    ),
     countRecentSuspensions(supabase),
   ])
   const unregisteredClassesCount = countUnjustified(classOmissions)
@@ -398,8 +423,21 @@ export default async function AdminDashboardPage({
               initialRegistrationWindowMinutes={appSettings.registrationWindowMinutes}
               initialDefaultClassMinutes={appSettings.defaultClassMinutes}
             />
-            {periods && periods.length > 0 && <PeriodReportExport periods={periods} />}
           </div>
+          {periods && periods.length > 0 && (
+            <AttendanceReportPanel
+              periods={periods.map((p) => ({ id: p.id, name: p.name }))}
+              cutsByPeriod={cutsByPeriod}
+              subjects={(allSubjects || []).map((s) => ({
+                id: s.id,
+                name: s.name,
+                code: s.code,
+                periodId: s.period_id,
+                professorId: s.professor_id,
+              }))}
+              professors={(professors || []).map((p) => ({ id: p.id, name: p.name }))}
+            />
+          )}
 
           {/* ==================== TABLERO CONSOLIDADO PAGINADO CON SLIDE ==================== */}
           <div id="consolidado">

@@ -100,7 +100,7 @@ npm start          # servidor de producción
 - Edición de propio perfil (nombre, contraseña)
 - Generación de QR por sesión (ventana de registro configurable por coordinación, 5 min por defecto) con countdown en tiempo real
 - Historial drill-down: Materias → Sesiones → Asistentes (regulares + invitados)
-- Exportar lista de asistencia a CSV por sesión
+- Descargar el reporte de asistencia de cada materia en **PDF** (todo el período o un corte): estudiantes, porcentaje por corte, estado, clases y observaciones. Los docentes descargan reportes solo en PDF (no Excel)
 - Eliminar sesiones erróneas
 
 ### Estudiante

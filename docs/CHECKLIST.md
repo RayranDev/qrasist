@@ -32,7 +32,7 @@ Actualiza el estado de cada tarea conforme se vaya avanzando.
 - [x] ✅ UI de dashboard (visualizar materias asignadas).
 - [x] ✅ Lógica para crear nueva sesión de clase (materia, fecha, hora, duración).
 - [x] ✅ Endpoint / Server Action: Generación de token único y registro de la sesión en BD.
-- [x] ✅ UI para consultar historial de asistencias de sus materias. (Drill-down Excel)
+- [x] ✅ UI para consultar historial de asistencias de sus materias. (Drill-down; el docente descarga el reporte por materia y por corte solo en PDF)
 
 ### Rol: Estudiante
 - [x] ✅ UI de dashboard (materias inscritas).

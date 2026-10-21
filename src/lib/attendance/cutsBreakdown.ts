@@ -12,6 +12,8 @@
  * asistencia/justificación a partir de sus propias consultas.
  */
 
+import { bogotaCalendarDate } from '@/lib/utils/businessDays'
+
 export interface CutInput {
   id: string
   name: string
@@ -55,10 +57,12 @@ function emptyBucket(): Bucket {
   return { held: 0, attended: 0, late: 0, justified: 0 }
 }
 
-/** Día calendario (UTC) de un timestamp ISO, para comparar contra los
- * límites DATE (sin hora) de un corte. */
+/** Día calendario de Bogotá de un timestamp ISO, para comparar contra
+ * los límites DATE (sin hora) de un corte. Es Bogotá (no UTC) porque
+ * una clase nocturna (7 p. m. en adelante) cae al día siguiente en UTC
+ * y quedaría en el corte equivocado en el borde entre dos cortes. */
 function toDayString(iso: string): string {
-  return new Date(iso).toISOString().slice(0, 10)
+  return bogotaCalendarDate(new Date(iso))
 }
 
 function toBreakdown(

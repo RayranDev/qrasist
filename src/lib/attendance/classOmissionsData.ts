@@ -15,7 +15,7 @@
  * que se puede llamar con el cliente del usuario.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { fetchAllRows } from '@/lib/supabase/fetchAll'
+import { fetchAllRows, unwrapRows } from '@/lib/supabase/fetchAll'
 import { bogotaInstant } from '@/lib/utils/bogotaDay'
 import { bogotaCalendarDate, endOfBogotaDay } from '@/lib/utils/businessDays'
 import {
@@ -109,7 +109,7 @@ async function loadContexts(
 ): Promise<SubjectOmissionContext[]> {
   if (subjectIds && subjectIds.length === 0) return []
 
-  const { data: subjectRows } = await fetchAllRows<SubjectRow>((from, to) => {
+  const subjectResult = await fetchAllRows<SubjectRow>((from, to) => {
     let query = supabase
       .from('subjects')
       .select(
@@ -120,6 +120,7 @@ async function loadContexts(
     if (subjectIds) query = query.in('id', subjectIds)
     return query.order('id').range(from, to)
   })
+  const subjectRows = unwrapRows(subjectResult, 'las materias con horario')
 
   const subjects = subjectRows
     .map((row) => ({ row, period: first(row.period) }))
@@ -134,7 +135,7 @@ async function loadContexts(
   // 1. Horarios: sin bloques no hay clases esperadas, ahorra el resto de consultas.
   const blocksBySubject = new Map<string, OmissionScheduleBlock[]>()
   for (const part of chunk(ids, SUBJECT_CHUNK)) {
-    const { data } = await fetchAllRows<ScheduleRow>((from, to) =>
+    const scheduleResult = await fetchAllRows<ScheduleRow>((from, to) =>
       supabase
         .from('subject_schedules')
         .select('id, subject_id, day_of_week, start_time, end_time, created_at')
@@ -142,7 +143,7 @@ async function loadContexts(
         .order('id')
         .range(from, to)
     )
-    for (const block of data) {
+    for (const block of unwrapRows(scheduleResult, 'los horarios de las materias')) {
       blocksBySubject.set(block.subject_id, [
         ...(blocksBySubject.get(block.subject_id) || []),
         block,
@@ -174,7 +175,7 @@ async function loadContexts(
     const sessionsSince = bogotaInstant(windowStart, 0).toISOString()
     const sessionsUntil = endOfBogotaDay(latestEnd < today ? latestEnd : today).toISOString()
 
-    const [{ data: sessions }, { data: justifications }] = await Promise.all([
+    const [sessionsResult, justificationsResult] = await Promise.all([
       fetchAllRows<SessionRow>((from, to) =>
         supabase
           .from('sessions')
@@ -194,6 +195,8 @@ async function loadContexts(
           .range(from, to)
       ),
     ])
+    const sessions = unwrapRows(sessionsResult, 'las sesiones de las materias')
+    const justifications = unwrapRows(justificationsResult, 'las justificaciones de omisión')
     for (const s of sessions) {
       sessionsBySubject.set(s.subject_id, [...(sessionsBySubject.get(s.subject_id) || []), s])
     }
