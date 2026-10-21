@@ -352,7 +352,6 @@ export function buildAttendanceReport(input: BuildReportInput): AttendanceReport
     const allSessions = sessionsBySubject.get(subject.id) || []
     const heldAll = allSessions.filter(isHeld)
     const heldInRange = heldAll.filter((s) => isInRange(s.date, range))
-    const sessionById = new Map(heldAll.map((s) => [s.id, s]))
     const career = careerLabel(subject.careerNames)
     const professorName = subject.professorName || NO_PROFESSOR_LABEL
 
