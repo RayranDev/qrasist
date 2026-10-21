@@ -8,6 +8,7 @@
  * Todo es informativo: el veredicto de pérdida por fallas sigue siendo
  * semestral (computeAttendanceSummary).
  */
+import { isSessionHeldFor } from './heldSessions'
 import {
   computeCutsBreakdown,
   type CutBreakdown,
@@ -54,11 +55,22 @@ export function usableCuts(
 export interface CutBreakdownInput {
   cuts: CutInput[]
   /** Sesiones de la materia en cualquier estado; solo las activas cuentan como dictadas. */
-  sessions: { id: string; date: string; is_active: boolean | null }[]
+  sessions: {
+    id: string
+    date: string
+    is_active: boolean | null
+    class_ends_at?: string | null
+  }[]
   /** Asistencias del estudiante, por id de sesión. */
   attendanceBySessionId: Map<string, SessionAttendance>
   /** Sesiones con justificación APROBADA del estudiante. */
   justifiedSessionIds: Set<string>
+  /**
+   * Si viene, una clase en curso solo cuenta como dictada cuando el
+   * estudiante ya tiene asistencia en ella (DEF-QA-05). Sin esto cuenta
+   * toda sesión activa.
+   */
+  held?: { now: Date; defaultClassMinutes: number }
 }
 
 /**
@@ -70,10 +82,17 @@ export function buildStudentCutBreakdown({
   sessions,
   attendanceBySessionId,
   justifiedSessionIds,
+  held: heldContext,
 }: CutBreakdownInput): CutBreakdown[] {
   if (cuts.length === 0) return []
+  const attendedIds = new Set(attendanceBySessionId.keys())
   const held = sessions
     .filter((s) => s.is_active !== false)
+    .filter(
+      (s) =>
+        !heldContext ||
+        isSessionHeldFor(s, attendedIds, heldContext.now, heldContext.defaultClassMinutes)
+    )
     .map((s) => ({ id: s.id, date: s.date }))
   return computeCutsBreakdown(cuts, held, attendanceBySessionId, justifiedSessionIds)
 }

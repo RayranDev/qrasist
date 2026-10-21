@@ -68,6 +68,7 @@ export async function generateStudentReport(
     sessions: data.sessions,
     attendances: data.attendances,
     justifications: data.justifications,
+    held: data.held,
   })
 
   return {

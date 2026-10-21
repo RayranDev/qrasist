@@ -5,6 +5,8 @@ import {
   type StudentAttendanceSummary,
 } from '@/lib/utils/attendancePolicy'
 import { fetchAllRows } from '@/lib/supabase/fetchAll'
+import { getAppSettings } from '@/lib/settings/appSettings'
+import { isSessionHeldFor } from '@/lib/attendance/heldSessions'
 
 export interface EnrolledSubjectCounts {
   subjectId: string
@@ -123,8 +125,11 @@ export async function getStudentSubjectRisks(
   interface ActiveSessionRow {
     id: string
     subject_id: string
+    date: string
+    class_ends_at: string | null
   }
   interface AttendanceRow {
+    session_id: string
     status: string
     // Supabase infiere el embed `session:sessions(subject_id)` como
     // array (no puede saber la cardinalidad de la FK sin generics
@@ -141,7 +146,7 @@ export async function getStudentSubjectRisks(
       fetchAllRows<ActiveSessionRow>((from, to) =>
         supabase
           .from('sessions')
-          .select('id, subject_id')
+          .select('id, subject_id, date, class_ends_at')
           .eq('is_active', true)
           .in('subject_id', subjectIds)
           .range(from, to)
@@ -149,7 +154,7 @@ export async function getStudentSubjectRisks(
       fetchAllRows<AttendanceRow>((from, to) =>
         supabase
           .from('attendances')
-          .select('status, session:sessions(subject_id, is_active)')
+          .select('session_id, status, session:sessions(subject_id, is_active)')
           .eq('student_id', studentId)
           .range(from, to)
       ),
@@ -164,8 +169,14 @@ export async function getStudentSubjectRisks(
       ),
     ])
 
+  // Una clase en curso solo cuenta como dictada si el estudiante ya
+  // escaneó en ella (DEF-QA-05); ver heldSessions.ts.
+  const { defaultClassMinutes } = await getAppSettings(supabase)
+  const now = new Date()
+  const attendedSessionIds = new Set(attendances.map((a) => a.session_id))
   const sessionsHeldBySubject = new Map<string, number>()
   for (const s of activeSessions) {
+    if (!isSessionHeldFor(s, attendedSessionIds, now, defaultClassMinutes)) continue
     sessionsHeldBySubject.set(s.subject_id, (sessionsHeldBySubject.get(s.subject_id) || 0) + 1)
   }
 

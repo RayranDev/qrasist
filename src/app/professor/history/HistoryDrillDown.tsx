@@ -91,6 +91,9 @@ interface Session {
   /** false cuando la clase ya terminó (RF21): solo coordinación puede
    * modificar la asistencia. Lo calcula el servidor en page.tsx. */
   can_edit?: boolean
+  /** true cuando la clase ya terminó (calculado en el servidor). Una clase
+   * en curso solo cuenta como dictada para quien ya escaneó (DEF-QA-05). */
+  class_ended?: boolean
   attendances: Attendance[]
 }
 
@@ -431,15 +434,18 @@ export default function HistoryDrillDown({
       approvedJustifiedByStudent.set(j.student_id, set)
     }
     const attendanceByStudent = new Map<string, Map<string, SessionAttendance>>()
-    if (cuts.length > 0) {
-      for (const session of activeSessions) {
-        for (const att of session.attendances || []) {
-          const map =
-            attendanceByStudent.get(att.student_id) || new Map<string, SessionAttendance>()
-          map.set(session.id, { status: att.status === 'LATE' ? 'LATE' : 'PRESENT' })
-          attendanceByStudent.set(att.student_id, map)
-        }
+    for (const session of activeSessions) {
+      for (const att of session.attendances || []) {
+        const map = attendanceByStudent.get(att.student_id) || new Map<string, SessionAttendance>()
+        map.set(session.id, { status: att.status === 'LATE' ? 'LATE' : 'PRESENT' })
+        attendanceByStudent.set(att.student_id, map)
       }
+    }
+    // Clases terminadas (para todos) + en curso con asistencia propia (DEF-QA-05).
+    const heldSessionsFor = (studentId: string) => {
+      const mine = attendanceByStudent.get(studentId)
+      return activeSessions.filter((s) => s.class_ended !== false || (mine?.has(s.id) ?? false))
+        .length
     }
 
     const studentMetrics = enrolledStudents.map((st) => {
@@ -447,7 +453,7 @@ export default function HistoryDrillDown({
       const lateCount = lateCountMap.get(st.id) || 0
       const justifiedCount = justifiedCountMap.get(st.id) || 0
       const summary = computeAttendanceSummary(
-        activeSessions.length,
+        heldSessionsFor(st.id),
         attended,
         {
           ruleType: selectedSubject.absence_rule_type,
@@ -465,7 +471,9 @@ export default function HistoryDrillDown({
         // Informativo; vacío cuando la materia no tiene cortes utilizables.
         cutBreakdown: buildStudentCutBreakdown({
           cuts,
-          sessions: activeSessions,
+          sessions: activeSessions.filter(
+            (s) => s.class_ended !== false || attendanceByStudent.get(st.id)?.has(s.id)
+          ),
           attendanceBySessionId: attendanceByStudent.get(st.id) || new Map(),
           justifiedSessionIds: approvedJustifiedByStudent.get(st.id) || new Set(),
         }),

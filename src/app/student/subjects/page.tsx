@@ -3,6 +3,7 @@ import SubjectBrowser, { SubjectItem } from './SubjectBrowser'
 import JoinByCode from './JoinByCode'
 import { isSessionAlreadyHeld, isWithinJustificationWindow } from '@/lib/justifications/eligibility'
 import { getAppSettings } from '@/lib/settings/appSettings'
+import { isSessionHeldFor } from '@/lib/attendance/heldSessions'
 import type { JustificationStatus, MissedSessionItem } from './missedSessions'
 import RiskBanner from '@/components/student/RiskBanner'
 import {
@@ -89,7 +90,6 @@ export default async function StudentSubjectsPage() {
     { data: enrollments },
     { data: requests },
     { data: studentAttendances },
-    { data: activeSessions },
     { data: myJustifications },
     { data: availableSubjectSessions },
   ] = await Promise.all([
@@ -99,7 +99,6 @@ export default async function StudentSubjectsPage() {
       .from('attendances')
       .select('session_id, status, session:sessions(subject_id, is_active)')
       .eq('student_id', user.id),
-    supabase.from('sessions').select('id, subject_id').eq('is_active', true),
     supabase
       .from('absence_justifications')
       .select('id, session_id, subject_id, status, reason, attachment_path, review_note')
@@ -144,12 +143,19 @@ export default async function StudentSubjectsPage() {
     (requests || []).map((r) => [r.subject_id, r.status as string])
   )
 
-  // Mapear sesiones activas por materia
-  const activeSessionsCountBySubject = new Map<string, number>()
-  for (const s of activeSessions || []) {
-    activeSessionsCountBySubject.set(
+  const attendedSessionIds = new Set((studentAttendances || []).map((a) => a.session_id))
+
+  // Clases dictadas por materia PARA ESTE ESTUDIANTE (DEF-QA-05): activas y
+  // ya terminadas, o en curso con asistencia propia. Una clase en curso no
+  // cuenta como falta antes de que el estudiante pueda escanear.
+  const now = new Date()
+  const heldSessionsCountBySubject = new Map<string, number>()
+  for (const s of availableSubjectSessions || []) {
+    if (s.is_active === false) continue
+    if (!isSessionHeldFor(s, attendedSessionIds, now, defaultClassMinutes)) continue
+    heldSessionsCountBySubject.set(
       s.subject_id,
-      (activeSessionsCountBySubject.get(s.subject_id) || 0) + 1
+      (heldSessionsCountBySubject.get(s.subject_id) || 0) + 1
     )
   }
 
@@ -177,7 +183,6 @@ export default async function StudentSubjectsPage() {
     }
   }
 
-  const attendedSessionIds = new Set((studentAttendances || []).map((a) => a.session_id))
   const attendanceBySessionId = new Map<string, SessionAttendance>(
     (studentAttendances || []).map((a) => [
       a.session_id,
@@ -231,7 +236,7 @@ export default async function StudentSubjectsPage() {
         totalPlannedSessions: r.subject!.total_planned_sessions,
         latesPerAbsence: r.subject!.lates_per_absence,
       },
-      sessionsHeld: activeSessionsCountBySubject.get(r.subject!.id) || 0,
+      sessionsHeld: heldSessionsCountBySubject.get(r.subject!.id) || 0,
       attendancesCount: studentAttendancesBySubject.get(r.subject!.id) || 0,
       lateCount: studentLateCountBySubject.get(r.subject!.id) || 0,
       justifiedCount: justifiedCountBySubject.get(r.subject!.id) || 0,
@@ -285,6 +290,7 @@ export default async function StudentSubjectsPage() {
           sessions: (availableSubjectSessions || []).filter((s) => s.subject_id === r.subject!.id),
           attendanceBySessionId,
           justifiedSessionIds: approvedJustifiedSessionIds,
+          held: { now, defaultClassMinutes },
         })
       : []
 

@@ -30,6 +30,18 @@ export interface StudentAttendanceSummary {
   statusMessage: string
 }
 
+/**
+ * Regla de WARNING por porcentaje: el 75% del tope de inasistencia
+ * (ej. 15% con tope 20%) medido sobre las clases dictadas. Con muy pocas
+ * clases un solo error ya es un porcentaje enorme (1 falta de 1 clase =
+ * 100%) aunque al estudiante le queden varias faltas permitidas, así que
+ * esta alerta exige una muestra mínima de clases dictadas Y al menos 2
+ * faltas contadas. El aviso por faltas restantes (<= 1) NO tiene
+ * mínimos, y la regla de pérdida (FAILED) no se ve afectada.
+ */
+export const MIN_HELD_FOR_PERCENTAGE_WARNING = 4
+export const MIN_ABSENCES_FOR_PERCENTAGE_WARNING = 2
+
 export function computeAttendanceSummary(
   sessionsHeld: number,
   attendancesCount: number,
@@ -87,7 +99,11 @@ export function computeAttendanceSummary(
       remainingAbsences === 0
         ? 'Límite alcanzado: una falla más causará pérdida de materia'
         : '¡En riesgo! Te queda 1 sola falta permitida'
-  } else if (cleanSessionsHeld > 0 && absencePercentage >= maxPercentage * 0.75) {
+  } else if (
+    cleanSessionsHeld >= MIN_HELD_FOR_PERCENTAGE_WARNING &&
+    absencesCount >= MIN_ABSENCES_FOR_PERCENTAGE_WARNING &&
+    absencePercentage >= maxPercentage * 0.75
+  ) {
     status = 'WARNING'
     statusMessage = `Alerta de inasistencia (${absencePercentage}% registrado)`
   }

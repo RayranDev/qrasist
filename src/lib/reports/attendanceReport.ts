@@ -9,6 +9,10 @@
  *  - "Clase dictada" = sesión con is_active distinto de false. Las
  *    suspendidas (RF20) y archivadas NO cuentan, y las asistencias
  *    registradas en ellas tampoco entran en ningún numerador.
+ *  - Con `held` (hora actual + duración por defecto), una clase EN CURSO
+ *    solo cuenta como dictada para el estudiante que ya tiene asistencia
+ *    en ella (DEF-QA-05, ver heldSessions.ts). Sin `held` cuenta toda
+ *    sesión activa.
  *  - El ESTADO (Normal / En riesgo / Perdida por fallas) es semestral:
  *    sale de computeAttendanceSummary sobre TODO el período, aunque el
  *    reporte sea de un solo corte. Los porcentajes, conteos, observaciones
@@ -27,6 +31,7 @@ import {
   type CutBreakdown,
   type CutInput,
 } from '@/lib/attendance/cutsBreakdown'
+import { hasClassEnded, isSessionHeldFor } from '@/lib/attendance/heldSessions'
 
 export const STATUS_LABELS: Record<AttendanceStatus, string> = {
   NORMAL: 'Normal',
@@ -60,12 +65,24 @@ export interface ReportSessionInput {
   subjectId: string
   /** timestamptz ISO */
   date: string
+  /** Fin de la clase; null en sesiones anteriores a la migración 027. */
+  classEndsAt?: string | null
   isActive: boolean | null
   suspendedAt: string | null
   suspensionReason?: string | null
   modality?: 'PRESENCIAL' | 'VIRTUAL' | null
   isMakeup?: boolean
   makeupReason?: string | null
+}
+
+/** Contexto para decidir si una clase ya terminó (DEF-QA-05). */
+export interface ReportHeldContext {
+  now: Date
+  defaultClassMinutes: number
+}
+
+function heldTimes(session: ReportSessionInput) {
+  return { id: session.id, date: session.date, class_ends_at: session.classEndsAt ?? null }
 }
 
 export interface ReportEnrollmentInput {
@@ -277,6 +294,8 @@ export interface BuildReportInput {
   classStats?: ReportClassStatsInput[]
   range?: ReportRange
   filters?: ReportFilters
+  /** Si viene, las clases en curso solo cuentan para quien ya escaneó. */
+  held?: ReportHeldContext
 }
 
 function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
@@ -357,33 +376,52 @@ export function buildAttendanceReport(input: BuildReportInput): AttendanceReport
   for (const subject of subjects) {
     const allSessions = sessionsBySubject.get(subject.id) || []
     const heldAll = allSessions.filter(isHeld)
-    const heldInRange = heldAll.filter((s) => isInRange(s.date, range))
+    const heldCtx = input.held
+    // Nivel materia (resumen): solo clases ya terminadas cuando hay contexto.
+    const heldEnded = heldCtx
+      ? heldAll.filter((s) => hasClassEnded(heldTimes(s), heldCtx.defaultClassMinutes, heldCtx.now))
+      : heldAll
+    const heldInRange = heldEnded.filter((s) => isInRange(s.date, range))
     const career = careerLabel(subject.careerNames)
     const professorName = subject.professorName || NO_PROFESSOR_LABEL
 
     const subjectRows: StudentSubjectRow[] = []
     for (const enrollment of enrollmentsBySubject.get(subject.id) || []) {
+      const attendedIds = new Set<string>()
+      for (const session of heldAll) {
+        if (attendanceByStudentSession.has(`${enrollment.studentId}|${session.id}`)) {
+          attendedIds.add(session.id)
+        }
+      }
+      // Dictadas PARA ESTE estudiante: terminadas, o en curso con asistencia propia.
+      const studentHeld = heldCtx
+        ? heldAll.filter((s) =>
+            isSessionHeldFor(heldTimes(s), attendedIds, heldCtx.now, heldCtx.defaultClassMinutes)
+          )
+        : heldAll
+      const studentHeldInRange = studentHeld.filter((s) => isInRange(s.date, range))
+
       const studentAttendance = new Map<string, ReportAttendanceInput>()
       const justifiedSessionIds = new Set<string>()
-      for (const session of heldAll) {
+      for (const session of studentHeld) {
         const key = `${enrollment.studentId}|${session.id}`
         const attendance = attendanceByStudentSession.get(key)
         if (attendance) studentAttendance.set(session.id, attendance)
         else if (approvedByStudentSession.has(key)) justifiedSessionIds.add(session.id)
       }
 
-      const semester = studentCounts(heldAll, studentAttendance, justifiedSessionIds)
+      const semester = studentCounts(studentHeld, studentAttendance, justifiedSessionIds)
       const semesterSummary = computeAttendanceSummary(
-        heldAll.length,
+        studentHeld.length,
         semester.attended,
         subject.policy,
         semester.late,
         semester.justified
       )
 
-      const inRange = studentCounts(heldInRange, studentAttendance, justifiedSessionIds)
+      const inRange = studentCounts(studentHeldInRange, studentAttendance, justifiedSessionIds)
       const rangeSummary = computeAttendanceSummary(
-        heldInRange.length,
+        studentHeldInRange.length,
         inRange.attended,
         subject.policy,
         inRange.late,
@@ -392,7 +430,7 @@ export function buildAttendanceReport(input: BuildReportInput): AttendanceReport
 
       const observations: ReportObservation[] = []
       const excuses: ReportExcuse[] = []
-      for (const session of heldInRange) {
+      for (const session of studentHeldInRange) {
         const attendance = studentAttendance.get(session.id)
         if (attendance?.markedBy) {
           observations.push({
@@ -416,7 +454,7 @@ export function buildAttendanceReport(input: BuildReportInput): AttendanceReport
         subject.cuts.length > 0
           ? computeCutsBreakdown(
               subject.cuts,
-              heldAll.map((s) => ({ id: s.id, date: s.date })),
+              studentHeld.map((s) => ({ id: s.id, date: s.date })),
               new Map(
                 [...studentAttendance].map(([sessionId, a]) => [sessionId, { status: a.status }])
               ),
@@ -434,13 +472,13 @@ export function buildAttendanceReport(input: BuildReportInput): AttendanceReport
         studentId: enrollment.studentId,
         studentCode: enrollment.studentCode || 'N/A',
         studentName: enrollment.studentName || 'Desconocido',
-        sessionsHeld: heldInRange.length,
+        sessionsHeld: studentHeldInRange.length,
         present: attendedInRange - lateInRange,
         late: lateInRange,
         justified: rangeSummary.justifiedCount,
         countedAbsences: rangeSummary.absencesCount,
-        attendancePct: pct(attendedInRange, heldInRange.length),
-        absencePct: heldInRange.length > 0 ? rangeSummary.absencePercentage : null,
+        attendancePct: pct(attendedInRange, studentHeldInRange.length),
+        absencePct: studentHeldInRange.length > 0 ? rangeSummary.absencePercentage : null,
         status: semesterSummary.status,
         statusLabel: STATUS_LABELS[semesterSummary.status],
         semesterAbsences: semesterSummary.absencesCount,
@@ -680,6 +718,8 @@ export function buildStudentHistory(input: {
   sessions: ReportSessionInput[]
   attendances: ReportAttendanceInput[]
   justifications: ReportJustificationInput[]
+  /** Si viene, las clases en curso solo cuentan si el estudiante ya escaneó. */
+  held?: ReportHeldContext
 }): StudentSubjectHistory[] {
   const sessionsBySubject = groupBy(input.sessions, (s) => s.subjectId)
   const mine = input.attendances.filter((a) => a.studentId === input.studentId)
@@ -697,7 +737,21 @@ export function buildStudentHistory(input: {
       const sessions = (sessionsBySubject.get(subject.id) || []).sort((a, b) =>
         a.date.localeCompare(b.date)
       )
-      const held = sessions.filter(isHeld)
+      const attendedSessionIds = new Set(attendanceBySession.keys())
+      const heldCtx = input.held
+      const held = sessions
+        .filter(isHeld)
+        .filter(
+          (s) =>
+            !heldCtx ||
+            isSessionHeldFor(
+              heldTimes(s),
+              attendedSessionIds,
+              heldCtx.now,
+              heldCtx.defaultClassMinutes
+            )
+        )
+      const heldIds = new Set(held.map((s) => s.id))
       const attendedMap = new Map<string, ReportAttendanceInput>()
       const justifiedIds = new Set<string>()
       for (const s of held) {
@@ -726,7 +780,7 @@ export function buildStudentHistory(input: {
           })
           continue
         }
-        if (!isHeld(s)) continue
+        if (!heldIds.has(s.id)) continue
         const a = attendedMap.get(s.id)
         if (a) {
           entries.push({
