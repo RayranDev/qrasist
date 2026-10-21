@@ -27,7 +27,7 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.121.0
 
       # Only the services the app actually talks to at runtime
       # (gotrue/postgrest/postgres-meta/storage-api behind kong) --
