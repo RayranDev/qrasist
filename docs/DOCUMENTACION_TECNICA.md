@@ -55,7 +55,7 @@ QR-Asist es una plataforma web progresiva (PWA-compatible) diseñada para digita
            │                           │
 ┌──────────▼──────────┐   ┌────────────▼────────────────┐
 │   Supabase Auth      │   │   Supabase Database          │
-│   GoTrue (JWT)       │   │   PostgreSQL 15              │
+│   GoTrue (JWT)       │   │   PostgreSQL 17              │
 │   Session cookies    │   │   Row Level Security         │
 └─────────────────────┘   └─────────────────────────────┘
 ```
