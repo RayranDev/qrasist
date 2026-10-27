@@ -3,6 +3,7 @@ import {
   buildRoleChangeWarning,
   emptyRoleChangeImpact,
   hasRoleChangeImpact,
+  resolvePostRoleChangeStep,
   resolveRoleChangeScope,
   type RoleChangeImpact,
 } from './roleChangeImpact'
@@ -127,7 +128,7 @@ describe('buildRoleChangeWarning', () => {
     expect(both[1]).toBe('Además, se cancelarán 3 solicitudes de inscripción pendientes.')
   })
 
-  it('warns that the user still appears as professor of the taught subjects', () => {
+  it('says the taught subjects are unlinked and left without a professor', () => {
     const [text] = buildRoleChangeWarning({
       userName: 'Luis',
       newRole: 'STUDENT',
@@ -136,11 +137,28 @@ describe('buildRoleChangeWarning', () => {
         taughtSubjects: { total: 2, subjects: [subject(5), subject(6)] },
       }),
     })
-    expect(text).toContain('Al pasar a Estudiante, Luis dejará de ser docente')
-    expect(text).toContain(
-      'seguirá apareciendo como docente de 2 materias (MAT5 Materia 5, MAT6 Materia 6)'
+    expect(text).toBe(
+      'Al pasar a Estudiante, Luis dejará de ser docente y se desvinculará de 2 materias: MAT5 Materia 5, MAT6 Materia 6. Quedarán sin docente hasta que asignes uno.'
     )
-    expect(text).toContain('hasta que las reasignes desde Materias')
-    expect(text).not.toMatch(/gestionar/)
+  })
+
+  it('uses the singular for one taught subject', () => {
+    const [text] = buildRoleChangeWarning({
+      userName: 'Luis',
+      newRole: 'ADMIN',
+      impact: impact({
+        currentRole: 'PROFESSOR',
+        taughtSubjects: { total: 1, subjects: [subject(5)] },
+      }),
+    })
+    expect(text).toContain('se desvinculará de 1 materia: MAT5 Materia 5. Quedará sin docente')
+  })
+})
+
+describe('resolvePostRoleChangeStep', () => {
+  it('picks the follow-up step by the new role', () => {
+    expect(resolvePostRoleChangeStep('PROFESSOR')).toBe('assign-subjects')
+    expect(resolvePostRoleChangeStep('STUDENT')).toBe('enroll-subjects')
+    expect(resolvePostRoleChangeStep('ADMIN')).toBeNull()
   })
 })

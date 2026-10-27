@@ -35,12 +35,12 @@ export default function RoleSelect({
     setPending(null)
     if (result.success) {
       const removed = result.enrollmentsRemoved ?? 0
-      showToast(
-        removed > 0
-          ? `Rol actualizado a ${ROLE_LABEL[newRole]}. Se desmatriculó de ${countOf(removed, 'materia')}.`
-          : `Rol actualizado a ${ROLE_LABEL[newRole]}.`,
-        'success'
-      )
+      const unassigned = result.subjectsUnassigned ?? 0
+      const details = [
+        removed > 0 ? `Se desmatriculó de ${countOf(removed, 'materia')}.` : '',
+        unassigned > 0 ? `Se desvinculó de ${countOf(unassigned, 'materia')} como docente.` : '',
+      ].filter(Boolean)
+      showToast([`Rol actualizado a ${ROLE_LABEL[newRole]}.`, ...details].join(' '), 'success')
       if (newRole === 'PROFESSOR') {
         onPromotedToProfessor?.({ id: userId, name: userName || 'Este usuario' })
       }

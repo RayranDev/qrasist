@@ -81,7 +81,6 @@ export async function getRoleChangeImpact(userId: string, newRole: UserRole) {
       .from('subjects')
       .select('code, name', { count: 'exact' })
       .eq('professor_id', userId)
-      .eq('is_active', true)
       .order('code')
       .limit(IMPACT_LIST_CAP)
     if (error) {
@@ -132,8 +131,29 @@ async function clearStudentEnrollments(supabase: ServerClient, adminId: string, 
 }
 
 /**
- * Changes a user's role. When the previous role is STUDENT and the new one is not,
- * the student's enrollments (and pending requests) are always removed server-side;
+ * Cleanup when a user stops being a professor: clear subjects.professor_id on every
+ * subject they teach (active or archived) so none is left pointing at a user who is
+ * no longer a professor. One atomic statement, so a failure changes nothing and the
+ * caller can revert the role. professor_careers is left intact. Nothing else hangs
+ * off a professor that has an existing cleanup pattern: pending enrollment requests
+ * are tied to the subject (the admin can still review them), and attendance
+ * 'marked_by' / reviewed_by columns are history.
+ */
+async function clearProfessorSubjects(supabase: ServerClient, professorId: string) {
+  const { data: cleared, error } = await supabase
+    .from('subjects')
+    .update({ professor_id: null })
+    .eq('professor_id', professorId)
+    .select('id')
+  if (error) return { stage: 'failed' as const }
+  return { stage: 'ok' as const, unassignedSubjectIds: (cleared || []).map((r) => r.id as string) }
+}
+
+/**
+ * Changes a user's role. The user is always unlinked from the subjects tied to the
+ * OLD role, server-side, whatever the client sent:
+ *  - STUDENT -> other: enrollments are deleted and pending requests rejected.
+ *  - PROFESSOR -> other: professor_id is cleared on every subject they teach.
  * `options.unenroll` only records that the admin saw and confirmed the warning.
  *
  * The write is conditional on the role that was read (compare-and-set), so a
@@ -181,13 +201,32 @@ export async function updateUserRole(
     }
   }
 
-  const cleanup = resolveRoleChangeScope(previousRole, newRole).leavesStudent
+  const scope = resolveRoleChangeScope(previousRole, newRole)
+  const cleanup = scope.leavesStudent
     ? await clearStudentEnrollments(supabase, adminUser.id, userId)
     : null
+  const professorCleanup = scope.leavesProfessor
+    ? await clearProfessorSubjects(supabase, userId)
+    : null
 
-  if (cleanup?.stage === 'enrollments_failed') {
+  const failure =
+    cleanup?.stage === 'enrollments_failed'
+      ? ({
+          reason: 'enrollments_delete_failed',
+          what: 'las inscripciones del estudiante',
+          verb: 'quitar',
+        } as const)
+      : professorCleanup?.stage === 'failed'
+        ? ({
+            reason: 'professor_unassign_failed',
+            what: 'las materias del docente',
+            verb: 'desvincular',
+          } as const)
+        : null
+
+  if (failure) {
     // Nothing else was touched: put the previous role back (only if it is still
-    // the one we set) so the user is not left as a non-student with enrollments.
+    // the one we set) so the user is not left with a new role over the old links.
     const { data: reverted, error: revertError } = await supabase
       .from('profiles')
       .update({ role: previousRole })
@@ -212,7 +251,7 @@ export async function updateUserRole(
       details: {
         role_before: previousRole,
         role_after: newRole,
-        reason: 'enrollments_delete_failed',
+        reason: failure.reason,
         outcome: revertFailed ? 'revert_failed' : 'reverted',
       },
     })
@@ -220,12 +259,14 @@ export async function updateUserRole(
     return {
       success: false,
       error: revertFailed
-        ? 'El rol cambió pero no se pudieron quitar las inscripciones del estudiante, y tampoco se pudo restaurar el rol. Revisa al usuario ahora.'
-        : 'No se pudieron quitar las inscripciones del estudiante. El rol no se cambió.',
+        ? `El rol cambió pero no se pudieron ${failure.verb} ${failure.what}, y tampoco se pudo restaurar el rol. Revisa al usuario ahora.`
+        : `No se pudieron ${failure.verb} ${failure.what}. El rol no se cambió.`,
     }
   }
 
   const removedSubjectIds = cleanup?.removedSubjectIds ?? []
+  const unassignedSubjectIds =
+    professorCleanup?.stage === 'ok' ? professorCleanup.unassignedSubjectIds : []
   const requestsFailed = cleanup?.stage === 'requests_failed'
 
   await logAudit({
@@ -245,11 +286,17 @@ export async function updateUserRole(
             unenroll_confirmed: options?.unenroll === true,
           }
         : {}),
+      ...(professorCleanup
+        ? {
+            subjects_unassigned: unassignedSubjectIds.length,
+            unassigned_subject_ids: unassignedSubjectIds.slice(0, AUDIT_SUBJECT_IDS_CAP),
+          }
+        : {}),
     },
   })
 
   revalidatePath('/admin/users')
-  if (cleanup) revalidatePath('/admin/subjects')
+  if (cleanup || professorCleanup) revalidatePath('/admin/subjects')
 
   if (requestsFailed) {
     // Enrollments are already gone, so the new role stays: report it honestly.
@@ -260,7 +307,11 @@ export async function updateUserRole(
         'Rol cambiado y desmatriculado, pero no se pudieron cancelar las solicitudes pendientes del usuario. Recházalas manualmente desde las materias.',
     }
   }
-  return { success: true, enrollmentsRemoved: removedSubjectIds.length }
+  return {
+    success: true,
+    enrollmentsRemoved: removedSubjectIds.length,
+    subjectsUnassigned: unassignedSubjectIds.length,
+  }
 }
 
 export async function createUserAccount(formData: FormData) {

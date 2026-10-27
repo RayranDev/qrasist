@@ -109,7 +109,7 @@ describe('updateUserRole', () => {
 
     const res = await updateUserRole('u1', 'PROFESSOR', { unenroll: false })
 
-    expect(res).toEqual({ success: true, enrollmentsRemoved: 2 })
+    expect(res).toEqual({ success: true, enrollmentsRemoved: 2, subjectsUnassigned: 0 })
     expect(tablesTouched('delete')).toEqual(['enrollments'])
     const requestUpdate = calls.find((c) => c.table === 'enrollment_requests')
     expect(requestUpdate?.args.update?.[0]).toMatchObject({
@@ -145,8 +145,8 @@ describe('updateUserRole', () => {
     expect(order).toEqual(['enrollments', 'enrollment_requests'])
   })
 
-  it('does not touch enrollments when the previous role was not STUDENT', async () => {
-    asAdmin('PROFESSOR')
+  it('touches neither enrollments nor subjects when the previous role was ADMIN', async () => {
+    asAdmin('ADMIN')
     results.set('profiles.update', ONE_ROW)
 
     const res = await updateUserRole('u1', 'STUDENT')
@@ -154,8 +154,101 @@ describe('updateUserRole', () => {
     expect(res.success).toBe(true)
     expect(tablesTouched('delete')).toEqual([])
     expect(calls.some((c) => c.table === 'enrollment_requests')).toBe(false)
+    expect(calls.some((c) => c.table === 'subjects')).toBe(false)
     const details = mockLogAudit.mock.calls[0][0].details
-    expect(details).toEqual({ role_before: 'PROFESSOR', role_after: 'STUDENT' })
+    expect(details).toEqual({ role_before: 'ADMIN', role_after: 'STUDENT' })
+  })
+
+  it('unlinks every subject the professor teaches when the role changes (even to ADMIN)', async () => {
+    asAdmin('PROFESSOR')
+    results.set('profiles.update', ONE_ROW)
+    results.set('subjects.update', { data: [{ id: 's1' }, { id: 's2' }], error: null })
+
+    const res = await updateUserRole('u1', 'STUDENT')
+
+    expect(res).toEqual({ success: true, enrollmentsRemoved: 0, subjectsUnassigned: 2 })
+    const subjectsUpdate = calls.find((c) => c.table === 'subjects')
+    expect(subjectsUpdate?.args.update?.[0]).toEqual({ professor_id: null })
+    expect(subjectsUpdate?.eqs).toEqual([['professor_id', 'u1']])
+    expect(tablesTouched('delete')).toEqual([])
+    expect(calls.some((c) => c.table === 'enrollment_requests')).toBe(false)
+    expect(mockLogAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'user.role_change',
+        details: expect.objectContaining({
+          role_before: 'PROFESSOR',
+          role_after: 'STUDENT',
+          subjects_unassigned: 2,
+          unassigned_subject_ids: ['s1', 's2'],
+        }),
+      })
+    )
+  })
+
+  it('caps the unassigned subject ids written to the audit entry at 50', async () => {
+    asAdmin('PROFESSOR')
+    results.set('profiles.update', ONE_ROW)
+    const many = Array.from({ length: 60 }, (_, i) => ({ id: `s${i}` }))
+    results.set('subjects.update', { data: many, error: null })
+
+    const res = await updateUserRole('u1', 'ADMIN')
+
+    expect(res).toMatchObject({ subjectsUnassigned: 60 })
+    const details = mockLogAudit.mock.calls[0][0].details
+    expect(details.subjects_unassigned).toBe(60)
+    expect(details.unassigned_subject_ids).toHaveLength(50)
+  })
+
+  it('reverts the role and audits when unlinking the professor subjects fails', async () => {
+    asAdmin('PROFESSOR')
+    results.set('profiles.update', [ONE_ROW, ONE_ROW])
+    results.set('subjects.update', { data: null, error: { message: 'boom' } })
+
+    const res = await updateUserRole('u1', 'STUDENT')
+
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(
+      /No se pudieron desvincular las materias del docente. El rol no se cambió/
+    )
+    expect(profileUpdates().map((c) => c.args.update?.[0])).toEqual([
+      { role: 'STUDENT' },
+      { role: 'PROFESSOR' },
+    ])
+    expect(profileUpdates()[1].eqs).toEqual([
+      ['id', 'u1'],
+      ['role', 'STUDENT'],
+    ])
+    expect(mockLogAudit).toHaveBeenCalledTimes(1)
+    expect(mockLogAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'user.role_change_failed',
+        details: expect.objectContaining({
+          reason: 'professor_unassign_failed',
+          outcome: 'reverted',
+        }),
+      })
+    )
+  })
+
+  it('is loud when the revert fails after a failed professor cleanup', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    asAdmin('PROFESSOR')
+    results.set('profiles.update', [ONE_ROW, NO_ROWS])
+    results.set('subjects.update', { data: null, error: { message: 'boom' } })
+
+    const res = await updateUserRole('u1', 'STUDENT')
+
+    expect(res.error).toMatch(/tampoco se pudo restaurar el rol/i)
+    expect(consoleError).toHaveBeenCalled()
+    expect(mockLogAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        details: expect.objectContaining({
+          reason: 'professor_unassign_failed',
+          outcome: 'revert_failed',
+        }),
+      })
+    )
+    consoleError.mockRestore()
   })
 
   it('aborts without changing anything when the previous role cannot be read', async () => {

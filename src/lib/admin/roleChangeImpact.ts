@@ -25,14 +25,14 @@ export interface RoleChangeImpact {
   enrollments: SubjectImpact
   /** Pending enrollment requests that are cancelled for the same reason. */
   pendingRequests: number
-  /** Active subjects currently assigned to the user as professor. */
+  /** Subjects currently assigned to the user as professor; they are unlinked (professor_id cleared). */
   taughtSubjects: SubjectImpact
 }
 
 export interface RoleChangeScope {
   /** STUDENT -> anything else: enrollments and pending requests are removed. */
   leavesStudent: boolean
-  /** PROFESSOR -> anything else: taught subjects are left without a working professor. */
+  /** PROFESSOR -> anything else: taught subjects are unlinked and left without a professor. */
   leavesProfessor: boolean
 }
 
@@ -41,6 +41,19 @@ export function resolveRoleChangeScope(from: UserRole | null, to: UserRole): Rol
     leavesStudent: from === 'STUDENT' && to !== 'STUDENT',
     leavesProfessor: from === 'PROFESSOR' && to !== 'PROFESSOR',
   }
+}
+
+/** Optional follow-up dialog after a successful role change, by the NEW role. */
+export type PostRoleChangeStep = 'assign-subjects' | 'enroll-subjects'
+
+/**
+ * PROFESSOR: pick the subjects they will teach. STUDENT: pick the subjects they
+ * will be enrolled in. ADMIN: nothing is linked to subjects, so no second step.
+ */
+export function resolvePostRoleChangeStep(newRole: UserRole): PostRoleChangeStep | null {
+  if (newRole === 'PROFESSOR') return 'assign-subjects'
+  if (newRole === 'STUDENT') return 'enroll-subjects'
+  return null
 }
 
 export function emptyRoleChangeImpact(currentRole: UserRole | null): RoleChangeImpact {
@@ -100,7 +113,7 @@ export function buildRoleChangeWarning(input: {
     const n = taughtSubjects.total
     const one = n === 1
     paragraphs.push(
-      `${intro} dejará de ser docente, pero seguirá apareciendo como docente de ${n} ${pluralize(n, 'materia')} (${describeSubjects(taughtSubjects)}) hasta que ${one ? 'la reasignes' : 'las reasignes'} desde Materias.`
+      `${intro} dejará de ser docente y se desvinculará de ${n} ${pluralize(n, 'materia')}: ${describeSubjects(taughtSubjects)}. ${one ? 'Quedará' : 'Quedarán'} sin docente hasta que asignes uno.`
     )
   }
 

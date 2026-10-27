@@ -142,6 +142,35 @@ describe('RoleSelect role change confirmation', () => {
     expect(onPromoted).not.toHaveBeenCalled()
   })
 
+  it('warns a professor that their subjects will be unlinked and reports it afterwards', async () => {
+    mockImpact.mockResolvedValue({
+      success: true,
+      impact: {
+        ...emptyRoleChangeImpact('PROFESSOR'),
+        taughtSubjects: { total: 1, subjects: [{ code: 'FIS1', name: 'Física' }] },
+      },
+    })
+    mockUpdate.mockResolvedValue({ success: true, enrollmentsRemoved: 0, subjectsUnassigned: 1 })
+    render(<RoleSelect userId="u2" currentRole="PROFESSOR" userName="Luis Gómez" />)
+
+    fireEvent.change(screen.getByLabelText('Rol del usuario'), { target: { value: 'STUDENT' } })
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog.textContent).toContain(
+      'Al pasar a Estudiante, Luis Gómez dejará de ser docente y se desvinculará de 1 materia: FIS1 Física. Quedará sin docente hasta que asignes uno.'
+    )
+    expect(mockUpdate).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sí, cambiar a Estudiante' }))
+
+    await waitFor(() =>
+      expect(mockToast).toHaveBeenCalledWith(
+        'Rol actualizado a Estudiante. Se desvinculó de 1 materia como docente.',
+        'success'
+      )
+    )
+  })
+
   it('does not change anything when the impact check fails', async () => {
     mockImpact.mockResolvedValue({ success: false, error: 'boom' })
     const select = renderSelect()

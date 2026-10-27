@@ -65,6 +65,9 @@ export function summarizeAuditDetails(action: string, details: Record<string, un
       if (typeof details.enrollments_removed === 'number' && details.enrollments_removed > 0) {
         parts.push(`desmatriculado de ${details.enrollments_removed}`)
       }
+      if (typeof details.subjects_unassigned === 'number' && details.subjects_unassigned > 0) {
+        parts.push(`desvinculado de ${details.subjects_unassigned} materias como docente`)
+      }
       if (details.pending_requests_cancel_failed === true) {
         parts.push('no se cancelaron las solicitudes pendientes')
       }
