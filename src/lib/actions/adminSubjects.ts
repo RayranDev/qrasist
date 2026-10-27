@@ -285,6 +285,7 @@ export async function listSubjectsAssignableToProfessor(
     .eq('subject_careers.is_active', true)
     .in('subject_careers.career_id', careerIds)
     .order('name')
+    .order('id')
   if (term) query = query.or(`name.ilike.%${term}%,code.ilike.%${term}%`)
 
   const { data, count, error } = await query.limit(ASSIGNABLE_SUBJECTS_PAGE_SIZE)

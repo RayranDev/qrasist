@@ -218,6 +218,9 @@ describe('listSubjectsAssignableToProfessor', () => {
     expect(query.args.in).toEqual(['subject_careers.career_id', ['career-1']])
     expect(query.args.or).toEqual(['name.ilike.%MAT1%,code.ilike.%MAT1%'])
     expect(query.args.limit).toEqual([20])
+    // Stable order: name, then id as the tie-breaker.
+    expect(query.ops.filter((op) => op === 'order')).toHaveLength(2)
+    expect(query.args.order).toEqual(['id'])
   })
 
   it('rejects non-admin callers', async () => {

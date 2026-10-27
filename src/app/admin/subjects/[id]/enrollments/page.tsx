@@ -4,7 +4,7 @@ import EnrollmentManager from './EnrollmentManager'
 import MobileWarningBanner from '@/components/MobileWarningBanner'
 import BackLink from '@/components/BackLink'
 import { sanitizeSearchTerm } from '@/lib/utils/searchTerm'
-import { pageBounds, parsePageParam, totalPagesFor } from '@/lib/utils/pagination'
+import { pageBounds, parsePageParam, resolveTwoListRedirect } from '@/lib/utils/pagination'
 import { buildEnrollmentsHref } from './enrollmentsHref'
 
 export const dynamic = 'force-dynamic'
@@ -68,6 +68,7 @@ export default async function SubjectEnrollmentsPage({
       .select('id, name, student_code, enrollments!inner(subject_id)', { count: 'exact' })
       .eq('enrollments.subject_id', id)
       .order('name')
+      .order('id')
     if (searchQuery) enrolledQuery = enrolledQuery.or(searchFilter)
 
     // Disponibles: solo estudiantes activos (regla D: con una carrera activa en
@@ -87,6 +88,7 @@ export default async function SubjectEnrollmentsPage({
       .eq('enrollments.subject_id', id)
       .is('enrollments', null)
       .order('name')
+      .order('id')
     if (searchQuery) availableQuery = availableQuery.or(searchFilter)
 
     const enrolledBounds = pageBounds(enrolledPage, PAGE_SIZE)
@@ -98,18 +100,27 @@ export default async function SubjectEnrollmentsPage({
     ])
 
     // PostgREST answers PGRST103 (416) when the requested range starts past the
-    // last row, e.g. after removing the only row of the last page. Fall back to
-    // page 1 of that list instead of showing an error.
+    // last row; with the counts, a page past the end is clamped to the last one
+    // (e.g. after removing the only row of the last page).
     const enrolledOutOfRange = enrolledRes.error?.code === 'PGRST103'
     const availableOutOfRange = availableRes.error?.code === 'PGRST103'
-    if (enrolledOutOfRange || availableOutOfRange) {
-      redirect(
-        buildEnrollmentsHref(basePath, {
-          q: searchQuery,
-          page: availableOutOfRange ? 1 : availablePage,
-          epage: enrolledOutOfRange ? 1 : enrolledPage,
-        })
-      )
+    const redirectTo = resolveTwoListRedirect(
+      {
+        available: {
+          page: availablePage,
+          total: availableRes.error ? null : (availableRes.count ?? 0),
+          outOfRange: availableOutOfRange,
+        },
+        enrolled: {
+          page: enrolledPage,
+          total: enrolledRes.error ? null : (enrolledRes.count ?? 0),
+          outOfRange: enrolledOutOfRange,
+        },
+      },
+      PAGE_SIZE
+    )
+    if (redirectTo) {
+      redirect(buildEnrollmentsHref(basePath, { q: searchQuery, ...redirectTo }))
     }
 
     if (enrolledRes.error || availableRes.error) {
@@ -121,20 +132,6 @@ export default async function SubjectEnrollmentsPage({
     enrolledTotal = enrolledRes.count ?? 0
     availableStudents = (availableRes.data || []) as unknown as StudentRow[]
     availableTotal = availableRes.count ?? 0
-
-    // After an enroll/unenroll the current page can end up past the last one
-    // (e.g. the last row of the last page was removed): jump to the new last page.
-    const lastEnrolledPage = totalPagesFor(enrolledTotal, PAGE_SIZE)
-    const lastAvailablePage = totalPagesFor(availableTotal, PAGE_SIZE)
-    if (!loadFailed && (enrolledPage > lastEnrolledPage || availablePage > lastAvailablePage)) {
-      redirect(
-        buildEnrollmentsHref(basePath, {
-          q: searchQuery,
-          page: Math.min(availablePage, lastAvailablePage),
-          epage: Math.min(enrolledPage, lastEnrolledPage),
-        })
-      )
-    }
 
     // Empty-state wording: nobody eligible vs. everybody eligible already enrolled.
     if (availableTotal === 0 && !searchQuery) {

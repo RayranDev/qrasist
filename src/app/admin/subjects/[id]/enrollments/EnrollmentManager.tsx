@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { RoleBadge } from '@/components/ui/RoleBadge'
 import { Users, UserCheck, Search } from 'lucide-react'
 import { totalPagesFor } from '@/lib/utils/pagination'
+import { sanitizeSearchTerm } from '@/lib/utils/searchTerm'
 import { countOf } from '@/lib/utils/plural'
 import { buildEnrollmentsHref } from './enrollmentsHref'
 
@@ -52,14 +53,30 @@ export default function EnrollmentManager({
   const pendingSearch = useRef<ReturnType<typeof setTimeout> | null>(null)
   const showToast = useToast()
 
+  // Keep the input in sync with the URL when it changes from outside (browser
+  // back/forward, server-side sanitizing). Our own debounced navigations are
+  // skipped: `lastPushed` is the term we sent, so their echo never overwrites
+  // what the admin has typed since.
+  const [prevQuery, setPrevQuery] = useState(searchQuery)
+  const [lastPushed, setLastPushed] = useState(searchQuery)
+  if (searchQuery !== prevQuery) {
+    setPrevQuery(searchQuery)
+    if (searchQuery !== lastPushed) {
+      setSearch(searchQuery)
+      setLastPushed(searchQuery)
+    }
+  }
+
   // Debounce: wait for the admin to stop typing instead of querying per keystroke.
-  // The pushed URL never carries page/epage, so every new search starts at page 1.
+  // The URL never carries page/epage, so every new search starts at page 1, and
+  // replace() keeps Back from walking through every intermediate term.
   useEffect(() => {
-    if (search.trim() === searchQuery) return
-    pendingSearch.current = setTimeout(
-      () => router.push(buildEnrollmentsHref(basePath, { q: search })),
-      400
-    )
+    const term = sanitizeSearchTerm(search)
+    if (term === searchQuery) return
+    pendingSearch.current = setTimeout(() => {
+      setLastPushed(term)
+      router.replace(buildEnrollmentsHref(basePath, { q: term }))
+    }, 400)
     return () => {
       if (pendingSearch.current) clearTimeout(pendingSearch.current)
     }
