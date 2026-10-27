@@ -64,6 +64,64 @@ describe('admin report PDF', () => {
     expect(all).toContain(`Página ${pages.length} de ${pages.length}`)
   })
 
+  it('shows per-cut columns before the general figure for a subject with cuts', async () => {
+    const report = buildAttendanceReport({
+      subjects: [subject],
+      sessions,
+      enrollments: enrollments.slice(0, 3),
+      attendances,
+      justifications,
+    })
+    const pages = await extractPages(
+      await renderAdminReportPdf(report, { periodName: '2026-1', scopeLabel: 'Todo el período' })
+    )
+    const all = pages.join('\n')
+    expect(all).toContain('% Corte 1')
+    expect(all).toContain('% Corte 2')
+    expect(all).toContain('% Asist. (general)')
+    expect(all).toContain('cada columna "% corte"')
+    const table = all.slice(all.indexOf('solo muestran la cifra general.'))
+    expect(table.indexOf('% Corte 2')).toBeGreaterThan(-1)
+    expect(table.indexOf('% Corte 2')).toBeLessThan(table.indexOf('% Asist. (general)'))
+  })
+
+  it('labels the general column as range when the report is scoped to one cut', async () => {
+    const report = buildAttendanceReport({
+      subjects: [subject],
+      sessions,
+      enrollments: enrollments.slice(0, 3),
+      attendances,
+      justifications,
+      range,
+    })
+    const all = (
+      await extractPages(
+        await renderAdminReportPdf(report, { periodName: '2026-1', scopeLabel: 'Corte 1' })
+      )
+    ).join('\n')
+    expect(all).toContain('% Asist. (rango)')
+    expect(all).not.toContain('% Asist. (general)')
+  })
+
+  it('keeps the plain table (no cut columns, no cut note) for a subject without cuts', async () => {
+    const report = buildAttendanceReport({
+      subjects: [{ ...subject, cuts: [] }],
+      sessions,
+      enrollments: enrollments.slice(0, 3),
+      attendances,
+      justifications,
+    })
+    const all = (
+      await extractPages(
+        await renderAdminReportPdf(report, { periodName: '2026-1', scopeLabel: 'Todo el período' })
+      )
+    ).join('\n')
+    expect(all).not.toContain('% Corte')
+    expect(all).not.toContain('(general)')
+    expect(all).not.toContain('cada columna "% corte"')
+    expect(all).toContain('% Asist.')
+  })
+
   it('renders for a period with no subjects', async () => {
     const report = buildAttendanceReport({
       subjects: [],
