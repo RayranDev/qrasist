@@ -1,7 +1,9 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Search } from 'lucide-react'
 import FilterPanel, { FilterField } from '@/components/FilterPanel'
 
 interface Career {
@@ -26,6 +28,7 @@ export default function SubjectFilters({
   levelFilter,
   professorFilter,
   statusFilter,
+  searchQuery,
   inactiveCount,
 }: {
   careers: Career[]
@@ -35,9 +38,11 @@ export default function SubjectFilters({
   levelFilter?: number
   professorFilter?: string
   statusFilter: 'active' | 'inactive'
+  searchQuery: string
   inactiveCount: number
 }) {
   const router = useRouter()
+  const [query, setQuery] = useState(searchQuery)
 
   const navigate = (overrides: Record<string, string | undefined>) => {
     const params = new URLSearchParams()
@@ -46,18 +51,47 @@ export default function SubjectFilters({
       level: levelFilter ? String(levelFilter) : undefined,
       professor: professorFilter,
       status: statusFilter !== 'active' ? statusFilter : undefined,
+      q: query.trim() || undefined,
       ...overrides,
     }
     if (next.career) params.set('career', next.career)
     if (next.level) params.set('level', next.level)
     if (next.professor) params.set('professor', next.professor)
     if (next.status) params.set('status', next.status)
+    if (next.q) params.set('q', next.q)
     const qs = params.toString()
     router.push(qs ? `?${qs}` : '?')
   }
 
+  // Debounce: wait for the admin to stop typing instead of querying per keystroke.
+  // navigate() never carries `page`, so every new search starts at page 1.
+  useEffect(() => {
+    if (query.trim() === searchQuery) return
+    const timeout = setTimeout(() => navigate({ q: query.trim() || undefined }), 400)
+    return () => clearTimeout(timeout)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query])
+
   return (
     <FilterPanel>
+      <FilterField label="Buscar">
+        <div className="relative min-w-50">
+          <Search
+            className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2"
+            aria-hidden="true"
+          />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            type="text"
+            aria-label="Buscar materia por nombre o código"
+            placeholder="Nombre o código..."
+            autoComplete="off"
+            className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-navy-600 focus:ring-2 focus:ring-navy-100 transition-all"
+          />
+        </div>
+      </FilterField>
+
       <FilterField label="Carrera">
         <select
           value={careerFilter || ''}
@@ -109,13 +143,13 @@ export default function SubjectFilters({
       <FilterField label="Estado">
         <div className="flex gap-2">
           <Link
-            href={buildStatusHref('active', careerFilter, levelFilter, professorFilter)}
+            href={buildStatusHref('active', careerFilter, levelFilter, professorFilter, query)}
             className={`px-4 py-1.5 rounded-xl text-xs font-bold transition ${statusFilter === 'active' ? 'bg-navy-800 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}
           >
             Activas
           </Link>
           <Link
-            href={buildStatusHref('inactive', careerFilter, levelFilter, professorFilter)}
+            href={buildStatusHref('inactive', careerFilter, levelFilter, professorFilter, query)}
             className={`px-4 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${statusFilter === 'inactive' ? 'bg-amber-500 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-amber-50'}`}
           >
             Archivadas
@@ -137,13 +171,15 @@ function buildStatusHref(
   status: 'active' | 'inactive',
   career?: string,
   level?: number,
-  professor?: string
+  professor?: string,
+  q?: string
 ) {
   const params = new URLSearchParams()
   if (career) params.set('career', career)
   if (level) params.set('level', String(level))
   if (professor) params.set('professor', professor)
   if (status !== 'active') params.set('status', status)
+  if (q?.trim()) params.set('q', q.trim())
   const qs = params.toString()
   return qs ? `?${qs}` : '?'
 }

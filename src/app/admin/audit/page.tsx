@@ -3,6 +3,7 @@ import Link from 'next/link'
 import AdminHeader from '@/components/admin/AdminHeader'
 import MobileWarningBanner from '@/components/MobileWarningBanner'
 import { formatBogotaDateTime } from '@/lib/utils/bogotaDay'
+import { sanitizeSearchTerm } from '@/lib/utils/searchTerm'
 import { AUDIT_ACTION_LABELS, auditActionLabel, summarizeAuditDetails } from './auditDisplay'
 import AuditFilters from './AuditFilters'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -60,7 +61,7 @@ export default async function AdminAuditPage({
   const from = (currentPage - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
 
-  const actorQuery = (params.actor || '').trim().replace(/[,()]/g, '').slice(0, 100)
+  const actorQuery = sanitizeSearchTerm(params.actor)
 
   let actorIdFilter: string[] | undefined
   if (actorQuery) {

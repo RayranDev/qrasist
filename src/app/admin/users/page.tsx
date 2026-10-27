@@ -2,6 +2,7 @@ import { requireRole } from '@/lib/auth/requireRole'
 import AdminUserList from './AdminUserList'
 import MobileWarningBanner from '@/components/MobileWarningBanner'
 import AdminHeader from '@/components/admin/AdminHeader'
+import { sanitizeSearchTerm } from '@/lib/utils/searchTerm'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,10 +53,9 @@ export default async function AdminUsersPage({
 
   const careerFilter = careers?.some((c) => c.id === params.career) ? params.career : undefined
 
-  // Se sacan comas y parentesis porque tienen significado especial
-  // en la sintaxis de filtros .or() de PostgREST -- sin esto, un
-  // nombre con coma podria alterar el filtro en vez de buscarlo.
-  const searchQuery = (params.q || '').trim().replace(/[,()]/g, '').slice(0, 100)
+  // Se sacan comas, parentesis y comodines: tienen significado especial en la
+  // sintaxis de filtros .or() de PostgREST (ver sanitizeSearchTerm).
+  const searchQuery = sanitizeSearchTerm(params.q)
 
   let query = supabase
     .from('profiles')
