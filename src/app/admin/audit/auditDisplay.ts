@@ -16,6 +16,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'user.role_change': 'Cambió el rol de un usuario',
   'user.role_change_failed': 'Falló un cambio de rol (se revirtió o requiere revisión)',
   'user.assign_subjects': 'Asignó materias a un docente',
+  'user.enroll_subjects': 'Matriculó a un estudiante en materias',
   'user.create': 'Creó una cuenta',
   'user.deactivate': 'Desactivó una cuenta',
   'user.reactivate': 'Reactivó una cuenta',
@@ -76,6 +77,11 @@ export function summarizeAuditDetails(action: string, details: Record<string, un
       parts.push(`${details.role_before ?? '?'} → ${details.role_after ?? '?'}`)
       if (details.outcome === 'revert_failed') parts.push('NO se pudo restaurar el rol')
       else if (details.outcome === 'reverted') parts.push('rol restaurado')
+      break
+    case 'user.enroll_subjects':
+      if (typeof details.enrolled_count === 'number') {
+        parts.push(`${details.enrolled_count} materias`)
+      }
       break
     case 'user.assign_subjects':
       if (typeof details.assigned_count === 'number') {

@@ -110,27 +110,48 @@ describe('RoleSelect role change confirmation', () => {
     )
   })
 
-  it('offers to assign subjects only after a successful change to PROFESSOR', async () => {
+  it('offers the assign-subjects step after a successful change to PROFESSOR', async () => {
     mockImpact.mockResolvedValue({ success: true, impact: emptyRoleChangeImpact('STUDENT') })
-    const onPromoted = vi.fn()
+    const onStep = vi.fn()
     render(
       <RoleSelect
         userId="u1"
         currentRole="STUDENT"
         userName="Ana Pérez"
-        onPromotedToProfessor={onPromoted}
+        onRoleChangeStep={onStep}
       />
     )
 
     fireEvent.change(screen.getByLabelText('Rol del usuario'), { target: { value: 'PROFESSOR' } })
 
-    await waitFor(() => expect(onPromoted).toHaveBeenCalledWith({ id: 'u1', name: 'Ana Pérez' }))
+    await waitFor(() =>
+      expect(onStep).toHaveBeenCalledWith({ id: 'u1', name: 'Ana Pérez', step: 'assign-subjects' })
+    )
   })
 
-  it('does not offer it when the change to PROFESSOR fails or the target is another role', async () => {
+  it('offers the enroll-subjects step after a successful change to STUDENT', async () => {
+    mockImpact.mockResolvedValue({ success: true, impact: emptyRoleChangeImpact('PROFESSOR') })
+    const onStep = vi.fn()
+    render(
+      <RoleSelect
+        userId="u2"
+        currentRole="PROFESSOR"
+        userName="Luis Gómez"
+        onRoleChangeStep={onStep}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('Rol del usuario'), { target: { value: 'STUDENT' } })
+
+    await waitFor(() =>
+      expect(onStep).toHaveBeenCalledWith({ id: 'u2', name: 'Luis Gómez', step: 'enroll-subjects' })
+    )
+  })
+
+  it('offers no step for ADMIN or when the change fails', async () => {
     mockImpact.mockResolvedValue({ success: true, impact: emptyRoleChangeImpact('STUDENT') })
-    const onPromoted = vi.fn()
-    render(<RoleSelect userId="u1" currentRole="STUDENT" onPromotedToProfessor={onPromoted} />)
+    const onStep = vi.fn()
+    render(<RoleSelect userId="u1" currentRole="STUDENT" onRoleChangeStep={onStep} />)
     const select = screen.getByLabelText('Rol del usuario')
 
     mockUpdate.mockResolvedValueOnce({ success: false, error: 'nope' })
@@ -139,7 +160,7 @@ describe('RoleSelect role change confirmation', () => {
 
     fireEvent.change(select, { target: { value: 'ADMIN' } })
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(2))
-    expect(onPromoted).not.toHaveBeenCalled()
+    expect(onStep).not.toHaveBeenCalled()
   })
 
   it('warns a professor that their subjects will be unlinked and reports it afterwards', async () => {

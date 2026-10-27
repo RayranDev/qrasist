@@ -12,7 +12,10 @@ export const ASSIGNABLE_SUBJECTS_PAGE_SIZE = 20
 export type NormalizedSubjectIds = { ok: true; ids: string[] } | { ok: false; error: string }
 
 /** Trims, drops blanks, removes duplicates and enforces the 1..MAX_ASSIGN_SUBJECTS range. */
-export function normalizeSubjectIds(input: unknown): NormalizedSubjectIds {
+export function normalizeSubjectIds(
+  input: unknown,
+  verb: 'asignar' | 'inscribir' = 'asignar'
+): NormalizedSubjectIds {
   if (!Array.isArray(input)) return { ok: false, error: 'Selección de materias inválida.' }
   const ids = Array.from(
     new Set(
@@ -26,7 +29,7 @@ export function normalizeSubjectIds(input: unknown): NormalizedSubjectIds {
   if (ids.length > MAX_ASSIGN_SUBJECTS) {
     return {
       ok: false,
-      error: `Puedes asignar hasta ${MAX_ASSIGN_SUBJECTS} materias a la vez.`,
+      error: `Puedes ${verb} hasta ${MAX_ASSIGN_SUBJECTS} materias a la vez.`,
     }
   }
   return { ok: true, ids }

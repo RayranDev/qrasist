@@ -5,7 +5,12 @@ import { getRoleChangeImpact, updateUserRole } from '@/lib/actions/admin'
 import { useToast } from '@/components/toast/ToastProvider'
 import { RoleBadge } from '@/components/ui/RoleBadge'
 import { ROLE_LABEL, type UserRole } from '@/components/ui/roleMeta'
-import { buildRoleChangeWarning, hasRoleChangeImpact } from '@/lib/admin/roleChangeImpact'
+import {
+  buildRoleChangeWarning,
+  hasRoleChangeImpact,
+  resolvePostRoleChangeStep,
+  type PostRoleChangeStep,
+} from '@/lib/admin/roleChangeImpact'
 import { countOf } from '@/lib/utils/plural'
 import RoleChangeConfirmDialog from './RoleChangeConfirmDialog'
 
@@ -14,16 +19,14 @@ interface Props {
   currentRole: UserRole
   /** Shown in the confirmation warning. */
   userName?: string
-  /** Called after a successful change to PROFESSOR, to offer assigning subjects. */
-  onPromotedToProfessor?: (user: { id: string; name: string }) => void
+  /**
+   * Called after a successful change, with the optional follow-up for the NEW role
+   * (PROFESSOR: assign subjects, STUDENT: enroll in subjects; ADMIN: not called).
+   */
+  onRoleChangeStep?: (user: { id: string; name: string; step: PostRoleChangeStep }) => void
 }
 
-export default function RoleSelect({
-  userId,
-  currentRole,
-  userName,
-  onPromotedToProfessor,
-}: Props) {
+export default function RoleSelect({ userId, currentRole, userName, onRoleChangeStep }: Props) {
   const [loading, setLoading] = useState(false)
   const [pending, setPending] = useState<{ newRole: UserRole; paragraphs: string[] } | null>(null)
   const showToast = useToast()
@@ -41,9 +44,8 @@ export default function RoleSelect({
         unassigned > 0 ? `Se desvinculó de ${countOf(unassigned, 'materia')} como docente.` : '',
       ].filter(Boolean)
       showToast([`Rol actualizado a ${ROLE_LABEL[newRole]}.`, ...details].join(' '), 'success')
-      if (newRole === 'PROFESSOR') {
-        onPromotedToProfessor?.({ id: userId, name: userName || 'Este usuario' })
-      }
+      const step = resolvePostRoleChangeStep(newRole)
+      if (step) onRoleChangeStep?.({ id: userId, name: userName || 'Este usuario', step })
     } else {
       showToast(result.error || 'No se pudo actualizar el rol.', 'error')
     }

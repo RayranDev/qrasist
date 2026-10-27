@@ -5,6 +5,8 @@ import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
 import RoleSelect from './RoleSelect'
 import AssignSubjectsDialog from './AssignSubjectsDialog'
+import EnrollSubjectsDialog from './EnrollSubjectsDialog'
+import type { PostRoleChangeStep } from '@/lib/admin/roleChangeImpact'
 import {
   CreateUserForm,
   ActionButtons,
@@ -134,7 +136,11 @@ export default function AdminUserList({
   } | null>(null)
   // Lives here (not in RoleSelect) so the step survives the list refresh that
   // follows a role change, even when the new role filters the row out.
-  const [assignFor, setAssignFor] = useState<{ id: string; name: string } | null>(null)
+  const [roleStep, setRoleStep] = useState<{
+    id: string
+    name: string
+    step: PostRoleChangeStep
+  } | null>(null)
 
   return (
     <>
@@ -142,14 +148,26 @@ export default function AdminUserList({
         <CreateUserForm />
       </div>
 
-      {assignFor && (
+      {roleStep?.step === 'assign-subjects' && (
         <AssignSubjectsDialog
-          professorId={assignFor.id}
-          professorName={assignFor.name}
-          onClose={() => setAssignFor(null)}
+          professorId={roleStep.id}
+          professorName={roleStep.name}
+          onClose={() => setRoleStep(null)}
           onAssignCareers={() => {
-            setCareersProf(assignFor)
-            setAssignFor(null)
+            setCareersProf({ id: roleStep.id, name: roleStep.name })
+            setRoleStep(null)
+          }}
+        />
+      )}
+
+      {roleStep?.step === 'enroll-subjects' && (
+        <EnrollSubjectsDialog
+          studentId={roleStep.id}
+          studentName={roleStep.name}
+          onClose={() => setRoleStep(null)}
+          onAssignCareers={() => {
+            setCareersUser({ id: roleStep.id, name: roleStep.name })
+            setRoleStep(null)
           }}
         />
       )}
@@ -324,7 +342,7 @@ export default function AdminUserList({
                       userId={profile.id}
                       currentRole={profile.role}
                       userName={profile.name}
-                      onPromotedToProfessor={setAssignFor}
+                      onRoleChangeStep={setRoleStep}
                     />
                   ) : (
                     <RoleBadge role={profile.role} />
@@ -463,7 +481,7 @@ export default function AdminUserList({
                         userId={profile.id}
                         currentRole={profile.role}
                         userName={profile.name}
-                        onPromotedToProfessor={setAssignFor}
+                        onRoleChangeStep={setRoleStep}
                       />
                     ) : (
                       <RoleBadge role={profile.role} />

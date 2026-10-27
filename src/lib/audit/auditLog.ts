@@ -27,6 +27,7 @@ export type AuditAction =
   | 'user.role_change'
   | 'user.role_change_failed'
   | 'user.assign_subjects'
+  | 'user.enroll_subjects'
   | 'user.create'
   | 'user.deactivate'
   | 'user.reactivate'
