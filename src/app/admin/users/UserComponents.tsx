@@ -79,7 +79,7 @@ function DeactivateConfirmModal({
           type="text"
           placeholder="Escribe el nombre exacto..."
           aria-label="Nombre del usuario a desactivar, para confirmar"
-          className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:bg-white focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all mb-4"
+          className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:bg-white focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all mb-4"
         />
         <div className="flex gap-3">
           <button

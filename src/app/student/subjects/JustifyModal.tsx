@@ -171,7 +171,7 @@ export default function JustifyModal({
           value={reason}
           onChange={(e) => setReason(e.target.value.slice(0, MAX_REASON))}
           rows={4}
-          className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:border-navy-600 focus:ring-2 focus:ring-navy-100 transition-all mb-1"
+          className="w-full px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:border-navy-600 focus:ring-2 focus:ring-navy-100 transition-all mb-1"
           placeholder="Ej. Incapacidad médica adjunta, cita en la EPS a la misma hora de la clase..."
         />
         <p className="text-[11px] text-gray-400 text-right mb-3">

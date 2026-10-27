@@ -160,7 +160,7 @@ export default async function AdminSubjectsPage({
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-              <h2 className="text-xl font-semibold">Materias</h2>
+              <h2 className="text-xl font-semibold text-gray-900">Materias</h2>
               <div className="flex items-center gap-3">
                 <BulkImportButton types={['SUBJECT', 'ENROLLMENT']} />
                 <ExportSubjectsButton subjects={exportRows} />

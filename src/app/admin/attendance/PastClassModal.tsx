@@ -113,7 +113,7 @@ export default function PastClassModal({
                 onChange={(e) => setNote(e.target.value.slice(0, MAX_PAST_SESSION_NOTE_LENGTH))}
                 rows={2}
                 placeholder="Ej. Lista en papel entregada por el profesor el 12/03"
-                className="w-full px-3.5 py-2.5 text-sm bg-white border border-gray-200 rounded-xl outline-none hover:border-gray-300 focus:border-navy-600 focus:ring-2 focus:ring-navy-100"
+                className="w-full px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 bg-white border border-gray-200 rounded-xl outline-none hover:border-gray-300 focus:border-navy-600 focus:ring-2 focus:ring-navy-100"
               />
             </div>
 
