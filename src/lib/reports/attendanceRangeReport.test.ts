@@ -203,6 +203,27 @@ describe('buildRangeReport', () => {
     expect(report.detail[0].professorName).toBe('Sin asignar')
   })
 
+  it('only treats an in-progress class as held when a currently enrolled student scanned', () => {
+    const inProgress = session('now', '2026-10-20T11:30:00Z')
+    const ghostOnly = build({
+      sessions: [inProgress],
+      // 'ghost' scanned but is no longer enrolled in the subject.
+      attendances: [attendance('now', 'ghost')],
+      from: '2026-10-20',
+      to: '2026-10-20',
+    })
+    expect(ghostOnly.detail).toEqual([])
+    expect(ghostOnly.summary[0]).toMatchObject({ sessionsHeld: 0, attendances: 0 })
+
+    const enrolledToo = build({
+      sessions: [inProgress],
+      attendances: [attendance('now', 'ghost'), attendance('now', 'a')],
+      from: '2026-10-20',
+      to: '2026-10-20',
+    })
+    expect(enrolledToo.summary[0]).toMatchObject({ sessionsHeld: 1, attendances: 1 })
+  })
+
   it('aborts as soon as the detail exceeds maxDetailRows', () => {
     const input = {
       sessions: [session('ses1', '2026-10-05T13:00:00Z')],

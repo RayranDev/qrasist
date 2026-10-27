@@ -106,6 +106,8 @@ export async function generateUserReport(
   const data = await loadReportData(supabase, {
     subjectIds,
     activeOnly: true,
+    // buildProfessorUserReport no usa justificaciones: se evita la consulta.
+    skipJustifications: true,
     dateRange: params.range
       ? {
           startIso: dayBounds(params.range.from).startIso,

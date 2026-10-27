@@ -112,9 +112,7 @@ export function buildRangeReport(input: RangeReportInput): RangeReport {
   const collator = new Intl.Collator('es', { numeric: true, sensitivity: 'base' })
 
   const attendanceByKey = new Map<string, ReportAttendanceInput>()
-  const attendedSessionIds = new Set<string>()
   for (const a of input.attendances) {
-    attendedSessionIds.add(a.sessionId)
     const key = `${a.studentId}|${a.sessionId}`
     if (!attendanceByKey.has(key)) attendanceByKey.set(key, a)
   }
@@ -165,9 +163,12 @@ export function buildRangeReport(input: RangeReportInput): RangeReport {
           input.held.defaultClassMinutes,
           input.held.now
         )
-      // En curso solo cuenta como dictada si alguien ya escaneó (misma regla
-      // que el resumen por materia de attendanceReport).
-      const counted = !suspended && (ended || attendedSessionIds.has(session.id))
+      // En curso solo cuenta como dictada si algún inscrito actual ya escaneó
+      // (misma regla que el resumen por materia de attendanceReport: las
+      // asistencias de quien ya no está inscrito no cuentan).
+      const counted =
+        !suspended &&
+        (ended || enrolled.some((e) => attendanceByKey.has(`${e.studentId}|${session.id}`)))
       if (suspended) sessionsSuspended++
       else if (counted) sessionsHeld++
 

@@ -100,6 +100,8 @@ export interface ReportDataQuery {
    * de las materias.
    */
   dateRange?: { startIso: string; endIso: string }
+  /** No consulta justificaciones (devuelve []): para reportes que no las usan. */
+  skipJustifications?: boolean
 }
 
 export interface ReportData {
@@ -266,26 +268,28 @@ export async function loadReportData(
         }
         return q.order('id').range(from, to)
       }),
-      fetchAllRows<JustificationRow>((from, to) => {
-        let q = supabase
-          .from('absence_justifications')
-          // El literal del select le da tipos al builder; con el rango se agrega
-          // el join solo para poder filtrar por la fecha de la clase.
-          .select(
-            (query.dateRange
-              ? `${JUSTIFICATION_SELECT}, sessions!inner(date)`
-              : JUSTIFICATION_SELECT) as typeof JUSTIFICATION_SELECT
-          )
-          .eq('status', 'APPROVED')
-          .in('subject_id', part)
-        if (query.studentId) q = q.eq('student_id', query.studentId)
-        if (query.dateRange) {
-          q = q
-            .gte('sessions.date', query.dateRange.startIso)
-            .lt('sessions.date', query.dateRange.endIso)
-        }
-        return q.order('id').range(from, to)
-      }),
+      query.skipJustifications
+        ? Promise.resolve({ data: [] as JustificationRow[], error: null })
+        : fetchAllRows<JustificationRow>((from, to) => {
+            let q = supabase
+              .from('absence_justifications')
+              // El literal del select le da tipos al builder; con el rango se agrega
+              // el join solo para poder filtrar por la fecha de la clase.
+              .select(
+                (query.dateRange
+                  ? `${JUSTIFICATION_SELECT}, sessions!inner(date)`
+                  : JUSTIFICATION_SELECT) as typeof JUSTIFICATION_SELECT
+              )
+              .eq('status', 'APPROVED')
+              .in('subject_id', part)
+            if (query.studentId) q = q.eq('student_id', query.studentId)
+            if (query.dateRange) {
+              q = q
+                .gte('sessions.date', query.dateRange.startIso)
+                .lt('sessions.date', query.dateRange.endIso)
+            }
+            return q.order('id').range(from, to)
+          }),
     ])
 
     for (const e of [sessionRes, enrollmentRes, attendanceRes, justificationRes]) {

@@ -6,6 +6,7 @@ import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useToast } from '@/components/toast/ToastProvider'
+import { checkDayRange } from '@/lib/reports/dayRange'
 import { downloadReport } from '@/lib/reports/downloadReport'
 import { userReportUrl } from '@/lib/reports/userReportUrl'
 
@@ -33,11 +34,10 @@ export default function UserReportModal({
   const [downloading, setDownloading] = useState<'xlsx' | 'pdf' | null>(null)
 
   const hasOnlyOneDate = !!from !== !!to
-  const isReversed = !!from && !!to && from > to
   const rangeError = hasOnlyOneDate
     ? 'Indica la fecha inicial y la final, o deja ambas vacías.'
-    : isReversed
-      ? 'La fecha final no puede ser anterior a la inicial.'
+    : from && to
+      ? checkDayRange(from, to)
       : null
 
   const handleDownload = async (format: 'xlsx' | 'pdf') => {

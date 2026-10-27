@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
 import { buildStudentHistory, type ReportSessionInput } from './attendanceReport'
 
 const subject = {
@@ -69,16 +70,54 @@ describe('buildStudentHistory range', () => {
     ])
   })
 
-  it('limits entries, counts and percentage to the range but keeps the semester status', () => {
-    const full = history()
-    const h = history({ from: '2026-10-01', to: '2026-10-31' })
-    expect(h.entries.map((e) => e.sessionId)).toEqual(['c', 'd', 'e'])
+  it('limits entries, counts and percentage to the range but returns the SEMESTER status', () => {
+    // Policy: max 3 absences. Over the semester the student has 4 (a, b, c, e)
+    // -> FAILED_ATTENDANCE. Inside October alone only 1 (e) -> the range by
+    // itself would be NORMAL, so a range-derived status would be visibly wrong.
+    const policySubject = { ...subject, policy: { ruleType: 'FIXED_COUNT' as const, maxCount: 3 } }
+    const semesterSessions = [
+      session('a', '2026-09-01T13:00:00Z'),
+      session('b', '2026-09-08T13:00:00Z'),
+      session('c', '2026-09-15T13:00:00Z'),
+      session('d', '2026-10-05T13:00:00Z'),
+      session('e', '2026-10-07T13:00:00Z'),
+    ]
+    const onlyD = [
+      {
+        sessionId: 'd',
+        studentId: 'st',
+        status: 'PRESENT' as const,
+        markedBy: null,
+        manualReason: null,
+      },
+    ]
+    const run = (range?: { from: string | null; to: string | null }) =>
+      buildStudentHistory({
+        studentId: 'st',
+        subjects: [policySubject],
+        sessions: semesterSessions,
+        attendances: onlyD,
+        justifications: [],
+        held,
+        range,
+      })[0]
+
+    const full = run()
+    expect(full.countedAbsences).toBe(4)
+    expect(full.status).toBe('FAILED_ATTENDANCE')
+
+    const h = run({ from: '2026-10-01', to: '2026-10-31' })
+    expect(h.entries.map((e) => e.sessionId)).toEqual(['d', 'e'])
     expect(h.sessionsHeld).toBe(2)
     expect(h.attended).toBe(1)
-    expect(h.late).toBe(1)
+    expect(h.countedAbsences).toBe(1)
     expect(h.attendancePct).toBe(50)
-    expect(h.status).toBe(full.status)
-    expect(h.maxAbsencesAllowed).toBe(full.maxAbsencesAllowed)
+    // What the range ALONE would say is NORMAL...
+    expect(computeAttendanceSummary(2, 1, policySubject.policy).status).toBe('NORMAL')
+    // ...but the history keeps the semestral verdict and the semestral limit.
+    expect(h.status).toBe('FAILED_ATTENDANCE')
+    expect(h.statusLabel).toBe(full.statusLabel)
+    expect(h.maxAbsencesAllowed).toBe(3)
   })
 
   it('uses Bogota civil days for the range edges', () => {

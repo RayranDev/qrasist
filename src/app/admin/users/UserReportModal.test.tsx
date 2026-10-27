@@ -69,4 +69,34 @@ describe('UserReportModal', () => {
     await waitFor(() => expect(screen.getByText('No se pudo generar el reporte.')).toBeTruthy())
     expect(onClose).not.toHaveBeenCalled()
   })
+
+  it('blocks the download when the end date is before the start date', () => {
+    renderModal()
+    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-10-31' } })
+    fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-10-01' } })
+    expect(screen.getByRole('alert').textContent).toContain('anterior a la inicial')
+    for (const name of [/Descargar Excel/, /Descargar PDF/]) {
+      const button = screen.getByRole('button', { name }) as HTMLButtonElement
+      expect(button.disabled).toBe(true)
+      fireEvent.click(button)
+    }
+    expect(downloadReport).not.toHaveBeenCalled()
+  })
+
+  it('blocks ranges longer than 366 days but allows exactly 366', async () => {
+    renderModal()
+    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-01-01' } })
+    fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2027-06-01' } })
+    expect(screen.getByRole('alert').textContent).toContain('366')
+    const excel = screen.getByRole('button', { name: /Descargar Excel/ }) as HTMLButtonElement
+    expect(excel.disabled).toBe(true)
+    expect(downloadReport).not.toHaveBeenCalled()
+
+    // 2028 is a leap year: 1 Jan - 31 Dec is exactly 366 days.
+    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2028-01-01' } })
+    fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2028-12-31' } })
+    expect(screen.queryByRole('alert')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Descargar Excel/ }))
+    await waitFor(() => expect(downloadReport).toHaveBeenCalled())
+  })
 })

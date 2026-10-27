@@ -126,6 +126,18 @@ describe('loadReportData dateRange', () => {
     expect(calls.some((c) => c.method === 'gte' || c.method === 'lt')).toBe(false)
   })
 
+  it('skips the justifications query on request', async () => {
+    const { client, calls } = fakeClient({ subjects: { data: [subjectRow('s1')] } })
+    const data = await loadReportData(client, { subjectIds: ['s1'], skipJustifications: true })
+    expect(data.justifications).toEqual([])
+    expect(calls.some((c) => c.table === 'absence_justifications')).toBe(false)
+    expect(calls.some((c) => c.table === 'attendances')).toBe(true)
+
+    const normal = fakeClient({ subjects: { data: [subjectRow('s1')] } })
+    await loadReportData(normal.client, { subjectIds: ['s1'] })
+    expect(normal.calls.some((c) => c.table === 'absence_justifications')).toBe(true)
+  })
+
   it('maps the scan time into the attendance inputs', async () => {
     const { client } = fakeClient({
       subjects: { data: [subjectRow('s1')] },
