@@ -11,6 +11,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows, unwrapRows } from '@/lib/supabase/fetchAll'
 import type { AbsenceRuleType } from '@/lib/utils/attendancePolicy'
+import { dayBounds } from '@/lib/attendance/calendarGrid'
 import { usableCuts, type PeriodCutRow } from '@/lib/attendance/cutsView'
 import { getAppSettings } from '@/lib/settings/appSettings'
 import type {
@@ -100,6 +101,13 @@ export interface ReportDataQuery {
    * de las materias.
    */
   dateRange?: { startIso: string; endIso: string }
+  /**
+   * Con `dateRange`, la amplía para cubrir también los cortes de las materias
+   * cargadas: los reportes que muestran el desglose por corte (semestral) lo
+   * calculan con las clases de TODO el corte aunque el rango pedido sea menor.
+   * Sigue acotado: nunca más que el rango de los cortes del período.
+   */
+  widenToCuts?: boolean
   /** No consulta justificaciones (devuelve []): para reportes que no las usan. */
   skipJustifications?: boolean
 }
@@ -221,6 +229,27 @@ export async function loadReportData(
     }
   })
 
+  let dateRange = query.dateRange
+  if (dateRange && query.widenToCuts) {
+    const cutList = subjects.flatMap((s) => s.cuts)
+    if (cutList.length > 0) {
+      const first = cutList.reduce(
+        (min, c) => (c.startDate < min ? c.startDate : min),
+        cutList[0].startDate
+      )
+      const last = cutList.reduce(
+        (max, c) => (c.endDate > max ? c.endDate : max),
+        cutList[0].endDate
+      )
+      const startIso = dayBounds(first).startIso
+      const endIso = dayBounds(last).endIso
+      dateRange = {
+        startIso: startIso < dateRange.startIso ? startIso : dateRange.startIso,
+        endIso: endIso > dateRange.endIso ? endIso : dateRange.endIso,
+      }
+    }
+  }
+
   const sessions: ReportSessionInput[] = []
   const enrollments: ReportEnrollmentInput[] = []
   const attendances: ReportAttendanceInput[] = []
@@ -238,8 +267,8 @@ export async function loadReportData(
             'id, subject_id, date, class_ends_at, is_active, suspended_at, suspension_reason, modality, is_makeup, makeup_reason'
           )
           .in('subject_id', part)
-        if (query.dateRange) {
-          q = q.gte('date', query.dateRange.startIso).lt('date', query.dateRange.endIso)
+        if (dateRange) {
+          q = q.gte('date', dateRange.startIso).lt('date', dateRange.endIso)
         }
         return q.order('id').range(from, to)
       }),
@@ -261,10 +290,8 @@ export async function loadReportData(
           )
           .in('sessions.subject_id', part)
         if (query.studentId) q = q.eq('student_id', query.studentId)
-        if (query.dateRange) {
-          q = q
-            .gte('sessions.date', query.dateRange.startIso)
-            .lt('sessions.date', query.dateRange.endIso)
+        if (dateRange) {
+          q = q.gte('sessions.date', dateRange.startIso).lt('sessions.date', dateRange.endIso)
         }
         return q.order('id').range(from, to)
       }),
@@ -283,10 +310,8 @@ export async function loadReportData(
               .eq('status', 'APPROVED')
               .in('subject_id', part)
             if (query.studentId) q = q.eq('student_id', query.studentId)
-            if (query.dateRange) {
-              q = q
-                .gte('sessions.date', query.dateRange.startIso)
-                .lt('sessions.date', query.dateRange.endIso)
+            if (dateRange) {
+              q = q.gte('sessions.date', dateRange.startIso).lt('sessions.date', dateRange.endIso)
             }
             return q.order('id').range(from, to)
           }),

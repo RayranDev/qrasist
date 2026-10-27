@@ -108,6 +108,9 @@ export async function generateUserReport(
     activeOnly: true,
     // buildProfessorUserReport no usa justificaciones: se evita la consulta.
     skipJustifications: true,
+    // El desglose por corte es semestral: con rango se cargan también las
+    // clases de los cortes (acotado al período, no a todo el historial).
+    widenToCuts: true,
     dateRange: params.range
       ? {
           startIso: dayBounds(params.range.from).startIso,
@@ -128,6 +131,26 @@ export async function generateUserReport(
     )
   }
 
+  // Cumplimiento por corte (semestral) de las materias que tienen cortes.
+  const cutsById = new Map(data.subjects.flatMap((s) => s.cuts).map((c) => [c.id, c]))
+  const cutClassStats: { cutId: string; stats: ReportClassStatsInput[] }[] = []
+  for (const cut of cutsById.values()) {
+    const idsWithCut = data.subjects
+      .filter((s) => s.cuts.some((c) => c.id === cut.id))
+      .map((s) => s.id)
+    const stats: ReportClassStatsInput[] = []
+    for (let i = 0; i < idsWithCut.length; i += STATS_CHUNK) {
+      stats.push(
+        ...(await fetchClassStats(supabase, {
+          subjectIds: idsWithCut.slice(i, i + STATS_CHUNK),
+          from: cut.startDate,
+          to: cut.endDate,
+        }))
+      )
+    }
+    cutClassStats.push({ cutId: cut.id, stats })
+  }
+
   return {
     ok: true,
     kind: 'professor',
@@ -138,6 +161,7 @@ export async function generateUserReport(
       enrollments: data.enrollments,
       attendances: data.attendances,
       classStats,
+      cutClassStats,
       from: params.range?.from ?? null,
       to: params.range?.to ?? null,
       held: data.held,

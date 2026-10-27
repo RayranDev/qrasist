@@ -11,6 +11,8 @@ import { formatDateEs, formatGeneratedAt, formatPct } from './format'
 export interface ProfessorUserPdfMeta {
   professorName: string
   scopeLabel: string
+  /** El reporte está acotado a un rango de fechas (los cortes siguen siendo semestrales). */
+  ranged?: boolean
   generatedAt?: Date
 }
 
@@ -62,6 +64,47 @@ export async function renderProfessorUserReportPdf(
     'Sin registrar: días de clase esperados según el horario que no tienen ninguna sesión. Las materias sin horario semanal no tienen clases programadas contra las cuales medir.',
     { muted: true, size: 8.5 }
   )
+
+  // Materias con cortes: cada corte (semestral) y después la fila general del alcance.
+  const withCuts = report.subjects.filter((s) => s.cuts.length > 0)
+  if (withCuts.length > 0) {
+    pdf.section('Resumen por corte')
+    pdf.table(
+      [
+        { header: 'Materia', width: 28 },
+        { header: 'Corte', width: 16 },
+        { header: 'Program.', width: 8, align: 'right' },
+        { header: 'Dictadas', width: 8, align: 'right' },
+        { header: 'Suspend.', width: 8, align: 'right' },
+        { header: 'Sin registrar', width: 10, align: 'right' },
+        { header: '% Asist. prom.', width: 11, align: 'right' },
+      ],
+      withCuts.flatMap((s): (string | PdfCell)[][] => [
+        ...s.cuts.map((c, i): (string | PdfCell)[] => [
+          i === 0 ? `${s.subjectCode} · ${s.subjectName}` : '',
+          c.name,
+          c.scheduled === null ? 'Sin horario' : String(c.scheduled),
+          String(c.held),
+          String(c.suspended),
+          c.omitted === null ? '---' : String(c.omitted),
+          c.held === 0 ? '---' : formatPct(c.avgAttendancePct),
+        ]),
+        [
+          '',
+          { text: meta.ranged ? 'General (rango)' : 'General (período)', bold: true },
+          { text: s.scheduled === null ? 'Sin horario' : String(s.scheduled), bold: true },
+          { text: String(s.held), bold: true },
+          { text: String(s.suspended), bold: true },
+          { text: s.omitted === null ? '---' : String(s.omitted), bold: true },
+          { text: formatPct(s.avgAttendancePct), bold: true },
+        ],
+      ])
+    )
+    pdf.paragraph(
+      'Cada corte muestra las clases de ese corte sobre todo el semestre; la fila "General" cierra la materia con el total del alcance del reporte. Las materias sin cortes definidos solo aparecen en el resumen por materia.',
+      { muted: true, size: 8.5 }
+    )
+  }
 
   pdf.section('Clases')
   pdf.table(

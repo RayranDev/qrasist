@@ -69,6 +69,7 @@ export async function GET(request: NextRequest) {
         : await renderProfessorUserReportPdf(result.report, {
             professorName: result.name,
             scopeLabel: result.scopeLabel,
+            ranged: !!(from && to),
           })
     return new NextResponse(bytes as unknown as BodyInit, {
       status: 200,
@@ -86,10 +87,12 @@ export async function GET(request: NextRequest) {
           studentName: result.name,
           studentCode: result.code,
           scopeLabel: result.scopeLabel,
+          ranged: !!(from && to),
         })
       : await buildProfessorUserWorkbook(result.report, {
           professorName: result.name,
           scopeLabel: result.scopeLabel,
+          ranged: !!(from && to),
         })
   const buffer = await workbook.xlsx.writeBuffer()
   return new NextResponse(buffer as unknown as BodyInit, {
