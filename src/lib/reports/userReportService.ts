@@ -10,7 +10,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { dayBounds } from '@/lib/attendance/calendarGrid'
-import { fetchClassStats } from '@/lib/attendance/classOmissionsData'
+import { fetchClassStats, fetchClassStatsByWindow } from '@/lib/attendance/classOmissionsData'
 import { fetchAllRows, unwrapRows } from '@/lib/supabase/fetchAll'
 import type { ReportClassStatsInput, StudentSubjectHistory } from './attendanceReport'
 import { loadReportData } from './attendanceReportData'
@@ -108,6 +108,9 @@ export async function generateUserReport(
     activeOnly: true,
     // buildProfessorUserReport no usa justificaciones: se evita la consulta.
     skipJustifications: true,
+    // El desglose por corte es semestral: con rango se cargan también las
+    // clases de los cortes (acotado al período, no a todo el historial).
+    widenToCuts: true,
     dateRange: params.range
       ? {
           startIso: dayBounds(params.range.from).startIso,
@@ -128,6 +131,31 @@ export async function generateUserReport(
     )
   }
 
+  // Cumplimiento por corte (semestral) de las materias que tienen cortes. Las
+  // consultas se hacen una vez por lote de materias y los cortes solo
+  // recalculan conteos (fetchClassStatsByWindow).
+  const cutsById = new Map(data.subjects.flatMap((s) => s.cuts).map((c) => [c.id, c]))
+  const cutStats = new Map<string, ReportClassStatsInput[]>()
+  const idsWithCuts = data.subjects.filter((s) => s.cuts.length > 0).map((s) => s.id)
+  for (let i = 0; i < idsWithCuts.length; i += STATS_CHUNK) {
+    const batch = idsWithCuts.slice(i, i + STATS_CHUNK)
+    const batchCuts = [...cutsById.values()].filter((cut) =>
+      data.subjects.some((s) => batch.includes(s.id) && s.cuts.some((c) => c.id === cut.id))
+    )
+    const byWindow = await fetchClassStatsByWindow(supabase, {
+      subjectIds: batch,
+      windows: batchCuts.map((cut) => ({ key: cut.id, from: cut.startDate, to: cut.endDate })),
+    })
+    for (const cut of batchCuts) {
+      const subjectIdsWithCut = new Set(
+        data.subjects.filter((s) => s.cuts.some((c) => c.id === cut.id)).map((s) => s.id)
+      )
+      const rows = (byWindow.get(cut.id) ?? []).filter((r) => subjectIdsWithCut.has(r.subjectId))
+      cutStats.set(cut.id, [...(cutStats.get(cut.id) ?? []), ...rows])
+    }
+  }
+  const cutClassStats = [...cutStats].map(([cutId, stats]) => ({ cutId, stats }))
+
   return {
     ok: true,
     kind: 'professor',
@@ -138,6 +166,7 @@ export async function generateUserReport(
       enrollments: data.enrollments,
       attendances: data.attendances,
       classStats,
+      cutClassStats,
       from: params.range?.from ?? null,
       to: params.range?.to ?? null,
       held: data.held,

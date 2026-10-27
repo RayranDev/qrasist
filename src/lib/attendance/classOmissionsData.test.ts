@@ -1,6 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { countUnjustified, fetchClassOmissions, fetchClassStats } from './classOmissionsData'
+import {
+  countUnjustified,
+  fetchClassOmissions,
+  fetchClassStats,
+  fetchClassStatsByWindow,
+} from './classOmissionsData'
 
 type Rows = Record<string, unknown[]>
 
@@ -173,5 +178,60 @@ describe('fetchClassStats', () => {
       omitted: 3,
       omittedJustified: 0,
     })
+  })
+})
+
+describe('fetchClassStatsByWindow', () => {
+  const rows: Rows = {
+    subjects: [subject],
+    subject_schedules: [mondayBlock],
+    sessions: [
+      {
+        subject_id: 'subject-1',
+        date: '2026-02-02T13:05:00Z',
+        is_active: true,
+        suspended_at: null,
+      },
+      {
+        subject_id: 'subject-1',
+        date: '2026-02-09T13:00:00Z',
+        is_active: true,
+        suspended_at: null,
+      },
+      {
+        subject_id: 'subject-1',
+        date: '2026-02-16T13:00:00Z',
+        is_active: false,
+        suspended_at: '2026-02-16T12:00:00Z',
+      },
+    ],
+    class_omissions: [],
+  }
+  const windows = [
+    { key: 'k1', from: '2026-02-01', to: '2026-02-14' },
+    { key: 'k2', from: '2026-02-15', to: '2026-03-04' },
+  ]
+
+  it('gives the same figures as one fetchClassStats call per window', async () => {
+    const byWindow = await fetchClassStatsByWindow(fakeClient(rows).client, {
+      now: NOW,
+      windows,
+    })
+    for (const w of windows) {
+      const separate = await fetchClassStats(fakeClient(rows).client, {
+        now: NOW,
+        from: w.from,
+        to: w.to,
+      })
+      expect(byWindow.get(w.key)).toEqual(separate)
+    }
+  })
+
+  it('queries each table once however many windows there are', async () => {
+    const { client, calls } = fakeClient(rows)
+    await fetchClassStatsByWindow(client, { now: NOW, windows })
+    for (const table of ['subjects', 'subject_schedules', 'sessions', 'class_omissions']) {
+      expect(calls.filter((c) => c.table === table && c.method === 'select')).toHaveLength(1)
+    }
   })
 })

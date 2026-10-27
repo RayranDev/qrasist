@@ -7,6 +7,7 @@ import type ExcelJS from 'exceljs'
 import { buildWorkbook, type ExportSheet } from '@/lib/excel/exportWorkbook'
 import { INSTITUTION_NAME } from '@/lib/brand'
 import { formatBogotaTime } from '@/lib/utils/bogotaDay'
+import { cutLabel, cutPercentCell } from './cutColumns'
 import type { StudentSubjectHistory } from './attendanceReport'
 import type { ProfessorUserReport } from './professorUserReport'
 import {
@@ -55,7 +56,14 @@ export interface StudentWorkbookMeta {
   studentName: string
   studentCode: string | null
   scopeLabel: string
+  /** El reporte está acotado a un rango de fechas (los cortes siguen siendo semestrales). */
+  ranged?: boolean
   generatedAt?: Date
+}
+
+/** Etiqueta de la fila general que cierra el desglose por corte de una materia. */
+function generalRowLabel(ranged: boolean | undefined): string {
+  return ranged ? 'General (rango)' : 'General (período)'
 }
 
 /** Historial del estudiante: resumen por materia (con ausencias y %) y detalle por clase. */
@@ -91,6 +99,44 @@ export async function buildStudentUserWorkbook(
       attendancePct: h.attendancePct ?? '',
       status: h.statusLabel,
     })),
+  }
+
+  // Solo las materias con cortes: cada corte y después la fila general.
+  const withCuts = history.filter((h) => h.cuts.length > 0)
+  const byCut: ExportSheet = {
+    name: 'Resumen por corte',
+    columns: [
+      { header: 'Código Materia', key: 'subjectCode', width: 16 },
+      { header: 'Materia', key: 'subjectName', width: 30 },
+      { header: 'Corte', key: 'cut', width: 22 },
+      { header: 'Clases', key: 'sessionsHeld', width: 11 },
+      { header: 'Asistidas', key: 'attended', width: 12 },
+      { header: 'Tardanzas', key: 'late', width: 11 },
+      { header: 'Justificadas', key: 'justified', width: 13 },
+      { header: '% Asistencia', key: 'attendancePct', width: 13 },
+    ],
+    rows: withCuts.flatMap((h) => [
+      ...h.cuts.map((c) => ({
+        subjectCode: h.subjectCode,
+        subjectName: h.subjectName,
+        cut: cutLabel(c.name),
+        sessionsHeld: c.sessionsHeld,
+        attended: c.attended,
+        late: c.late,
+        justified: c.justified,
+        attendancePct: cutPercentCell(c),
+      })),
+      {
+        subjectCode: h.subjectCode,
+        subjectName: h.subjectName,
+        cut: generalRowLabel(meta.ranged),
+        sessionsHeld: h.sessionsHeld,
+        attended: h.attended,
+        late: h.late,
+        justified: h.justified,
+        attendancePct: h.attendancePct ?? '',
+      },
+    ]),
   }
 
   const detail: ExportSheet = {
@@ -130,13 +176,28 @@ export async function buildStudentUserWorkbook(
       value:
         'El estado se calcula sobre todo el semestre; los conteos y el porcentaje corresponden al alcance del reporte. Las clases suspendidas no cuentan como dictadas.',
     },
+    ...(withCuts.length > 0
+      ? [
+          {
+            field: 'Cortes',
+            value:
+              'En "Resumen por corte", cada corte muestra la asistencia de ese corte sobre todo el semestre y la fila "General" cierra la materia con el total del alcance del reporte. Las materias sin cortes definidos solo aparecen en "Resumen por materia".',
+          },
+        ]
+      : []),
   ])
-  return finish(await buildWorkbook([summary, detail, info]))
+  return finish(
+    await buildWorkbook(
+      withCuts.length > 0 ? [summary, byCut, detail, info] : [summary, detail, info]
+    )
+  )
 }
 
 export interface ProfessorWorkbookMeta {
   professorName: string
   scopeLabel: string
+  /** El reporte está acotado a un rango de fechas (los cortes siguen siendo semestrales). */
+  ranged?: boolean
   generatedAt?: Date
 }
 
@@ -166,6 +227,48 @@ export async function buildProfessorUserWorkbook(
       omittedJustified: s.omittedJustified ?? '',
       avgAttendancePct: s.avgAttendancePct ?? '',
     })),
+  }
+
+  // Solo las materias con cortes: cada corte y después la fila general.
+  const withCuts = report.subjects.filter((s) => s.cuts.length > 0)
+  const byCut: ExportSheet = {
+    name: 'Resumen por corte',
+    columns: [
+      { header: 'Código Materia', key: 'subjectCode', width: 16 },
+      { header: 'Materia', key: 'subjectName', width: 30 },
+      { header: 'Corte', key: 'cut', width: 22 },
+      { header: 'Clases Programadas', key: 'scheduled', width: 19 },
+      { header: 'Clases Dictadas', key: 'held', width: 15 },
+      { header: 'Clases Suspendidas', key: 'suspended', width: 18 },
+      { header: 'No Registradas', key: 'omitted', width: 16 },
+      { header: 'No Registradas Justificadas', key: 'omittedJustified', width: 26 },
+      { header: '% Asistencia Promedio', key: 'avgAttendancePct', width: 21 },
+    ],
+    rows: withCuts.flatMap((s) => [
+      ...s.cuts.map((c) => ({
+        subjectCode: s.subjectCode,
+        subjectName: s.subjectName,
+        cut: cutLabel(c.name),
+        // "Sin corte asignado" no tiene horario propio: celdas vacías, no "Sin horario".
+        scheduled: c.cutId === null ? '' : (c.scheduled ?? 'Sin horario'),
+        held: c.held,
+        suspended: c.suspended,
+        omitted: c.omitted ?? '',
+        omittedJustified: c.omittedJustified ?? '',
+        avgAttendancePct: c.avgAttendancePct ?? '',
+      })),
+      {
+        subjectCode: s.subjectCode,
+        subjectName: s.subjectName,
+        cut: generalRowLabel(meta.ranged),
+        scheduled: s.scheduled ?? 'Sin horario',
+        held: s.held,
+        suspended: s.suspended,
+        omitted: s.omitted ?? '',
+        omittedJustified: s.omittedJustified ?? '',
+        avgAttendancePct: s.avgAttendancePct ?? '',
+      },
+    ]),
   }
 
   const classes: ExportSheet = {
@@ -207,6 +310,19 @@ export async function buildProfessorUserWorkbook(
       value:
         'Las clases no registradas son días de clase esperados según el horario sin ninguna sesión. Los asistentes cuentan solo a los estudiantes inscritos actualmente.',
     },
+    ...(withCuts.length > 0
+      ? [
+          {
+            field: 'Cortes',
+            value:
+              'En "Resumen por corte", cada corte muestra las clases de ese corte sobre todo el semestre y la fila "General" cierra la materia con el total del alcance del reporte. Las materias sin cortes definidos solo aparecen en "Resumen por materia".',
+          },
+        ]
+      : []),
   ])
-  return finish(await buildWorkbook([summary, classes, info]))
+  return finish(
+    await buildWorkbook(
+      withCuts.length > 0 ? [summary, byCut, classes, info] : [summary, classes, info]
+    )
+  )
 }

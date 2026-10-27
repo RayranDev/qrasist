@@ -151,6 +151,11 @@ export function wrapText(font: PDFFont, text: string, size: number, maxWidth: nu
   const lines: string[] = []
   let current = ''
   const widthOf = (s: string) => font.widthOfTextAtSize(s, size)
+  // Ningún glifo de Helvetica mide menos de ~0,19 em, así que más de este
+  // número de caracteres nunca caben en una línea. Acota el trabajo de partir
+  // una palabra larguísima (sin espacios) a algo lineal en su largo, en lugar
+  // de medir el resto completo en cada intento.
+  const maxCharsPerLine = Math.max(2, Math.ceil(maxWidth / (size * 0.15)) + 1)
 
   for (const word of clean.split(/ +/)) {
     const candidate = current ? `${current} ${word}` : word
@@ -161,11 +166,18 @@ export function wrapText(font: PDFFont, text: string, size: number, maxWidth: nu
     if (current) lines.push(current)
     current = ''
     let rest = word
-    while (widthOf(rest) > maxWidth && rest.length > 1) {
-      let cut = rest.length - 1
-      while (cut > 1 && widthOf(rest.slice(0, cut)) > maxWidth) cut--
-      lines.push(rest.slice(0, cut))
-      rest = rest.slice(cut)
+    while (rest.length > 1 && widthOf(rest.slice(0, maxCharsPerLine)) > maxWidth) {
+      // Mayor prefijo (de al menos 1 carácter y sin llegar a todo `rest`) que
+      // cabe en la línea: búsqueda binaria sobre una ventana acotada.
+      let lo = 1
+      let hi = Math.min(rest.length - 1, maxCharsPerLine)
+      while (lo < hi) {
+        const mid = Math.ceil((lo + hi) / 2)
+        if (widthOf(rest.slice(0, mid)) <= maxWidth) lo = mid
+        else hi = mid - 1
+      }
+      lines.push(rest.slice(0, lo))
+      rest = rest.slice(lo)
     }
     current = rest
   }

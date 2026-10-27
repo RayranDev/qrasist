@@ -134,6 +134,146 @@ describe('buildProfessorUserReport', () => {
     expect(subjects[0]).toMatchObject({ held: 0, suspended: 1 })
   })
 
+  describe('per cut', () => {
+    const cuts = [
+      { id: 'k1', name: 'Corte 1', startDate: '2026-10-01', endDate: '2026-10-05', sequence: 1 },
+      { id: 'k2', name: 'Corte 2', startDate: '2026-10-06', endDate: '2026-10-31', sequence: 2 },
+    ]
+    const withCuts = {
+      ...base,
+      subjects: [
+        { ...subject('s1', 'ART-100', 'Arte'), cuts },
+        subject('s2', 'ZOO-200', 'Zoología'),
+      ],
+      sessions: [...base.sessions, session('x4', 's1', '2026-10-12T13:00:00Z')],
+      attendances: [...base.attendances, attendance('x4', 'a')],
+      cutClassStats: [
+        {
+          cutId: 'k1',
+          stats: [
+            {
+              subjectId: 's1',
+              scheduled: 1,
+              held: 1,
+              suspended: 0,
+              omitted: 0,
+              omittedJustified: 0,
+            },
+          ],
+        },
+        {
+          cutId: 'k2',
+          stats: [
+            {
+              subjectId: 's1',
+              scheduled: 4,
+              held: 1,
+              suspended: 1,
+              omitted: 2,
+              omittedJustified: 1,
+            },
+          ],
+        },
+      ],
+    }
+
+    it('breaks a subject with cuts into held, suspended, omitted and attendance per cut', () => {
+      const { subjects } = buildProfessorUserReport(withCuts)
+      expect(subjects[0].cuts).toEqual([
+        {
+          cutId: 'k1',
+          name: 'Corte 1',
+          sequence: 1,
+          scheduled: 1,
+          held: 1,
+          suspended: 0,
+          omitted: 0,
+          omittedJustified: 0,
+          avgAttendancePct: 100,
+        },
+        {
+          cutId: 'k2',
+          name: 'Corte 2',
+          sequence: 2,
+          scheduled: 4,
+          held: 1,
+          suspended: 1,
+          omitted: 2,
+          omittedJustified: 1,
+          // a attended the only held class of the cut, b did not.
+          avgAttendancePct: 50,
+        },
+      ])
+      // The general row still covers the whole scope.
+      expect(subjects[0]).toMatchObject({ held: 2, suspended: 1 })
+    })
+
+    it('adds "Sin corte asignado" for held classes before the first cut and between cuts, so everything reconciles', () => {
+      const gappy = [
+        { id: 'k1', name: 'Corte 1', startDate: '2026-10-01', endDate: '2026-10-05', sequence: 1 },
+        { id: 'k2', name: 'Corte 2', startDate: '2026-10-12', endDate: '2026-10-31', sequence: 2 },
+      ]
+      const input = {
+        ...withCuts,
+        subjects: [{ ...subject('s1', 'ART-100', 'Arte'), cuts: gappy }],
+        sessions: [
+          ...withCuts.sessions.filter((s) => s.subjectId === 's1'),
+          session('pre', 's1', '2026-09-28T13:00:00Z'), // before the first cut
+          session('gap', 's1', '2026-10-08T13:00:00Z'), // between cuts
+        ],
+        // a attends only the class before the first cut.
+        attendances: [...withCuts.attendances, attendance('pre', 'a')],
+        cutClassStats: [],
+      }
+      const [row] = buildProfessorUserReport(input).subjects
+      const unassigned = row.cuts.find((c) => c.cutId === null)!
+      expect(unassigned).toMatchObject({
+        name: 'Sin corte asignado',
+        sequence: null,
+        held: 2,
+        // The suspended class of Oct 6 also sits in the gap.
+        suspended: 1,
+        scheduled: null,
+        omitted: null,
+        avgAttendancePct: 25,
+      })
+      // Last, after the real cuts.
+      expect(row.cuts.map((c) => c.name)).toEqual(['Corte 1', 'Corte 2', 'Sin corte asignado'])
+      // Cuts + unassigned add up to the general figure (no date range).
+      expect(row.cuts.reduce((sum, c) => sum + c.held, 0)).toBe(row.held)
+    })
+
+    it('adds no unassigned row when every held class falls inside a cut', () => {
+      const { subjects } = buildProfessorUserReport(withCuts)
+      expect(subjects[0].cuts.some((c) => c.cutId === null)).toBe(false)
+    })
+
+    it('leaves subjects without cuts with no cut breakdown', () => {
+      const { subjects } = buildProfessorUserReport(withCuts)
+      expect(subjects[1].cuts).toEqual([])
+    })
+
+    it('keeps the cut figures semester-wide when the report has a narrower range', () => {
+      const whole = buildProfessorUserReport(withCuts).subjects[0]
+      const ranged = buildProfessorUserReport({
+        ...withCuts,
+        from: '2026-10-12',
+        to: '2026-10-12',
+      }).subjects[0]
+      expect(ranged.cuts).toEqual(whole.cuts)
+      expect(ranged).toMatchObject({ held: 1, suspended: 0 })
+    })
+
+    it('reports a cut without schedule data as unscheduled instead of inventing figures', () => {
+      const { subjects } = buildProfessorUserReport({ ...withCuts, cutClassStats: [] })
+      expect(subjects[0].cuts.map((c) => [c.scheduled, c.omitted])).toEqual([
+        [null, null],
+        [null, null],
+      ])
+      expect(subjects[0].cuts.map((c) => c.held)).toEqual([1, 1])
+    })
+  })
+
   it('returns empty lists for a professor without subjects', () => {
     expect(
       buildProfessorUserReport({

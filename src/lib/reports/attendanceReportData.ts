@@ -11,6 +11,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows, unwrapRows } from '@/lib/supabase/fetchAll'
 import type { AbsenceRuleType } from '@/lib/utils/attendancePolicy'
+import { dayBounds } from '@/lib/attendance/calendarGrid'
 import { usableCuts, type PeriodCutRow } from '@/lib/attendance/cutsView'
 import { getAppSettings } from '@/lib/settings/appSettings'
 import type {
@@ -100,6 +101,15 @@ export interface ReportDataQuery {
    * de las materias.
    */
   dateRange?: { startIso: string; endIso: string }
+  /**
+   * Con `dateRange`, amplía la ventana de carga a la unión de los cortes de
+   * TODAS las materias cargadas (del inicio más temprano al fin más tardío),
+   * nunca más estrecha que la pedida. Así el desglose por corte, que es
+   * semestral, ve todas las clases de cada corte. Solo cambia qué se carga: las
+   * cifras generales de cada reporte se siguen acotando al rango pedido. Sin
+   * `dateRange` (se carga todo) o sin cortes, no hace nada.
+   */
+  widenToCuts?: boolean
   /** No consulta justificaciones (devuelve []): para reportes que no las usan. */
   skipJustifications?: boolean
 }
@@ -221,6 +231,27 @@ export async function loadReportData(
     }
   })
 
+  let dateRange = query.dateRange
+  if (dateRange && query.widenToCuts) {
+    const cutList = subjects.flatMap((s) => s.cuts)
+    if (cutList.length > 0) {
+      const earliestCutStart = cutList.reduce(
+        (min, c) => (c.startDate < min ? c.startDate : min),
+        cutList[0].startDate
+      )
+      const latestCutEnd = cutList.reduce(
+        (max, c) => (c.endDate > max ? c.endDate : max),
+        cutList[0].endDate
+      )
+      const startIso = dayBounds(earliestCutStart).startIso
+      const endIso = dayBounds(latestCutEnd).endIso
+      dateRange = {
+        startIso: startIso < dateRange.startIso ? startIso : dateRange.startIso,
+        endIso: endIso > dateRange.endIso ? endIso : dateRange.endIso,
+      }
+    }
+  }
+
   const sessions: ReportSessionInput[] = []
   const enrollments: ReportEnrollmentInput[] = []
   const attendances: ReportAttendanceInput[] = []
@@ -238,8 +269,8 @@ export async function loadReportData(
             'id, subject_id, date, class_ends_at, is_active, suspended_at, suspension_reason, modality, is_makeup, makeup_reason'
           )
           .in('subject_id', part)
-        if (query.dateRange) {
-          q = q.gte('date', query.dateRange.startIso).lt('date', query.dateRange.endIso)
+        if (dateRange) {
+          q = q.gte('date', dateRange.startIso).lt('date', dateRange.endIso)
         }
         return q.order('id').range(from, to)
       }),
@@ -261,10 +292,8 @@ export async function loadReportData(
           )
           .in('sessions.subject_id', part)
         if (query.studentId) q = q.eq('student_id', query.studentId)
-        if (query.dateRange) {
-          q = q
-            .gte('sessions.date', query.dateRange.startIso)
-            .lt('sessions.date', query.dateRange.endIso)
+        if (dateRange) {
+          q = q.gte('sessions.date', dateRange.startIso).lt('sessions.date', dateRange.endIso)
         }
         return q.order('id').range(from, to)
       }),
@@ -283,10 +312,8 @@ export async function loadReportData(
               .eq('status', 'APPROVED')
               .in('subject_id', part)
             if (query.studentId) q = q.eq('student_id', query.studentId)
-            if (query.dateRange) {
-              q = q
-                .gte('sessions.date', query.dateRange.startIso)
-                .lt('sessions.date', query.dateRange.endIso)
+            if (dateRange) {
+              q = q.gte('sessions.date', dateRange.startIso).lt('sessions.date', dateRange.endIso)
             }
             return q.order('id').range(from, to)
           }),

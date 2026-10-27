@@ -18,7 +18,31 @@ vi.mock('@/lib/reports/userReportService', () => ({
   generateUserReport: (...args: unknown[]) => generateUserReport(...args),
 }))
 
+// Real implementations, wrapped in spies to see which meta the route hands them.
+vi.mock('@/lib/reports/userReportWorkbook', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/reports/userReportWorkbook')>()
+  return {
+    ...actual,
+    buildStudentUserWorkbook: vi.fn(actual.buildStudentUserWorkbook),
+    buildProfessorUserWorkbook: vi.fn(actual.buildProfessorUserWorkbook),
+  }
+})
+vi.mock('@/lib/reports/pdf/professorUserReportPdf', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/reports/pdf/professorUserReportPdf')>()
+  return { ...actual, renderProfessorUserReportPdf: vi.fn(actual.renderProfessorUserReportPdf) }
+})
+vi.mock('@/lib/reports/pdf/studentReportPdf', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/reports/pdf/studentReportPdf')>()
+  return { ...actual, renderStudentReportPdf: vi.fn(actual.renderStudentReportPdf) }
+})
+
 import { GET } from './route'
+import {
+  buildProfessorUserWorkbook,
+  buildStudentUserWorkbook,
+} from '@/lib/reports/userReportWorkbook'
+import { renderProfessorUserReportPdf } from '@/lib/reports/pdf/professorUserReportPdf'
+import { renderStudentReportPdf } from '@/lib/reports/pdf/studentReportPdf'
 
 const UUID = '3f2b8c1e-0a4d-4c55-9e2a-7d1f6b9a1c10'
 
@@ -151,6 +175,37 @@ describe('GET /admin/reports/user', () => {
     expect(Buffer.from(new Uint8Array(await pdf.arrayBuffer()).subarray(0, 5)).toString()).toBe(
       '%PDF-'
     )
+  })
+
+  describe('propagates whether the report is limited to a range', () => {
+    const range = 'from=2026-10-01&to=2026-10-31'
+    const meta = (mock: unknown, call = 0) => (mock as ReturnType<typeof vi.fn>).mock.calls[call][1]
+
+    it('tells the student xlsx and pdf builders', async () => {
+      await GET(request(`userId=${UUID}&${range}`))
+      await GET(request(`userId=${UUID}&${range}&format=pdf`))
+      expect(meta(buildStudentUserWorkbook)).toMatchObject({ ranged: true })
+      // The student PDF takes the range as its scope label.
+      expect(meta(renderStudentReportPdf).scopeLabel).toBe(studentResult.scopeLabel)
+
+      await GET(request(`userId=${UUID}`))
+      await GET(request(`userId=${UUID}&format=pdf`))
+      expect(meta(buildStudentUserWorkbook, 1)).toMatchObject({ ranged: false })
+      expect(meta(renderStudentReportPdf, 1).scopeLabel).toBeUndefined()
+    })
+
+    it('tells the professor xlsx and pdf builders', async () => {
+      generateUserReport.mockResolvedValue(professorResult)
+      await GET(request(`userId=${UUID}&${range}`))
+      await GET(request(`userId=${UUID}&${range}&format=pdf`))
+      expect(meta(buildProfessorUserWorkbook)).toMatchObject({ ranged: true })
+      expect(meta(renderProfessorUserReportPdf)).toMatchObject({ ranged: true })
+
+      await GET(request(`userId=${UUID}`))
+      await GET(request(`userId=${UUID}&format=pdf`))
+      expect(meta(buildProfessorUserWorkbook, 1)).toMatchObject({ ranged: false })
+      expect(meta(renderProfessorUserReportPdf, 1)).toMatchObject({ ranged: false })
+    })
   })
 
   it('relays 404 and 400 for unknown, inactive or admin users', async () => {

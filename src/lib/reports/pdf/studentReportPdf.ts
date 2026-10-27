@@ -5,6 +5,7 @@
  * la marca fue manual). Vertical A4.
  */
 import type { StudentSubjectHistory } from '@/lib/reports/attendanceReport'
+import { cutLabel } from '@/lib/reports/cutColumns'
 import { PdfReport, type PdfCell } from './pdfDocument'
 import {
   HISTORY_STATE_LABELS,
@@ -100,7 +101,7 @@ export async function renderStudentReportPdf(
           { header: '% Asist.', width: 14, align: 'right' },
         ],
         h.cuts.map((c): (string | PdfCell)[] => [
-          c.name,
+          cutLabel(c.name),
           String(c.sessionsHeld),
           String(c.attended),
           String(c.late),

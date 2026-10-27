@@ -217,6 +217,18 @@ export interface StudentSubjectRow {
   cuts: CutBreakdown[]
 }
 
+/** Clases dictadas y asistencia promedio de una materia en un corte (semestral). */
+export interface SubjectCutSummary {
+  /** null en el bucket "Sin corte asignado". */
+  cutId: string | null
+  name: string
+  sequence: number | null
+  /** Clases dictadas de la materia en el corte, con o sin estudiantes visibles. */
+  sessionsHeld: number
+  /** Promedio de los % de asistencia de los estudiantes visibles; null sin ninguno con clases en el corte. */
+  avgAttendancePct: number | null
+}
+
 export interface SubjectSummaryRow {
   subjectId: string
   subjectCode: string
@@ -232,6 +244,8 @@ export interface SubjectSummaryRow {
   normal: number
   atRisk: number
   failed: number
+  /** Desglose por corte del semestre (vacío si la materia no tiene cortes). */
+  cuts: SubjectCutSummary[]
 }
 
 export interface ProfessorComplianceRow {
@@ -390,6 +404,9 @@ export function buildAttendanceReport(input: BuildReportInput): AttendanceReport
     // fila). Así el total de la materia nunca queda por debajo de la fila de
     // ningún estudiante y las etiquetas del reporte son consistentes.
     const heldUnionInRange = new Map(heldInRange.map((s) => [s.id, s]))
+    // Lo mismo para todo el semestre (sin acotar al rango): base del conteo de
+    // clases por corte de la materia, que no depende de los estudiantes visibles.
+    const heldUnionAll = new Map(heldEnded.map((s) => [s.id, s]))
     const career = careerLabel(subject.careerNames)
     const professorName = subject.professorName || NO_PROFESSOR_LABEL
 
@@ -409,6 +426,7 @@ export function buildAttendanceReport(input: BuildReportInput): AttendanceReport
         : heldAll
       const studentHeldInRange = studentHeld.filter((s) => isInRange(s.date, range))
       for (const s of studentHeldInRange) heldUnionInRange.set(s.id, s)
+      for (const s of studentHeld) heldUnionAll.set(s.id, s)
 
       const studentAttendance = new Map<string, ReportAttendanceInput>()
       const justifiedSessionIds = new Set<string>()
@@ -506,6 +524,31 @@ export function buildAttendanceReport(input: BuildReportInput): AttendanceReport
     const pcts = visibleRows.map((r) => r.attendancePct).filter((p): p is number => p !== null)
     const rangeSessions = allSessions.filter((s) => isInRange(s.date, range))
     heldCountBySubject.set(subject.id, heldUnionInRange.size)
+
+    const subjectCuts: SubjectCutSummary[] =
+      subject.cuts.length > 0
+        ? computeCutsBreakdown(
+            subject.cuts,
+            [...heldUnionAll.values()].map((s) => ({ id: s.id, date: s.date })),
+            new Map(),
+            new Set()
+          ).map((cut) => {
+            const cutPcts = visibleRows
+              .map((r) => r.cuts.find((c) => c.cutId === cut.cutId))
+              .filter((c): c is CutBreakdown => !!c && c.sessionsHeld > 0)
+              .map((c) => c.percentage)
+            return {
+              cutId: cut.cutId,
+              name: cut.name,
+              sequence: cut.sequence,
+              sessionsHeld: cut.sessionsHeld,
+              avgAttendancePct:
+                cutPcts.length > 0
+                  ? round1(cutPcts.reduce((sum, p) => sum + p, 0) / cutPcts.length)
+                  : null,
+            }
+          })
+        : []
     subjectSummaries.push({
       subjectId: subject.id,
       subjectCode: subject.code,
@@ -521,6 +564,7 @@ export function buildAttendanceReport(input: BuildReportInput): AttendanceReport
       normal: visibleRows.filter((r) => r.status === 'NORMAL').length,
       atRisk: visibleRows.filter((r) => r.status === 'WARNING').length,
       failed: visibleRows.filter((r) => r.status === 'FAILED_ATTENDANCE').length,
+      cuts: subjectCuts,
     })
   }
 

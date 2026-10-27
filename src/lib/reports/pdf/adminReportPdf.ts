@@ -4,7 +4,8 @@
  * cumplimiento docente y anexo de observaciones/excusas. Horizontal A4.
  */
 import type { AttendanceReport } from '@/lib/reports/attendanceReport'
-import { PdfReport, type PdfCell } from './pdfDocument'
+import { collectCutColumns, findCut, generalHeader } from '@/lib/reports/cutColumns'
+import { PdfReport, type PdfCell, type PdfColumn } from './pdfDocument'
 import {
   COUNTED_ABSENCES_NOTE,
   formatDateEs,
@@ -113,10 +114,20 @@ export async function renderAdminReportPdf(
   for (const row of report.rows) {
     rowsBySubject.set(row.subjectId, [...(rowsBySubject.get(row.subjectId) || []), row])
   }
+  // Los cortes son semestrales; las demás columnas siguen el alcance del
+  // reporte. Las materias sin cortes conservan su tabla de siempre.
+  const ranged = report.range.from !== null || report.range.to !== null
+  if (report.rows.some((r) => r.cuts.length > 0)) {
+    pdf.paragraph(
+      `En las materias con cortes, cada columna con el nombre de un corte ("% Corte 1", "% Corte 2"...) muestra la asistencia de ese corte sobre todo el semestre y la columna "% Asist. ${ranged ? '(rango)' : '(general)'}" muestra el total ${ranged ? 'del alcance del reporte' : 'del período'}. Las materias sin cortes definidos solo muestran la cifra general.`,
+      { muted: true, size: 8.5 }
+    )
+  }
   for (const summary of report.subjectSummaries) {
     const rows = [...(rowsBySubject.get(summary.subjectId) || [])].sort((a, b) =>
       a.studentName.localeCompare(b.studentName, 'es')
     )
+    const cutColumns = collectCutColumns(rows.map((r) => r.cuts))
     pdf.subheading(
       `${summary.subjectCode} · ${summary.subjectName}`,
       `Docente: ${summary.professorName} · ${summary.career} · ${countOf(summary.sessionsHeld, 'clase')} en el alcance`
@@ -124,13 +135,18 @@ export async function renderAdminReportPdf(
     pdf.table(
       [
         { header: 'Código', width: 9 },
-        { header: 'Estudiante', width: 22 },
+        { header: 'Estudiante', width: cutColumns.length > 0 ? 18 : 22 },
+        ...cutColumns.map((c): PdfColumn => ({ header: `% ${c.name}`, width: 7, align: 'right' })),
         { header: 'Clases', width: 5.5, align: 'right' },
         { header: 'Pres.', width: 5.5, align: 'right' },
         { header: 'Tardes', width: 5.5, align: 'right' },
         { header: 'Justif.', width: 5.5, align: 'right' },
         { header: 'Faltas', width: 5.5, align: 'right' },
-        { header: '% Asist.', width: 7, align: 'right' },
+        {
+          header: generalHeader('% Asist.', cutColumns.length > 0, ranged),
+          width: cutColumns.length > 0 ? 9 : 7,
+          align: 'right',
+        },
         { header: '% Inasist.', width: 7.5, align: 'right' },
         { header: 'Estado', width: 11 },
         { header: 'Obs.', width: 5, align: 'right' },
@@ -139,6 +155,11 @@ export async function renderAdminReportPdf(
       rows.map((r): (string | PdfCell)[] => [
         r.studentCode,
         r.studentName,
+        ...cutColumns.map((c): string | PdfCell => {
+          const cut = findCut(r.cuts, c.key)
+          if (!cut) return ''
+          return cut.sessionsHeld === 0 ? '---' : { text: formatPct(cut.percentage), bold: true }
+        }),
         String(r.sessionsHeld),
         String(r.present),
         { text: String(r.late), tone: r.late > 0 ? 'warning' : undefined },

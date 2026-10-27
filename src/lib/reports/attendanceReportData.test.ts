@@ -120,6 +120,57 @@ describe('loadReportData dateRange', () => {
     expect(String(select?.args[0])).toContain('scanned_at')
   })
 
+  describe('widenToCuts', () => {
+    const cutRow = {
+      id: 'k1',
+      period_id: 'p1',
+      name: 'Corte 1',
+      start_date: '2026-10-01',
+      end_date: '2026-11-30',
+      sequence: 1,
+    }
+
+    it('widens the window to cover the cuts of the loaded subjects', async () => {
+      const { client, calls } = fakeClient({
+        subjects: { data: [subjectRow('s1')] },
+        period_cuts: { data: [cutRow] },
+      })
+      await loadReportData(client, { subjectIds: ['s1'], dateRange, widenToCuts: true })
+      const sessionCalls = calls.filter((c) => c.table === 'sessions')
+      // Bogota midnight of the first and last cut days, not the narrower request.
+      expect(sessionCalls.find((c) => c.method === 'gte')?.args).toEqual([
+        'date',
+        '2026-10-01T05:00:00.000Z',
+      ])
+      expect(sessionCalls.find((c) => c.method === 'lt')?.args).toEqual([
+        'date',
+        '2026-12-01T05:00:00.000Z',
+      ])
+    })
+
+    it('never narrows the requested window', async () => {
+      const wide = { startIso: '2026-09-01T05:00:00.000Z', endIso: '2027-01-10T05:00:00.000Z' }
+      const { client, calls } = fakeClient({
+        subjects: { data: [subjectRow('s1')] },
+        period_cuts: { data: [cutRow] },
+      })
+      await loadReportData(client, { subjectIds: ['s1'], dateRange: wide, widenToCuts: true })
+      const sessionCalls = calls.filter((c) => c.table === 'sessions')
+      expect(sessionCalls.find((c) => c.method === 'gte')?.args).toEqual(['date', wide.startIso])
+      expect(sessionCalls.find((c) => c.method === 'lt')?.args).toEqual(['date', wide.endIso])
+    })
+
+    it('keeps the requested window when the subjects have no cuts', async () => {
+      const { client, calls } = fakeClient({ subjects: { data: [subjectRow('s1')] } })
+      await loadReportData(client, { subjectIds: ['s1'], dateRange, widenToCuts: true })
+      const sessionCalls = calls.filter((c) => c.table === 'sessions')
+      expect(sessionCalls.find((c) => c.method === 'gte')?.args).toEqual([
+        'date',
+        dateRange.startIso,
+      ])
+    })
+  })
+
   it('does not filter by date when no window is given', async () => {
     const { client, calls } = fakeClient({ subjects: { data: [subjectRow('s1')] } })
     await loadReportData(client, { subjectIds: ['s1'] })

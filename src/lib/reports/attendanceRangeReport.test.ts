@@ -234,3 +234,102 @@ describe('buildRangeReport', () => {
     expect(() => build({ ...input, maxDetailRows: 2 })).toThrow(RangeReportTooLargeError)
   })
 })
+
+describe('buildRangeReport per cut', () => {
+  const cuts = [
+    { id: 'k0', name: 'Corte 0', startDate: '2026-09-01', endDate: '2026-09-30', sequence: 0 },
+    { id: 'k1', name: 'Corte 1', startDate: '2026-10-01', endDate: '2026-10-06', sequence: 1 },
+    { id: 'k2', name: 'Corte 2', startDate: '2026-10-07', endDate: '2026-10-31', sequence: 2 },
+  ]
+  const withCuts = { ...subject, cuts }
+  const sessions = [
+    session('ses1', '2026-10-05T13:00:00Z'), // Corte 1
+    session('ses2', '2026-10-08T13:00:00Z'), // Corte 2
+    session('ses3', '2026-10-09T13:00:00Z', {
+      isActive: false,
+      suspendedAt: '2026-10-01T10:00:00Z',
+    }), // Corte 2, suspended
+  ]
+  const attendances = [attendance('ses1', 'a'), attendance('ses1', 'b'), attendance('ses2', 'a')]
+
+  it('splits the range by cut and keeps the general figures', () => {
+    const [row] = build({ subjects: [withCuts], sessions, attendances }).summary
+    expect(row.cuts.map((c) => c.name)).toEqual(['Corte 1', 'Corte 2'])
+    expect(row.cuts[0]).toMatchObject({
+      sessionsHeld: 1,
+      sessionsSuspended: 0,
+      attendances: 2,
+      absent: 1,
+      attendancePct: 66.7,
+    })
+    expect(row.cuts[1]).toMatchObject({
+      sessionsHeld: 1,
+      sessionsSuspended: 1,
+      attendances: 1,
+      absent: 2,
+      attendancePct: 33.3,
+    })
+    // General = sum of the cuts for this range.
+    expect(row).toMatchObject({ sessionsHeld: 2, sessionsSuspended: 1, attendances: 3, absent: 3 })
+    expect(row.attendancePct).toBe(50)
+  })
+
+  it('omits cuts that do not overlap the range and lists overlapping ones with zero classes', () => {
+    const report = build({
+      subjects: [withCuts],
+      sessions: [session('ses1', '2026-10-05T13:00:00Z')],
+      attendances: [attendance('ses1', 'a')],
+    })
+    const cutsOfRow = report.summary[0].cuts
+    expect(cutsOfRow.map((c) => c.name)).not.toContain('Corte 0')
+    const corte2 = cutsOfRow.find((c) => c.name === 'Corte 2')!
+    expect(corte2).toMatchObject({
+      sessionsHeld: 0,
+      attendances: 0,
+      absent: 0,
+      attendancePct: null,
+    })
+  })
+
+  it('only counts the part of a cut that falls inside the range', () => {
+    // Corte 2 runs through Oct 31 but the range ends on Oct 9.
+    const report = build({
+      subjects: [withCuts],
+      sessions: [...sessions, session('late', '2026-10-20T13:00:00Z')],
+      attendances,
+    })
+    expect(report.summary[0].cuts[1].sessionsHeld).toBe(1)
+  })
+
+  it('tags each detail row with its cut', () => {
+    const { detail } = build({ subjects: [withCuts], sessions, attendances })
+    const cutBySession = new Map(detail.map((r) => [r.sessionDate.slice(0, 10), r.cutName]))
+    expect(cutBySession.get('2026-10-05')).toBe('Corte 1')
+    expect(cutBySession.get('2026-10-08')).toBe('Corte 2')
+    expect(cutBySession.get('2026-10-09')).toBe('Corte 2')
+  })
+
+  it('puts classes outside every cut in "Sin corte asignado"', () => {
+    const gap = [
+      { id: 'k1', name: 'Corte 1', startDate: '2026-10-01', endDate: '2026-10-06', sequence: 1 },
+    ]
+    const report = build({
+      subjects: [{ ...subject, cuts: gap }],
+      sessions: [session('ses1', '2026-10-05T13:00:00Z'), session('out', '2026-10-08T13:00:00Z')],
+      attendances: [attendance('ses1', 'a'), attendance('out', 'a')],
+    })
+    expect(report.summary[0].cuts.map((c) => [c.name, c.cutId, c.sessionsHeld])).toEqual([
+      ['Corte 1', 'k1', 1],
+      ['Sin corte asignado', null, 1],
+    ])
+    expect(report.detail.find((r) => r.sessionDate.startsWith('2026-10-08'))?.cutName).toBe(
+      'Sin corte asignado'
+    )
+  })
+
+  it('has no cut data for a subject without cuts', () => {
+    const report = build({ sessions, attendances })
+    expect(report.summary[0].cuts).toEqual([])
+    expect(report.detail.every((r) => r.cutName === '')).toBe(true)
+  })
+})
