@@ -79,7 +79,7 @@ describe('admin report PDF', () => {
     expect(all).toContain('% Corte 1')
     expect(all).toContain('% Corte 2')
     expect(all).toContain('% Asist. (general)')
-    expect(all).toContain('cada columna "% corte"')
+    expect(all).toContain('cada columna con el nombre de un corte')
     const table = all.slice(all.indexOf('solo muestran la cifra general.'))
     expect(table.indexOf('% Corte 2')).toBeGreaterThan(-1)
     expect(table.indexOf('% Corte 2')).toBeLessThan(table.indexOf('% Asist. (general)'))
@@ -118,8 +118,58 @@ describe('admin report PDF', () => {
     ).join('\n')
     expect(all).not.toContain('% Corte')
     expect(all).not.toContain('(general)')
-    expect(all).not.toContain('cada columna "% corte"')
+    expect(all).not.toContain('cada columna con el nombre de un corte')
     expect(all).toContain('% Asist.')
+  })
+
+  it('lays out five cuts (one with a legacy over-long name) without text leaving the page', async () => {
+    const fiveCuts = [
+      { id: 'k1', name: 'Corte 1', startDate: '2026-02-01', endDate: '2026-02-15', sequence: 1 },
+      { id: 'k2', name: 'Corte 2', startDate: '2026-02-16', endDate: '2026-03-15', sequence: 2 },
+      { id: 'k3', name: 'Corte 3', startDate: '2026-03-16', endDate: '2026-03-31', sequence: 3 },
+      { id: 'k4', name: 'Corte 4', startDate: '2026-04-01', endDate: '2026-04-15', sequence: 4 },
+      {
+        id: 'k5',
+        name: `Evaluación final integradora de todo el semestre ${'muy larga '.repeat(8)}`,
+        startDate: '2026-04-16',
+        endDate: '2026-04-30',
+        sequence: 5,
+      },
+    ]
+    const report = buildAttendanceReport({
+      subjects: [{ ...subject, cuts: fiveCuts }],
+      sessions,
+      enrollments: enrollments.slice(0, 12),
+      attendances,
+      justifications,
+    })
+    const bytes = await renderAdminReportPdf(report, {
+      periodName: '2026-1',
+      scopeLabel: 'Todo el período',
+    })
+
+    const all = (await extractPages(bytes)).join('\n')
+    for (const n of [1, 2, 3, 4]) expect(all).toContain(`% Corte ${n}`)
+    // The long name is truncated with an ellipsis instead of overflowing.
+    // (the narrow column wraps it mid-word, so only the start and the ellipsis are matched)
+    expect(all).toContain('% Evaluaci')
+    expect(all).toContain('muy larg...')
+    expect(all).not.toContain('muy larga muy larga muy larga muy larga')
+    expect(all).toContain('% Asist. (general)')
+
+    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
+    const doc = await getDocument({ data: new Uint8Array(bytes), useSystemFonts: true }).promise
+    for (let i = 1; i <= doc.numPages; i++) {
+      const page = await doc.getPage(i)
+      const pageWidth = page.view[2]
+      const content = await page.getTextContent()
+      for (const item of content.items) {
+        if (!('str' in item) || item.str.trim() === '') continue
+        // Text must stay inside the page (36 pt margins are respected by the table layout).
+        expect(item.transform[4]).toBeGreaterThanOrEqual(0)
+        expect(item.transform[4] + item.width).toBeLessThanOrEqual(pageWidth)
+      }
+    }
   })
 
   it('renders for a period with no subjects', async () => {

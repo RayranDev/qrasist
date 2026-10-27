@@ -119,7 +119,7 @@ export async function renderAdminReportPdf(
   const ranged = report.range.from !== null || report.range.to !== null
   if (report.rows.some((r) => r.cuts.length > 0)) {
     pdf.paragraph(
-      `En las materias con cortes, cada columna "% corte" muestra la asistencia de ese corte sobre todo el semestre y la columna "% Asist. ${ranged ? '(rango)' : '(general)'}" muestra el total ${ranged ? 'del alcance del reporte' : 'del período'}. Las materias sin cortes definidos solo muestran la cifra general.`,
+      `En las materias con cortes, cada columna con el nombre de un corte ("% Corte 1", "% Corte 2"...) muestra la asistencia de ese corte sobre todo el semestre y la columna "% Asist. ${ranged ? '(rango)' : '(general)'}" muestra el total ${ranged ? 'del alcance del reporte' : 'del período'}. Las materias sin cortes definidos solo muestran la cifra general.`,
       { muted: true, size: 8.5 }
     )
   }

@@ -102,10 +102,12 @@ export interface ReportDataQuery {
    */
   dateRange?: { startIso: string; endIso: string }
   /**
-   * Con `dateRange`, la amplía para cubrir también los cortes de las materias
-   * cargadas: los reportes que muestran el desglose por corte (semestral) lo
-   * calculan con las clases de TODO el corte aunque el rango pedido sea menor.
-   * Sigue acotado: nunca más que el rango de los cortes del período.
+   * Con `dateRange`, amplía la ventana de carga a la unión de los cortes de
+   * TODAS las materias cargadas (del inicio más temprano al fin más tardío),
+   * nunca más estrecha que la pedida. Así el desglose por corte, que es
+   * semestral, ve todas las clases de cada corte. Solo cambia qué se carga: las
+   * cifras generales de cada reporte se siguen acotando al rango pedido. Sin
+   * `dateRange` (se carga todo) o sin cortes, no hace nada.
    */
   widenToCuts?: boolean
   /** No consulta justificaciones (devuelve []): para reportes que no las usan. */
@@ -233,16 +235,16 @@ export async function loadReportData(
   if (dateRange && query.widenToCuts) {
     const cutList = subjects.flatMap((s) => s.cuts)
     if (cutList.length > 0) {
-      const first = cutList.reduce(
+      const earliestCutStart = cutList.reduce(
         (min, c) => (c.startDate < min ? c.startDate : min),
         cutList[0].startDate
       )
-      const last = cutList.reduce(
+      const latestCutEnd = cutList.reduce(
         (max, c) => (c.endDate > max ? c.endDate : max),
         cutList[0].endDate
       )
-      const startIso = dayBounds(first).startIso
-      const endIso = dayBounds(last).endIso
+      const startIso = dayBounds(earliestCutStart).startIso
+      const endIso = dayBounds(latestCutEnd).endIso
       dateRange = {
         startIso: startIso < dateRange.startIso ? startIso : dateRange.startIso,
         endIso: endIso > dateRange.endIso ? endIso : dateRange.endIso,
