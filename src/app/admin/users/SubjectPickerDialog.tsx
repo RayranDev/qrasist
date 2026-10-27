@@ -5,7 +5,6 @@ import { AlertCircle, Search } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/toast/ToastProvider'
 import { MAX_ASSIGN_SUBJECTS } from '@/lib/admin/assignSubjects'
-import { countOf } from '@/lib/utils/plural'
 import DialogShell from './DialogShell'
 
 export interface PickerSubject {
@@ -21,7 +20,14 @@ export interface PickerFailure {
 }
 
 export type PickerListResult =
-  | { success: true; noCareers: boolean; subjects: PickerSubject[]; total: number }
+  | {
+      success: true
+      noCareers: boolean
+      subjects: PickerSubject[]
+      total: number
+      /** The server capped its candidate window: there may be more results than `total`. */
+      truncated?: boolean
+    }
   | { success: false; error: string }
 
 export interface PickerSubmitResult {
@@ -35,7 +41,13 @@ export interface PickerSubmitResult {
 type ListState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; noCareers: boolean; subjects: PickerSubject[]; total: number }
+  | {
+      status: 'ready'
+      noCareers: boolean
+      subjects: PickerSubject[]
+      total: number
+      truncated: boolean
+    }
 
 /**
  * Shared frame of the optional "link subjects" step shown after a role change
@@ -55,6 +67,7 @@ export default function SubjectPickerDialog({
   submitIdleLabel,
   submitLabel,
   successMessage,
+  partialMessage,
   loadSubjects,
   submitSubjects,
   onClose,
@@ -70,6 +83,8 @@ export default function SubjectPickerDialog({
   submitIdleLabel: string
   submitLabel: (selectedCount: number) => string
   successMessage: (doneCount: number) => string
+  /** Toast when only some subjects were applied, so it stays visible after "Omitir por ahora". */
+  partialMessage: (doneCount: number) => string
   loadSubjects: (term: string) => Promise<PickerListResult>
   submitSubjects: (subjectIds: string[]) => Promise<PickerSubmitResult>
   onClose: () => void
@@ -90,7 +105,13 @@ export default function SubjectPickerDialog({
     try {
       const res = await loadSubjects(term)
       return res.success
-        ? { status: 'ready', noCareers: res.noCareers, subjects: res.subjects, total: res.total }
+        ? {
+            status: 'ready',
+            noCareers: res.noCareers,
+            subjects: res.subjects,
+            total: res.total,
+            truncated: res.truncated === true,
+          }
         : { status: 'error', message: res.error }
     } catch {
       return { status: 'error', message: 'No se pudieron cargar las materias.' }
@@ -149,7 +170,9 @@ export default function SubjectPickerDialog({
       setSubmitError(res.error || 'No se pudieron guardar las materias.')
       setFailures(res.failures)
       if (res.done.length > 0) {
-        // Partial outcome (concurrent change): drop what was applied and refresh.
+        // Partial outcome (concurrent change): say what was applied, drop it from the
+        // selection and refresh the list.
+        showToast(partialMessage(res.done.length), 'success')
         setSelected((prev) => {
           const next = new Map(prev)
           res.done.forEach((id) => next.delete(id))
@@ -245,6 +268,10 @@ export default function SubjectPickerDialog({
                   )
                 })}
               </ul>
+            )}
+
+            {list.status === 'ready' && list.truncated && (
+              <p className="text-xs text-neutral-600">Hay más resultados, afina la búsqueda.</p>
             )}
 
             {list.status === 'ready' && list.total > subjects.length && (

@@ -36,6 +36,9 @@ export default function EnrollSubjectsDialog({
       submitIdleLabel="Matricular en materias"
       submitLabel={(n) => `Matricular en ${countOf(n, 'materia')}`}
       successMessage={(n) => `${countOf(n, 'matrícula creada', 'matrículas creadas')}.`}
+      partialMessage={(n) =>
+        `${countOf(n, 'matrícula creada', 'matrículas creadas')}; revisa las que fallaron.`
+      }
       loadSubjects={(term) => listSubjectsEnrollableByStudent(studentId, term)}
       submitSubjects={async (ids) => {
         const res = await enrollStudentInSubjects(studentId, ids)

@@ -38,6 +38,9 @@ export default function AssignSubjectsDialog({
       submitIdleLabel="Asignar materias"
       submitLabel={(n) => `Asignar ${countOf(n, 'materia')}`}
       successMessage={(n) => `${countOf(n, 'materia asignada', 'materias asignadas')}.`}
+      partialMessage={(n) =>
+        `${countOf(n, 'materia asignada', 'materias asignadas')}; revisa las que fallaron.`
+      }
       loadSubjects={(term) => listSubjectsAssignableToProfessor(professorId, term)}
       submitSubjects={async (ids) => {
         const res = await assignSubjectsToProfessor(professorId, ids)

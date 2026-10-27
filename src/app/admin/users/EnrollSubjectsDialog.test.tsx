@@ -104,6 +104,28 @@ describe('EnrollSubjectsDialog', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('maps a partial outcome (enrolled) to a toast and keeps the dialog open', async () => {
+    mockEnroll.mockResolvedValue({
+      success: false,
+      error: 'Se inscribió en 1 de 2 materias; revisa las que fallaron.',
+      enrolled: ['s1'],
+      failures: [{ subjectId: 's2', code: 'FIS1', error: 'No se pudo inscribir en esta materia.' }],
+    })
+    const onClose = renderDialog()
+    await screen.findByText('Cálculo')
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /MAT1/ }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /FIS1/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Matricular en 2 materias' }))
+
+    expect(await screen.findByText('FIS1: No se pudo inscribir en esta materia.')).toBeTruthy()
+    expect(mockToast).toHaveBeenCalledWith(
+      '1 matrícula creada; revisa las que fallaron.',
+      'success'
+    )
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('explains the missing careers and offers the careers editor instead of a picker', async () => {
     mockList.mockResolvedValue({ success: true, noCareers: true, subjects: [], total: 0 })
     const onAssignCareers = vi.fn()

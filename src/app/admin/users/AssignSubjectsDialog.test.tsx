@@ -96,6 +96,36 @@ describe('AssignSubjectsDialog', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('maps a partial outcome (assigned) to a toast and keeps the dialog open', async () => {
+    mockAssign.mockResolvedValue({
+      success: false,
+      error: 'Se asignaron 1 de 2 materias; revisa las que fallaron.',
+      assigned: ['s1'],
+      failures: [
+        {
+          subjectId: 's2',
+          code: 'FIS1',
+          error: 'No se pudo asignar: la materia cambió mientras tanto.',
+        },
+      ],
+    })
+    const onClose = renderDialog()
+    await screen.findByText('Cálculo')
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /MAT1/ }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /FIS1/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Asignar 2 materias' }))
+
+    expect(
+      await screen.findByText('FIS1: No se pudo asignar: la materia cambió mientras tanto.')
+    ).toBeTruthy()
+    expect(mockToast).toHaveBeenCalledWith(
+      '1 materia asignada; revisa las que fallaron.',
+      'success'
+    )
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('explains the missing careers and does not offer a picker', async () => {
     mockList.mockResolvedValue({ success: true, noCareers: true, subjects: [], total: 0 })
     const onAssignCareers = vi.fn()
