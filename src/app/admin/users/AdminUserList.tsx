@@ -11,11 +11,12 @@ import {
   StudentCareersModal,
   ProfessorCareersModal,
 } from './UserComponents'
-import { ClipboardList, GraduationCap, UserX } from 'lucide-react'
+import { ClipboardList, FileDown, GraduationCap, UserX } from 'lucide-react'
 import UserSearchBar from './UserSearchBar'
 import FilterPanel, { FilterField } from '@/components/FilterPanel'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { RoleBadge } from '@/components/ui/RoleBadge'
+import UserReportModal from './UserReportModal'
 
 type FilterRole = 'ALL' | 'ADMIN' | 'PROFESSOR' | 'STUDENT'
 type FilterStatus = 'active' | 'inactive'
@@ -45,6 +46,33 @@ interface StudentCareerLink {
 interface ProfessorCareerLink {
   professor_id: string
   career_id: string
+}
+
+function ReportButton({
+  userName,
+  onClick,
+  large,
+}: {
+  userName: string
+  onClick: () => void
+  /** Objetivo táctil de 44px en la vista móvil. */
+  large?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        large
+          ? 'p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600'
+          : 'p-1.5 text-gray-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600'
+      }
+      title="Descargar reporte de asistencia"
+      aria-label={`Descargar reporte de asistencia de ${userName}`}
+    >
+      <FileDown className="w-5 h-5" strokeWidth={2} />
+    </button>
+  )
 }
 
 function buildHref(
@@ -98,6 +126,11 @@ export default function AdminUserList({
   const [historyUser, setHistoryUser] = useState<{ id: string; name: string } | null>(null)
   const [careersUser, setCareersUser] = useState<{ id: string; name: string } | null>(null)
   const [careersProf, setCareersProf] = useState<{ id: string; name: string } | null>(null)
+  const [reportUser, setReportUser] = useState<{
+    id: string
+    name: string
+    role: 'STUDENT' | 'PROFESSOR'
+  } | null>(null)
 
   return (
     <>
@@ -110,6 +143,15 @@ export default function AdminUserList({
           userId={historyUser.id}
           studentName={historyUser.name}
           onClose={() => setHistoryUser(null)}
+        />
+      )}
+
+      {reportUser && (
+        <UserReportModal
+          userId={reportUser.id}
+          userName={reportUser.name}
+          role={reportUser.role}
+          onClose={() => setReportUser(null)}
         />
       )}
 
@@ -279,6 +321,13 @@ export default function AdminUserList({
                       >
                         <ClipboardList className="w-5 h-5" strokeWidth={2} />
                       </button>
+                      <ReportButton
+                        large
+                        userName={profile.name}
+                        onClick={() =>
+                          setReportUser({ id: profile.id, name: profile.name, role: 'STUDENT' })
+                        }
+                      />
                       <button
                         onClick={() => setCareersUser({ id: profile.id, name: profile.name })}
                         className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-500 hover:text-sky-600 hover:bg-sky-50 rounded-xl transition"
@@ -290,14 +339,23 @@ export default function AdminUserList({
                     </>
                   )}
                   {profile.role === 'PROFESSOR' && profile.is_active !== false && (
-                    <button
-                      onClick={() => setCareersProf({ id: profile.id, name: profile.name })}
-                      className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-500 hover:text-sky-600 hover:bg-sky-50 rounded-xl transition"
-                      title="Carreras del profesor"
-                      aria-label="Carreras"
-                    >
-                      <GraduationCap className="w-5 h-5" strokeWidth={2} />
-                    </button>
+                    <>
+                      <ReportButton
+                        large
+                        userName={profile.name}
+                        onClick={() =>
+                          setReportUser({ id: profile.id, name: profile.name, role: 'PROFESSOR' })
+                        }
+                      />
+                      <button
+                        onClick={() => setCareersProf({ id: profile.id, name: profile.name })}
+                        className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-500 hover:text-sky-600 hover:bg-sky-50 rounded-xl transition"
+                        title="Carreras del profesor"
+                        aria-label="Carreras"
+                      >
+                        <GraduationCap className="w-5 h-5" strokeWidth={2} />
+                      </button>
+                    </>
                   )}
                   {currentUser.id !== profile.id && (
                     <ActionButtons
@@ -396,6 +454,12 @@ export default function AdminUserList({
                           >
                             <ClipboardList className="w-5 h-5" strokeWidth={2} />
                           </button>
+                          <ReportButton
+                            userName={profile.name}
+                            onClick={() =>
+                              setReportUser({ id: profile.id, name: profile.name, role: 'STUDENT' })
+                            }
+                          />
                           <button
                             onClick={() => setCareersUser({ id: profile.id, name: profile.name })}
                             className="p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition"
@@ -406,13 +470,25 @@ export default function AdminUserList({
                         </>
                       )}
                       {profile.role === 'PROFESSOR' && profile.is_active !== false && (
-                        <button
-                          onClick={() => setCareersProf({ id: profile.id, name: profile.name })}
-                          className="p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition"
-                          title="Carreras del profesor"
-                        >
-                          <GraduationCap className="w-5 h-5" strokeWidth={2} />
-                        </button>
+                        <>
+                          <ReportButton
+                            userName={profile.name}
+                            onClick={() =>
+                              setReportUser({
+                                id: profile.id,
+                                name: profile.name,
+                                role: 'PROFESSOR',
+                              })
+                            }
+                          />
+                          <button
+                            onClick={() => setCareersProf({ id: profile.id, name: profile.name })}
+                            className="p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition"
+                            title="Carreras del profesor"
+                          >
+                            <GraduationCap className="w-5 h-5" strokeWidth={2} />
+                          </button>
+                        </>
                       )}
                       {currentUser.id !== profile.id && (
                         <ActionButtons

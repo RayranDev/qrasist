@@ -150,7 +150,7 @@ export function resolveReportRange(
   return { cutId: cut.id, label: cut.name, from: cut.startDate, to: cut.endDate }
 }
 
-function isInRange(isoInstant: string, range: ReportRange): boolean {
+function isInRange(isoInstant: string, range: Pick<ReportRange, 'from' | 'to'>): boolean {
   if (!range.from && !range.to) return true
   const day = bogotaCalendarDate(new Date(isoInstant))
   return (!range.from || day >= range.from) && (!range.to || day <= range.to)
@@ -739,6 +739,13 @@ export function buildStudentHistory(input: {
   justifications: ReportJustificationInput[]
   /** Si viene, las clases en curso solo cuentan si el estudiante ya escaneó. */
   held?: ReportHeldContext
+  /**
+   * Días civiles de Bogotá ('YYYY-MM-DD', inclusivos; null = sin límite). Acota
+   * conteos, porcentaje y entradas a ese rango; el estado (Normal / En riesgo /
+   * Perdida por fallas), el máximo de faltas y el desglose por corte siguen
+   * siendo semestrales.
+   */
+  range?: Pick<ReportRange, 'from' | 'to'>
 }): StudentSubjectHistory[] {
   const sessionsBySubject = groupBy(input.sessions, (s) => s.subjectId)
   const mine = input.attendances.filter((a) => a.studentId === input.studentId)
@@ -787,8 +794,24 @@ export function buildStudentHistory(input: {
         counts.justified
       )
 
+      const range = input.range
+      const heldInRange = range ? held.filter((s) => isInRange(s.date, range)) : held
+      const rangeSummary = range
+        ? (() => {
+            const inRange = studentCounts(heldInRange, attendedMap, justifiedIds)
+            return computeAttendanceSummary(
+              heldInRange.length,
+              inRange.attended,
+              subject.policy,
+              inRange.late,
+              inRange.justified
+            )
+          })()
+        : summary
+
       const entries: StudentHistoryEntry[] = []
       for (const s of sessions) {
+        if (range && !isInRange(s.date, range)) continue
         if (s.suspendedAt) {
           entries.push({
             sessionId: s.id,
@@ -829,13 +852,13 @@ export function buildStudentHistory(input: {
         professorName: subject.professorName || NO_PROFESSOR_LABEL,
         status: summary.status,
         statusLabel: STATUS_LABELS[summary.status],
-        sessionsHeld: held.length,
-        attended: summary.attendancesCount,
-        late: summary.lateCount,
-        justified: summary.justifiedCount,
-        countedAbsences: summary.absencesCount,
+        sessionsHeld: heldInRange.length,
+        attended: rangeSummary.attendancesCount,
+        late: rangeSummary.lateCount,
+        justified: rangeSummary.justifiedCount,
+        countedAbsences: rangeSummary.absencesCount,
         maxAbsencesAllowed: summary.maxAbsencesAllowed,
-        attendancePct: pct(summary.attendancesCount, held.length),
+        attendancePct: pct(rangeSummary.attendancesCount, heldInRange.length),
         cuts:
           subject.cuts.length > 0
             ? computeCutsBreakdown(

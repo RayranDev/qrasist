@@ -12,7 +12,8 @@ import { setStudentCareer, setProfessorCareer } from '@/lib/actions/academic'
 import { useToast } from '@/components/toast/ToastProvider'
 import BulkImportButton from '@/components/admin/BulkImportButton'
 import CreateFormToggle from '@/components/CreateFormToggle'
-import { Eye, EyeOff, Ban, X, Check, UserPlus, Pencil } from 'lucide-react'
+import { Eye, EyeOff, Ban, X, Check, UserPlus, Pencil, FileDown } from 'lucide-react'
+import UserReportModal from './UserReportModal'
 
 interface Career {
   id: string
@@ -114,6 +115,7 @@ export function StudentHistoryModal({
   const [loading, setLoading] = useState(true)
   const [records, setRecords] = useState<AttendanceRecord[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [reportOpen, setReportOpen] = useState(false)
 
   useEffect(() => {
     getStudentAttendanceHistory(userId).then((result) => {
@@ -128,14 +130,22 @@ export function StudentHistoryModal({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape' && !reportOpen) onClose()
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+  }, [onClose, reportOpen])
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      {reportOpen && (
+        <UserReportModal
+          userId={userId}
+          userName={studentName}
+          role="STUDENT"
+          onClose={() => setReportOpen(false)}
+        />
+      )}
       <div
         className="bg-white p-6 rounded-2xl shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200"
         role="dialog"
@@ -206,12 +216,22 @@ export function StudentHistoryModal({
             {records.length} asistencia{records.length !== 1 ? 's' : ''} registrada
             {records.length !== 1 ? 's' : ''}
           </p>
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition"
-          >
-            Cerrar
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setReportOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-gray-700 border border-gray-200 rounded-xl text-sm font-bold hover:bg-gray-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
+            >
+              <FileDown className="w-4 h-4 text-emerald-700" strokeWidth={2} aria-hidden="true" />
+              Descargar reporte
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-1.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition"
+            >
+              Cerrar
+            </button>
+          </div>
         </div>
       </div>
     </div>

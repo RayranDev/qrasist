@@ -19,6 +19,10 @@ import { countOf } from '@/lib/utils/plural'
 export interface StudentPdfMeta {
   studentName: string
   studentCode: string | null
+  /** Alcance del reporte cuando no es todo el historial (p. ej. un rango de fechas). */
+  scopeLabel?: string
+  /** Texto de "sin materias" cuando lo ve alguien distinto del estudiante. */
+  emptyMessage?: string
   generatedAt?: Date
 }
 
@@ -31,6 +35,7 @@ export async function renderStudentReportPdf(
     subtitleLines: [
       `Estudiante: ${meta.studentName}${meta.studentCode ? ` (${meta.studentCode})` : ''}`,
       `${countOf(history.length, 'materia inscrita', 'materias inscritas')}`,
+      ...(meta.scopeLabel ? [`Alcance: ${meta.scopeLabel}`] : []),
     ],
     orientation: 'portrait',
     generatedAt: formatGeneratedAt(meta.generatedAt),
@@ -57,7 +62,7 @@ export async function renderStudentReportPdf(
       formatPct(h.attendancePct),
       { text: h.statusLabel, tone: statusTone(h.status) },
     ]),
-    { emptyMessage: 'No tienes materias inscritas.' }
+    { emptyMessage: meta.emptyMessage ?? 'No tienes materias inscritas.' }
   )
   pdf.legend([
     { label: 'Presente / Normal', tone: 'success' },

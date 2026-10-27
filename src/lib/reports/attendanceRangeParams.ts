@@ -11,7 +11,15 @@ const DAY_MS = 24 * 60 * 60 * 1000
 
 // Los ids de Supabase son uuid; se acepta cualquier forma hex con guiones para
 // no depender de la variante exacta (y rechazar basura antes de consultar).
-const idSchema = z.string().regex(/^[0-9a-fA-F-]{36}$/, 'Identificador no válido.')
+export const idSchema = z.string().regex(/^[0-9a-fA-F-]{36}$/, 'Identificador no válido.')
+
+/** Mensaje de error si el rango de días ('YYYY-MM-DD', inclusivos) no es válido; null si lo es. */
+export function checkDayRange(from: string, to: string): string | null {
+  const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS
+  if (days < 0) return 'La fecha final no puede ser anterior a la inicial.'
+  if (days + 1 > MAX_RANGE_DAYS) return `El rango no puede superar ${MAX_RANGE_DAYS} días.`
+  return null
+}
 
 const paramsSchema = z
   .object({
@@ -23,21 +31,8 @@ const paramsSchema = z
     format: z.enum(['xlsx'], { error: 'Formato no válido.' }).default('xlsx'),
   })
   .superRefine((value, ctx) => {
-    const days =
-      (Date.parse(`${value.to}T00:00:00Z`) - Date.parse(`${value.from}T00:00:00Z`)) / DAY_MS
-    if (days < 0) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['to'],
-        message: 'La fecha final no puede ser anterior a la inicial.',
-      })
-    } else if (days + 1 > MAX_RANGE_DAYS) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['to'],
-        message: `El rango no puede superar ${MAX_RANGE_DAYS} días.`,
-      })
-    }
+    const message = checkDayRange(value.from, value.to)
+    if (message) ctx.addIssue({ code: 'custom', path: ['to'], message })
   })
 
 export type RangeReportParams = z.infer<typeof paramsSchema>
