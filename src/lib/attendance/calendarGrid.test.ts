@@ -22,6 +22,18 @@ describe('parseMonth / parseCivilDay', () => {
     expect(parseCivilDay('27/10/2026')).toBeNull()
     expect(parseCivilDay('')).toBeNull()
   })
+
+  it('only accepts years between 2000 and 2100', () => {
+    for (const month of ['0050-05', '1999-12', '2101-01', '9999-12']) {
+      expect(parseMonth(month), month).toBeNull()
+    }
+    for (const day of ['0050-05-01', '1999-12-31', '2101-01-01', '9999-12-31']) {
+      expect(parseCivilDay(day), day).toBeNull()
+    }
+    expect(parseMonth('2000-01')).toBe('2000-01')
+    expect(parseMonth('2100-12')).toBe('2100-12')
+    expect(parseCivilDay('2100-12-31')).toBe('2100-12-31')
+  })
 })
 
 describe('shiftMonth', () => {

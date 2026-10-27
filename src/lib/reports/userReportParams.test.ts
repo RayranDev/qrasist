@@ -49,4 +49,15 @@ describe('parseUserReportParams', () => {
   it('rejects unknown formats', () => {
     expect(parse(`userId=${UUID}&format=csv`).ok).toBe(false)
   })
+
+  it('rejects ids that only look like uuids', () => {
+    expect(parse(`userId=${'-'.repeat(36)}`).ok).toBe(false)
+    expect(parse(`userId=${'f'.repeat(36)}`).ok).toBe(false)
+  })
+
+  it('restricts the years to 2000-2100', () => {
+    expect(parse(`userId=${UUID}&from=0050-05-01&to=0050-05-02`).ok).toBe(false)
+    expect(parse(`userId=${UUID}&from=2026-01-01&to=2101-01-01`).ok).toBe(false)
+    expect(parse(`userId=${UUID}&from=2100-01-01&to=2100-01-31`).ok).toBe(true)
+  })
 })

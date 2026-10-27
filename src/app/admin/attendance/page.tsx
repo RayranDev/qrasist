@@ -16,6 +16,7 @@ import {
   summarizeDays,
 } from '@/lib/attendance/calendarGrid'
 import { fetchDaySessions, fetchMonthSessions } from '@/lib/attendance/calendarData'
+import { fetchAllRows, unwrapRows } from '@/lib/supabase/fetchAll'
 import { bogotaCalendarDate } from '@/lib/utils/businessDays'
 import { formatBogotaDateTime } from '@/lib/utils/bogotaDay'
 import ReportDownloadButton from '@/components/ReportDownloadButton'
@@ -73,11 +74,31 @@ export default async function AdminAttendancePage({
   const params = await searchParams
   const { supabase } = await requireRole(['ADMIN'])
 
-  const [{ data: careers }, { data: subjects }, { data: links }] = await Promise.all([
+  // Subjects and links are paginated: PostgREST silently truncates at 1000
+  // rows, which would drop subjects from the picker and from the career scope.
+  const [{ data: careers }, subjectsResult, linksResult] = await Promise.all([
     supabase.from('careers').select('id, name').eq('is_active', true).order('name'),
-    supabase.from('subjects').select('id, name, code').eq('is_active', true).order('name'),
-    supabase.from('subject_careers').select('subject_id, career_id').eq('is_active', true),
+    fetchAllRows<{ id: string; name: string; code: string }>((from, to) =>
+      supabase
+        .from('subjects')
+        .select('id, name, code')
+        .eq('is_active', true)
+        .order('name')
+        .order('id')
+        .range(from, to)
+    ),
+    fetchAllRows<{ subject_id: string; career_id: string }>((from, to) =>
+      supabase
+        .from('subject_careers')
+        .select('subject_id, career_id')
+        .eq('is_active', true)
+        .order('subject_id')
+        .order('career_id')
+        .range(from, to)
+    ),
   ])
+  const subjects = unwrapRows(subjectsResult, 'las materias')
+  const links = unwrapRows(linksResult, 'los vínculos materia-carrera')
 
   const careerIdsBySubject = new Map<string, string[]>()
   for (const l of links || []) {

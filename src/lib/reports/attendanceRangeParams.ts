@@ -3,28 +3,38 @@
  * Puro (sin I/O) para poder probarlo sin el route handler.
  */
 import { z } from 'zod'
+import { MAX_RANGE_DAYS, checkDayRange } from './dayRange'
+import {
+  MAX_SUPPORTED_YEAR,
+  MIN_SUPPORTED_YEAR,
+  isSupportedYear,
+} from '@/lib/attendance/calendarGrid'
 
-/** Rango máximo en días civiles, ambos extremos inclusivos. */
-export const MAX_RANGE_DAYS = 366
+export { MAX_RANGE_DAYS, checkDayRange }
 
-const DAY_MS = 24 * 60 * 60 * 1000
+// Los ids de Supabase son uuid: formato 8-4-4-4-12 estricto, para que un id mal
+// formado dé 400 en lugar de llegar a Postgres y terminar en un 500.
+export const idSchema = z
+  .string()
+  .regex(
+    /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/,
+    'Identificador no válido.'
+  )
 
-// Los ids de Supabase son uuid; se acepta cualquier forma hex con guiones para
-// no depender de la variante exacta (y rechazar basura antes de consultar).
-export const idSchema = z.string().regex(/^[0-9a-fA-F-]{36}$/, 'Identificador no válido.')
-
-/** Mensaje de error si el rango de días ('YYYY-MM-DD', inclusivos) no es válido; null si lo es. */
-export function checkDayRange(from: string, to: string): string | null {
-  const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS
-  if (days < 0) return 'La fecha final no puede ser anterior a la inicial.'
-  if (days + 1 > MAX_RANGE_DAYS) return `El rango no puede superar ${MAX_RANGE_DAYS} días.`
-  return null
+/** Fecha 'YYYY-MM-DD' real, con año entre 2000 y 2100. */
+export function dayParamSchema(message: string) {
+  return z.iso
+    .date({ error: message })
+    .refine(
+      isSupportedYear,
+      `El año debe estar entre ${MIN_SUPPORTED_YEAR} y ${MAX_SUPPORTED_YEAR}.`
+    )
 }
 
 const paramsSchema = z
   .object({
-    from: z.iso.date({ error: 'La fecha inicial no es válida (usa AAAA-MM-DD).' }),
-    to: z.iso.date({ error: 'La fecha final no es válida (usa AAAA-MM-DD).' }),
+    from: dayParamSchema('La fecha inicial no es válida (usa AAAA-MM-DD).'),
+    to: dayParamSchema('La fecha final no es válida (usa AAAA-MM-DD).'),
     careerId: idSchema.optional(),
     subjectId: idSchema.optional(),
     // Solo Excel: el detalle por estudiante y clase no cabe en un PDF legible.

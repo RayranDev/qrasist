@@ -92,6 +92,16 @@ export interface RangeReportInput {
   /** 'YYYY-MM-DD' inclusivos (días civiles de Bogotá). */
   from: string
   to: string
+  /** Si el detalle supera esta cantidad de filas se aborta con RangeReportTooLargeError. */
+  maxDetailRows?: number
+}
+
+/** El detalle excede `maxDetailRows`: se corta apenas se detecta, sin seguir armando filas. */
+export class RangeReportTooLargeError extends Error {
+  constructor() {
+    super('El reporte por rango excede el máximo de filas.')
+    this.name = 'RangeReportTooLargeError'
+  }
 }
 
 function round1(value: number): number {
@@ -167,6 +177,9 @@ export function buildRangeReport(input: RangeReportInput): RangeReport {
         status: RangeStatus,
         scannedAt: string | null
       ) => {
+        if (input.maxDetailRows !== undefined && detail.length >= input.maxDetailRows) {
+          throw new RangeReportTooLargeError()
+        }
         detail.push({
           date,
           sessionDate: session.date,

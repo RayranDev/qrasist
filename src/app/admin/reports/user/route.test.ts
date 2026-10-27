@@ -101,6 +101,8 @@ describe('GET /admin/reports/user', () => {
       `userId=${UUID}&format=csv`,
       `userId=${UUID}&from=2026-10-01`,
       `userId=${UUID}&from=2026-10-31&to=2026-10-01`,
+      `userId=${'-'.repeat(36)}`,
+      `userId=${UUID}&from=9999-12-01&to=9999-12-31`,
     ]) {
       const res = await GET(request(q))
       expect(res.status, q).toBe(400)

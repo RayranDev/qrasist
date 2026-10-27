@@ -121,4 +121,80 @@ describe('generateRangeReport', () => {
     const { client } = fakeClient({ sessions: { data: null, error: { message: 'timeout' } } })
     await expect(generateRangeReport(client, query)).rejects.toThrow()
   })
+
+  it('returns 422 from the estimate before loading attendances or justifications', async () => {
+    const sessionRow = (id: string) => ({
+      id,
+      subject_id: 's1',
+      date: '2026-10-05T13:00:00Z',
+      is_active: true,
+      suspended_at: null,
+    })
+    const { client, calls } = fakeClient({
+      sessions: { data: [sessionRow('x1'), sessionRow('x2')] },
+      subjects: { data: [{ id: 's1' }] },
+      enrollments: {
+        data: [
+          { subject_id: 's1', student_id: 'a' },
+          { subject_id: 's1', student_id: 'b' },
+          { subject_id: 's1', student_id: 'c' },
+        ],
+      },
+    })
+    // 3 enrolled x 2 classes = 6 estimated rows > cap of 5.
+    const result = await generateRangeReport(client, query, { maxDetailRows: 5 })
+    expect(result).toMatchObject({ ok: false, status: 422 })
+
+    const tables = new Set(calls.map((c) => c.table))
+    expect(tables.has('attendances')).toBe(false)
+    expect(tables.has('absence_justifications')).toBe(false)
+    // Not even the heavy session columns: only the light counting pass ran.
+    const sessionSelects = calls.filter((c) => c.table === 'sessions' && c.method === 'select')
+    expect(sessionSelects.every((c) => !String(c.args[0]).includes('class_ends_at'))).toBe(true)
+  })
+
+  it('ignores archived classes and archived subjects in the estimate', async () => {
+    const { client, calls } = fakeClient({
+      sessions: {
+        data: [
+          {
+            id: 'x1',
+            subject_id: 's1',
+            date: '2026-10-05T13:00:00Z',
+            is_active: false,
+            suspended_at: null,
+          },
+        ],
+      },
+      subjects: { data: [{ id: 's1' }] },
+    })
+    // The only class is archived, so nothing is left to report and nothing heavy is loaded.
+    const result = await generateRangeReport(client, query, { maxDetailRows: 1 })
+    expect(result).toMatchObject({ ok: false, status: 404 })
+    expect(calls.some((c) => c.table === 'attendances')).toBe(false)
+  })
+
+  it('only considers active subjects when resolving what to load', async () => {
+    const { client, calls } = fakeClient({
+      sessions: {
+        data: [
+          {
+            id: 'x1',
+            subject_id: 's1',
+            date: '2026-10-05T13:00:00Z',
+            is_active: true,
+            suspended_at: null,
+          },
+        ],
+      },
+      subjects: { data: [] }, // s1 is not returned as active
+    })
+    const result = await generateRangeReport(client, query)
+    expect(result).toMatchObject({ ok: false, status: 404 })
+    const activeFilter = calls.find(
+      (c) => c.table === 'subjects' && c.method === 'eq' && c.args[0] === 'is_active'
+    )
+    expect(activeFilter?.args[1]).toBe(true)
+    expect(calls.some((c) => c.table === 'attendances')).toBe(false)
+  })
 })

@@ -12,14 +12,24 @@ const MONTH_RE = /^(\d{4})-(0[1-9]|1[0-2])$/
 const DAY_RE = /^(\d{4})-(\d{2})-(\d{2})$/
 const DAY_MS = 24 * 60 * 60 * 1000
 
-/** Valida un mes 'YYYY-MM'; null si no es uno. */
-export function parseMonth(value: string | null | undefined): string | null {
-  return value && MONTH_RE.test(value) ? value : null
+/** Años aceptados en la URL: evita meses absurdos (0050, 9999) que el calendario no sabe mostrar. */
+export const MIN_SUPPORTED_YEAR = 2000
+export const MAX_SUPPORTED_YEAR = 2100
+
+/** ¿El año de un 'YYYY-...' está dentro de MIN_SUPPORTED_YEAR..MAX_SUPPORTED_YEAR? */
+export function isSupportedYear(value: string): boolean {
+  const year = Number(value.slice(0, 4))
+  return year >= MIN_SUPPORTED_YEAR && year <= MAX_SUPPORTED_YEAR
 }
 
-/** Valida una fecha civil real 'YYYY-MM-DD' (rechaza 2026-02-31); null si no lo es. */
+/** Valida un mes 'YYYY-MM' (años 2000-2100); null si no es uno. */
+export function parseMonth(value: string | null | undefined): string | null {
+  return value && MONTH_RE.test(value) && isSupportedYear(value) ? value : null
+}
+
+/** Valida una fecha civil real 'YYYY-MM-DD' (rechaza 2026-02-31 y años fuera de 2000-2100); null si no lo es. */
 export function parseCivilDay(value: string | null | undefined): string | null {
-  if (!value) return null
+  if (!value || !isSupportedYear(value)) return null
   const match = DAY_RE.exec(value)
   if (!match) return null
   const [, y, m, d] = match

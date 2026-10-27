@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { buildRangeReport, type RangeReportInput } from './attendanceRangeReport'
+import {
+  buildRangeReport,
+  RangeReportTooLargeError,
+  type RangeReportInput,
+} from './attendanceRangeReport'
 import type {
   ReportAttendanceInput,
   ReportEnrollmentInput,
@@ -197,5 +201,15 @@ describe('buildRangeReport', () => {
       sessions: [session('ses1', '2026-10-05T13:00:00Z')],
     })
     expect(report.detail[0].professorName).toBe('Sin asignar')
+  })
+
+  it('aborts as soon as the detail exceeds maxDetailRows', () => {
+    const input = {
+      sessions: [session('ses1', '2026-10-05T13:00:00Z')],
+      attendances: [],
+    }
+    // 3 enrolled students -> 3 rows: exactly at the cap is fine, one over aborts.
+    expect(build({ ...input, maxDetailRows: 3 }).detail).toHaveLength(3)
+    expect(() => build({ ...input, maxDetailRows: 2 })).toThrow(RangeReportTooLargeError)
   })
 })

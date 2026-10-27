@@ -3,13 +3,13 @@
  * para poder probarlo sin el route handler.
  */
 import { z } from 'zod'
-import { checkDayRange, idSchema } from './attendanceRangeParams'
+import { checkDayRange, dayParamSchema, idSchema } from './attendanceRangeParams'
 
 const paramsSchema = z
   .object({
     userId: idSchema,
-    from: z.iso.date({ error: 'La fecha inicial no es válida (usa AAAA-MM-DD).' }).optional(),
-    to: z.iso.date({ error: 'La fecha final no es válida (usa AAAA-MM-DD).' }).optional(),
+    from: dayParamSchema('La fecha inicial no es válida (usa AAAA-MM-DD).').optional(),
+    to: dayParamSchema('La fecha final no es válida (usa AAAA-MM-DD).').optional(),
     format: z.enum(['xlsx', 'pdf'], { error: 'Formato no válido.' }).default('xlsx'),
   })
   .superRefine((value, ctx) => {

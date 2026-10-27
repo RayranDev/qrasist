@@ -84,6 +84,9 @@ describe('GET /admin/reports/attendance-range', () => {
       'from=2027-01-01&to=2028-06-01',
       'from=2026-10-01&to=2026-10-02&format=pdf',
       'from=2026-10-01&to=2026-10-02&subjectId=nope',
+      `from=2026-10-01&to=2026-10-02&subjectId=${'-'.repeat(36)}`,
+      'from=9999-12-01&to=9999-12-31',
+      'from=0050-05-01&to=0050-05-02',
     ]) {
       const res = await GET(request(q))
       expect(res.status, q).toBe(400)

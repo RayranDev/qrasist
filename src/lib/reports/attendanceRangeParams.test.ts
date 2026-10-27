@@ -62,4 +62,24 @@ describe('parseRangeReportParams', () => {
     expect(parse("from=2026-10-01&to=2026-10-02&subjectId=1' or '1'='1").ok).toBe(false)
     expect(parse('from=2026-10-01&to=2026-10-02&careerId=abc').ok).toBe(false)
   })
+
+  it('rejects malformed ids that merely have 36 id-like characters', () => {
+    const base = 'from=2026-10-01&to=2026-10-02'
+    expect(parse(`${base}&subjectId=${'-'.repeat(36)}`).ok).toBe(false)
+    expect(parse(`${base}&careerId=${'a'.repeat(36)}`).ok).toBe(false)
+    expect(parse(`${base}&subjectId=${UUID}`).ok).toBe(true)
+  })
+
+  it('restricts the years to 2000-2100', () => {
+    for (const q of [
+      'from=0050-05-01&to=0050-05-02',
+      'from=1999-12-31&to=2000-01-02',
+      'from=2026-01-01&to=2101-01-01',
+      'from=9999-12-01&to=9999-12-31',
+    ]) {
+      expect(parse(q).ok, q).toBe(false)
+    }
+    expect(parse('from=2000-01-01&to=2000-01-31').ok).toBe(true)
+    expect(parse('from=2100-12-01&to=2100-12-31').ok).toBe(true)
+  })
 })
