@@ -1,12 +1,24 @@
 import { requireRole } from '@/lib/auth/requireRole'
 import Link from 'next/link'
-import { CalendarX2, ClipboardCheck, Users } from 'lucide-react'
+import { CalendarDays, CalendarX2, ClipboardCheck, List, Users } from 'lucide-react'
 import AdminHeader from '@/components/admin/AdminHeader'
 import MobileWarningBanner from '@/components/MobileWarningBanner'
 import SessionRosterPanel from '@/components/attendance/SessionRosterPanel'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { attendanceHref } from '@/lib/attendance/attendanceHref'
+import {
+  bogotaMonthOf,
+  dayBounds,
+  monthBounds,
+  parseCivilDay,
+  parseMonth,
+  summarizeDays,
+} from '@/lib/attendance/calendarGrid'
+import { fetchDaySessions, fetchMonthSessions } from '@/lib/attendance/calendarData'
+import { bogotaCalendarDate } from '@/lib/utils/businessDays'
 import { formatBogotaDateTime } from '@/lib/utils/bogotaDay'
+import AttendanceCalendar from './AttendanceCalendar'
 import SubjectPicker from './SubjectPicker'
 import PastClassModal from './PastClassModal'
 import SessionActiveToggle from './SessionActiveToggle'
@@ -51,6 +63,9 @@ export default async function AdminAttendancePage({
     subjectId?: string
     sessionId?: string
     page?: string
+    view?: string
+    month?: string
+    day?: string
   }>
 }) {
   const params = await searchParams
@@ -82,6 +97,7 @@ export default async function AdminAttendancePage({
     (selectedSubject ? careerIdsBySubject.get(selectedSubject.id)?.[0] : '') ||
     ''
 
+  const isCalendar = params.view === 'calendar'
   const currentPage = Math.max(1, parseInt(params.page || '1', 10) || 1)
   const from = (currentPage - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
@@ -89,7 +105,7 @@ export default async function AdminAttendancePage({
   let sessions: SessionRow[] = []
   let totalSessions = 0
   let enrolledCount = 0
-  if (selectedSubject) {
+  if (selectedSubject && !isCalendar) {
     const [{ data, count }, { count: enrolled }] = await Promise.all([
       supabase
         .from('sessions')
@@ -114,7 +130,7 @@ export default async function AdminAttendancePage({
   // registrada con una fecha antigua): se busca directo, acotada a la materia.
   let selectedSession: { id: string; date: string } | null =
     sessions.find((s) => s.id === params.sessionId) || null
-  if (!selectedSession && selectedSubject && params.sessionId) {
+  if (!selectedSession && selectedSubject && params.sessionId && !isCalendar) {
     const { data } = await supabase
       .from('sessions')
       .select('id, date')
@@ -124,6 +140,50 @@ export default async function AdminAttendancePage({
     selectedSession = data
   }
   const now = new Date()
+
+  // Calendario: el mes (y el día) visibles acotan TODAS las consultas. Sin
+  // materia el calendario cubre todas; con carrera, solo las de esa carrera.
+  const today = bogotaCalendarDate(now)
+  const dayParam = parseCivilDay(params.day)
+  const month = parseMonth(params.month) ?? (dayParam ? dayParam.slice(0, 7) : bogotaMonthOf(now))
+  const selectedDay =
+    dayParam && dayParam.startsWith(month) ? dayParam : today.startsWith(month) ? today : null
+  const calendarScope = selectedSubject
+    ? { subjectId: selectedSubject.id }
+    : careerId
+      ? {
+          careerSubjectIds: (subjects || [])
+            .filter((s) => careerIdsBySubject.get(s.id)?.includes(careerId))
+            .map((s) => s.id),
+        }
+      : {}
+  const [monthSessions, daySessions] = isCalendar
+    ? await Promise.all([
+        fetchMonthSessions(supabase, monthBounds(month), calendarScope),
+        selectedDay ? fetchDaySessions(supabase, dayBounds(selectedDay), calendarScope) : [],
+      ])
+    : [[], []]
+  let calendarSession: { id: string; date: string; subjectName: string } | null = null
+  if (isCalendar && params.sessionId) {
+    const inDay = daySessions.find((s) => s.id === params.sessionId)
+    if (inDay) {
+      calendarSession = { id: inDay.id, date: inDay.date, subjectName: inDay.subjectName }
+    } else {
+      const { data } = await supabase
+        .from('sessions')
+        .select('id, date, subject:subjects(name)')
+        .eq('id', params.sessionId)
+        .maybeSingle()
+      if (data) {
+        const subject = Array.isArray(data.subject) ? data.subject[0] : data.subject
+        calendarSession = {
+          id: data.id,
+          date: data.date,
+          subjectName: subject?.name ?? 'Materia',
+        }
+      }
+    }
+  }
 
   return (
     <div className="min-h-screen bg-surface">
@@ -136,16 +196,111 @@ export default async function AdminAttendancePage({
             activeHref="/admin/attendance"
           />
 
-          <div className="bg-white rounded-2xl border border-gray-200/80 shadow-xs p-5">
+          <div className="bg-white rounded-2xl border border-gray-200/80 shadow-xs p-5 space-y-4">
+            <nav aria-label="Vista de asistencias" className="flex">
+              <div className="inline-flex rounded-xl border border-gray-200 p-0.5 bg-gray-50/70">
+                {[
+                  {
+                    key: 'list',
+                    label: 'Lista',
+                    icon: <List className="w-4 h-4" aria-hidden="true" />,
+                    href: attendanceHref({
+                      view: 'list',
+                      careerId: careerId || undefined,
+                      subjectId: selectedSubject?.id,
+                    }),
+                  },
+                  {
+                    key: 'calendar',
+                    label: 'Calendario',
+                    icon: <CalendarDays className="w-4 h-4" aria-hidden="true" />,
+                    href: attendanceHref({
+                      view: 'calendar',
+                      month,
+                      careerId: careerId || undefined,
+                      subjectId: selectedSubject?.id,
+                    }),
+                  },
+                ].map((v) => {
+                  const active = (v.key === 'calendar') === isCalendar
+                  return (
+                    <Link
+                      key={v.key}
+                      href={v.href}
+                      aria-current={active ? 'page' : undefined}
+                      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 min-h-[36px] rounded-[10px] text-xs font-bold transition focus-visible:ring-2 focus-visible:ring-navy-600 ${
+                        active
+                          ? 'bg-white text-navy-800 shadow-xs border border-gray-200'
+                          : 'text-gray-500 hover:text-gray-800 border border-transparent'
+                      }`}
+                    >
+                      {v.icon}
+                      {v.label}
+                    </Link>
+                  )
+                })}
+              </div>
+            </nav>
             <SubjectPicker
               careers={careers || []}
               subjects={subjectOptions}
               initialCareerId={careerId}
               selectedSubjectId={selectedSubject?.id || ''}
+              view={isCalendar ? 'calendar' : 'list'}
+              month={isCalendar ? month : undefined}
             />
           </div>
 
-          {!selectedSubject ? (
+          {isCalendar ? (
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
+              <div className="lg:col-span-3 space-y-4">
+                {selectedSubject && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <SuspendDayModal
+                      subjectId={selectedSubject.id}
+                      subjectName={selectedSubject.name}
+                      defaultDate={selectedDay ?? ''}
+                    />
+                    <PastClassModal
+                      subjectId={selectedSubject.id}
+                      subjectName={selectedSubject.name}
+                      careerId={careerId || undefined}
+                    />
+                  </div>
+                )}
+                <AttendanceCalendar
+                  month={month}
+                  today={today}
+                  now={now}
+                  summaries={summarizeDays(monthSessions)}
+                  selectedDay={selectedDay}
+                  daySessions={daySessions}
+                  selectedSessionId={calendarSession?.id}
+                  filters={{ careerId: careerId || undefined, subjectId: selectedSubject?.id }}
+                />
+              </div>
+              <aside className="lg:col-span-2 lg:sticky lg:top-4">
+                {calendarSession ? (
+                  <div className="space-y-3">
+                    <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                      {calendarSession.subjectName} · {formatBogotaDateTime(calendarSession.date)}
+                    </p>
+                    <SessionRosterPanel
+                      key={calendarSession.id}
+                      sessionId={calendarSession.id}
+                      autoRefresh={false}
+                    />
+                  </div>
+                ) : (
+                  <EmptyState
+                    icon={<Users className="w-5 h-5" />}
+                    title="Abre una clase"
+                    description="Selecciona una clase del día para ver a los inscritos y marcar presente, tarde o quitar el registro."
+                  />
+                )}
+              </aside>
+            </div>
+          ) : !selectedSubject ? (
             <EmptyState
               icon={<ClipboardCheck className="w-5 h-5" />}
               title="Elige una materia para ver sus clases"
