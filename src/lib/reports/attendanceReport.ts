@@ -99,6 +99,8 @@ export interface ReportAttendanceInput {
   /** Quién la marcó a mano; null = escaneo normal del QR. */
   markedBy: string | null
   manualReason: string | null
+  /** Momento en que se registró la asistencia (timestamptz ISO). */
+  scannedAt?: string | null
 }
 
 export interface ReportJustificationInput {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { FileText } from 'lucide-react'
+import { FileSpreadsheet, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/toast/ToastProvider'
 import { downloadReport } from '@/lib/reports/downloadReport'
@@ -15,11 +15,14 @@ export default function ReportDownloadButton({
   label = 'Descargar PDF',
   fallbackName = 'reporte.pdf',
   variant = 'secondary',
+  icon = 'pdf',
 }: {
   url: string
   label?: string
   fallbackName?: string
   variant?: 'primary' | 'secondary' | 'outline'
+  /** Ícono según el tipo de archivo: 'pdf' (por defecto) o 'excel'. */
+  icon?: 'pdf' | 'excel'
 }) {
   const [loading, setLoading] = useState(false)
   const showToast = useToast()
@@ -37,7 +40,13 @@ export default function ReportDownloadButton({
       size="sm"
       onClick={handleClick}
       isLoading={loading}
-      leftIcon={<FileText className="w-4 h-4 text-brand-700" strokeWidth={2} />}
+      leftIcon={
+        icon === 'excel' ? (
+          <FileSpreadsheet className="w-4 h-4 text-emerald-700" strokeWidth={2} />
+        ) : (
+          <FileText className="w-4 h-4 text-brand-700" strokeWidth={2} />
+        )
+      }
     >
       {label}
     </Button>

@@ -18,6 +18,8 @@ import {
 import { fetchDaySessions, fetchMonthSessions } from '@/lib/attendance/calendarData'
 import { bogotaCalendarDate } from '@/lib/utils/businessDays'
 import { formatBogotaDateTime } from '@/lib/utils/bogotaDay'
+import ReportDownloadButton from '@/components/ReportDownloadButton'
+import { attendanceRangeUrl } from '@/lib/reports/attendanceRangeUrl'
 import AttendanceCalendar from './AttendanceCalendar'
 import SubjectPicker from './SubjectPicker'
 import PastClassModal from './PastClassModal'
@@ -148,6 +150,15 @@ export default async function AdminAttendancePage({
   const month = parseMonth(params.month) ?? (dayParam ? dayParam.slice(0, 7) : bogotaMonthOf(now))
   const selectedDay =
     dayParam && dayParam.startsWith(month) ? dayParam : today.startsWith(month) ? today : null
+  const monthRange = monthBounds(month)
+  const currentMonthRange = monthBounds(bogotaMonthOf(now))
+  // Con materia basta la materia: mandar también la carrera heredada podría
+  // contradecirla (una materia puede estar en varias carreras).
+  const reportFilters = selectedSubject
+    ? { subjectId: selectedSubject.id }
+    : careerId
+      ? { careerId }
+      : {}
   const calendarScope = selectedSubject
     ? { subjectId: selectedSubject.id }
     : careerId
@@ -159,7 +170,7 @@ export default async function AdminAttendancePage({
       : {}
   const [monthSessions, daySessions] = isCalendar
     ? await Promise.all([
-        fetchMonthSessions(supabase, monthBounds(month), calendarScope),
+        fetchMonthSessions(supabase, monthRange, calendarScope),
         selectedDay ? fetchDaySessions(supabase, dayBounds(selectedDay), calendarScope) : [],
       ])
     : [[], []]
@@ -197,50 +208,62 @@ export default async function AdminAttendancePage({
           />
 
           <div className="bg-white rounded-2xl border border-gray-200/80 shadow-xs p-5 space-y-4">
-            <nav aria-label="Vista de asistencias" className="flex">
-              <div className="inline-flex rounded-xl border border-gray-200 p-0.5 bg-gray-50/70">
-                {[
-                  {
-                    key: 'list',
-                    label: 'Lista',
-                    icon: <List className="w-4 h-4" aria-hidden="true" />,
-                    href: attendanceHref({
-                      view: 'list',
-                      careerId: careerId || undefined,
-                      subjectId: selectedSubject?.id,
-                    }),
-                  },
-                  {
-                    key: 'calendar',
-                    label: 'Calendario',
-                    icon: <CalendarDays className="w-4 h-4" aria-hidden="true" />,
-                    href: attendanceHref({
-                      view: 'calendar',
-                      month,
-                      careerId: careerId || undefined,
-                      subjectId: selectedSubject?.id,
-                    }),
-                  },
-                ].map((v) => {
-                  const active = (v.key === 'calendar') === isCalendar
-                  return (
-                    <Link
-                      key={v.key}
-                      href={v.href}
-                      aria-current={active ? 'page' : undefined}
-                      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 min-h-[36px] rounded-[10px] text-xs font-bold transition focus-visible:ring-2 focus-visible:ring-navy-600 ${
-                        active
-                          ? 'bg-white text-navy-800 shadow-xs border border-gray-200'
-                          : 'text-gray-500 hover:text-gray-800 border border-transparent'
-                      }`}
-                    >
-                      {v.icon}
-                      {v.label}
-                    </Link>
-                  )
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <nav aria-label="Vista de asistencias" className="flex">
+                <div className="inline-flex rounded-xl border border-gray-200 p-0.5 bg-gray-50/70">
+                  {[
+                    {
+                      key: 'list',
+                      label: 'Lista',
+                      icon: <List className="w-4 h-4" aria-hidden="true" />,
+                      href: attendanceHref({
+                        view: 'list',
+                        careerId: careerId || undefined,
+                        subjectId: selectedSubject?.id,
+                      }),
+                    },
+                    {
+                      key: 'calendar',
+                      label: 'Calendario',
+                      icon: <CalendarDays className="w-4 h-4" aria-hidden="true" />,
+                      href: attendanceHref({
+                        view: 'calendar',
+                        month,
+                        careerId: careerId || undefined,
+                        subjectId: selectedSubject?.id,
+                      }),
+                    },
+                  ].map((v) => {
+                    const active = (v.key === 'calendar') === isCalendar
+                    return (
+                      <Link
+                        key={v.key}
+                        href={v.href}
+                        aria-current={active ? 'page' : undefined}
+                        className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 min-h-[36px] rounded-[10px] text-xs font-bold transition focus-visible:ring-2 focus-visible:ring-navy-600 ${
+                          active
+                            ? 'bg-white text-navy-800 shadow-xs border border-gray-200'
+                            : 'text-gray-500 hover:text-gray-800 border border-transparent'
+                        }`}
+                      >
+                        {v.icon}
+                        {v.label}
+                      </Link>
+                    )
+                  })}
+                </div>
+              </nav>
+              <ReportDownloadButton
+                url={attendanceRangeUrl({
+                  from: isCalendar ? monthRange.firstDay : currentMonthRange.firstDay,
+                  to: isCalendar ? monthRange.lastDay : currentMonthRange.lastDay,
+                  ...reportFilters,
                 })}
-              </div>
-            </nav>
+                label={isCalendar ? 'Descargar mes' : 'Descargar reporte'}
+                fallbackName="asistencia.xlsx"
+                icon="excel"
+              />
+            </div>
             <SubjectPicker
               careers={careers || []}
               subjects={subjectOptions}
@@ -277,6 +300,20 @@ export default async function AdminAttendancePage({
                   daySessions={daySessions}
                   selectedSessionId={calendarSession?.id}
                   filters={{ careerId: careerId || undefined, subjectId: selectedSubject?.id }}
+                  dayActions={
+                    selectedDay && (
+                      <ReportDownloadButton
+                        url={attendanceRangeUrl({
+                          from: selectedDay,
+                          to: selectedDay,
+                          ...reportFilters,
+                        })}
+                        label="Descargar día"
+                        fallbackName="asistencia.xlsx"
+                        icon="excel"
+                      />
+                    )
+                  }
                 />
               </div>
               <aside className="lg:col-span-2 lg:sticky lg:top-4">
