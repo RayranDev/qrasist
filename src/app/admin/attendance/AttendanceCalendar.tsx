@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { attendanceHref } from '@/lib/attendance/attendanceHref'
 import {
   buildMonthGrid,
+  countClasses,
   formatDayLabel,
   formatMonthLabel,
   shiftMonth,
@@ -22,6 +23,12 @@ interface Filters {
 
 function plural(n: number, one: string, many: string) {
   return `${n} ${n === 1 ? one : many}`
+}
+
+/** "3 clases" o "3 clases, 1 suspendida": dictadas primero, suspendidas aparte. */
+function countsLabel(c: DaySummary) {
+  const held = plural(c.held, 'clase', 'clases')
+  return c.suspended > 0 ? `${held}, ${plural(c.suspended, 'suspendida', 'suspendidas')}` : held
 }
 
 /** Etiqueta accesible de un día: nada depende solo del color. */
@@ -72,9 +79,16 @@ export default function AttendanceCalendar({
   const base = { view: 'calendar' as const, ...filters }
   const monthTitle = formatMonthLabel(month)
   const todayMonth = today.slice(0, 7)
-  const monthTotal = [...summaries.entries()]
+  // Misma definición en celdas, total del mes y panel del día (countClasses):
+  // "clases" = dictadas o por dictar; las suspendidas se cuentan aparte. Las
+  // archivadas y las materias inactivas no entran (igual que en las descargas).
+  const monthTotals = [...summaries.entries()]
     .filter(([day]) => day.startsWith(month))
-    .reduce((sum, [, s]) => sum + s.held, 0)
+    .reduce((sum, [, s]) => ({ held: sum.held + s.held, suspended: sum.suspended + s.suspended }), {
+      held: 0,
+      suspended: 0,
+    })
+  const dayTotals = countClasses(daySessions)
 
   return (
     <div className="space-y-6">
@@ -91,9 +105,7 @@ export default function AttendanceCalendar({
             >
               {monthTitle}
             </h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {plural(monthTotal, 'clase', 'clases')} en el mes
-            </p>
+            <p className="text-xs text-gray-500 mt-0.5">{countsLabel(monthTotals)} en el mes</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <nav aria-label="Cambiar de mes" className="flex items-center gap-1.5">
@@ -230,9 +242,7 @@ export default function AttendanceCalendar({
               {selectedDay ? formatDayLabel(selectedDay) : 'Clases del día'}
             </h2>
             {selectedDay && (
-              <p className="text-xs text-gray-500 mt-0.5">
-                {plural(daySessions.length, 'clase', 'clases')}
-              </p>
+              <p className="text-xs text-gray-500 mt-0.5">{countsLabel(dayTotals)}</p>
             )}
           </div>
           {selectedDay && dayActions}

@@ -10,6 +10,8 @@ import { attendanceHref } from '@/lib/attendance/attendanceHref'
 import {
   bogotaMonthOf,
   dayBounds,
+  formatDayLabel,
+  formatMonthLabel,
   monthBounds,
   parseCivilDay,
   parseMonth,
@@ -175,6 +177,14 @@ export default async function AdminAttendancePage({
   const currentMonthRange = monthBounds(bogotaMonthOf(now))
   // Con materia basta la materia: mandar también la carrera heredada podría
   // contradecirla (una materia puede estar en varias carreras).
+  const careerName = (careers || []).find((c) => c.id === careerId)?.name
+  // Qué cubre cada descarga, dicho en la propia interfaz.
+  const reportScopeText = selectedSubject
+    ? `Materia: ${selectedSubject.name}`
+    : careerName
+      ? `Carrera: ${careerName}`
+      : 'Todas las materias'
+  const reportMonthLabel = formatMonthLabel(isCalendar ? month : bogotaMonthOf(now))
   const reportFilters = selectedSubject
     ? { subjectId: selectedSubject.id }
     : careerId
@@ -274,16 +284,24 @@ export default async function AdminAttendancePage({
                   })}
                 </div>
               </nav>
-              <ReportDownloadButton
-                url={attendanceRangeUrl({
-                  from: isCalendar ? monthRange.firstDay : currentMonthRange.firstDay,
-                  to: isCalendar ? monthRange.lastDay : currentMonthRange.lastDay,
-                  ...reportFilters,
-                })}
-                label={isCalendar ? 'Descargar mes' : 'Descargar reporte'}
-                fallbackName="asistencia.xlsx"
-                icon="excel"
-              />
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <span className="text-xs text-gray-500">{reportScopeText}</span>
+                <ReportDownloadButton
+                  url={attendanceRangeUrl({
+                    from: isCalendar ? monthRange.firstDay : currentMonthRange.firstDay,
+                    to: isCalendar ? monthRange.lastDay : currentMonthRange.lastDay,
+                    ...reportFilters,
+                  })}
+                  label={
+                    isCalendar
+                      ? `Descargar mes de ${reportMonthLabel}`
+                      : `Descargar reporte de ${reportMonthLabel}`
+                  }
+                  title={`Excel con la asistencia de ${reportMonthLabel}. ${reportScopeText}.`}
+                  fallbackName="asistencia.xlsx"
+                  icon="excel"
+                />
+              </div>
             </div>
             <SubjectPicker
               careers={careers || []}
@@ -330,6 +348,7 @@ export default async function AdminAttendancePage({
                           ...reportFilters,
                         })}
                         label="Descargar día"
+                        title={`Excel con la asistencia del ${formatDayLabel(selectedDay)}. ${reportScopeText}.`}
                         fallbackName="asistencia.xlsx"
                         icon="excel"
                       />

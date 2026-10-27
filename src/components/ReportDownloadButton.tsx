@@ -16,6 +16,7 @@ export default function ReportDownloadButton({
   fallbackName = 'reporte.pdf',
   variant = 'secondary',
   icon = 'pdf',
+  title,
 }: {
   url: string
   label?: string
@@ -23,6 +24,8 @@ export default function ReportDownloadButton({
   variant?: 'primary' | 'secondary' | 'outline'
   /** Ícono según el tipo de archivo: 'pdf' (por defecto) o 'excel'. */
   icon?: 'pdf' | 'excel'
+  /** Tooltip; útil cuando la etiqueta no alcanza para decir qué se descarga. */
+  title?: string
 }) {
   const [loading, setLoading] = useState(false)
   const showToast = useToast()
@@ -38,6 +41,7 @@ export default function ReportDownloadButton({
     <Button
       variant={variant}
       size="sm"
+      title={title}
       onClick={handleClick}
       isLoading={loading}
       leftIcon={

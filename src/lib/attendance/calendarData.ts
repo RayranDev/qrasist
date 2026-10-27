@@ -6,7 +6,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows, unwrapRows } from '@/lib/supabase/fetchAll'
-import type { CalendarSessionInput } from './calendarGrid'
+import { isCalendarClass, type CalendarSessionInput } from './calendarGrid'
 
 /** Cuántas materias por consulta `.in(...)`: mantiene corta la URL de PostgREST. */
 const SUBJECT_CHUNK = 100
@@ -41,6 +41,7 @@ interface MonthSessionRow {
   date: string
   is_active: boolean | null
   suspended_at: string | null
+  subjects: { is_active: boolean | null } | { is_active: boolean | null }[] | null
 }
 
 interface DaySessionRow {
@@ -54,7 +55,14 @@ interface DaySessionRow {
   suspended_at: string | null
   suspension_reason: string | null
   attendances: { count: number }[] | null
-  subject: { name: string; code: string } | { name: string; code: string }[] | null
+  subjects:
+    | { name: string; code: string; is_active: boolean | null }
+    | { name: string; code: string; is_active: boolean | null }[]
+    | null
+}
+
+function firstOf<T>(value: T | T[] | null): T | null {
+  return Array.isArray(value) ? (value[0] ?? null) : value
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -72,7 +80,9 @@ function subjectIdBatches(scope: CalendarScope): string[][] | null {
 
 /**
  * Sesiones (solo las columnas que hacen falta para los contadores) cuya fecha
- * cae en [startIso, endIso). Con alcance de carrera sin materias devuelve [].
+ * cae en [startIso, endIso). Mismo alcance que los reportes descargables: solo
+ * materias activas (inner join filtrado) y sin sesiones archivadas (ver
+ * isCalendarClass). Con alcance de carrera sin materias devuelve [].
  */
 export async function fetchMonthSessions(
   supabase: SupabaseClient,
@@ -85,22 +95,30 @@ export async function fetchMonthSessions(
     const result = await fetchAllRows<MonthSessionRow>((from, to) => {
       let q = supabase
         .from('sessions')
-        .select('date, is_active, suspended_at')
+        .select('date, is_active, suspended_at, subjects!inner(is_active)')
+        .eq('subjects.is_active', true)
         .gte('date', range.startIso)
         .lt('date', range.endIso)
       if (batch) q = q.in('subject_id', batch)
       return q.order('date').order('id').range(from, to)
     })
     for (const row of unwrapRows(result, 'las clases del mes')) {
-      out.push({ date: row.date, isActive: row.is_active, suspendedAt: row.suspended_at })
+      const session: CalendarSessionInput = {
+        date: row.date,
+        isActive: row.is_active,
+        suspendedAt: row.suspended_at,
+        subjectActive: firstOf(row.subjects)?.is_active ?? null,
+      }
+      if (isCalendarClass(session)) out.push(session)
     }
   }
   return out
 }
 
 /**
- * Clases de un día con su materia, asistencias registradas e inscritos. Los
- * inscritos se cuentan solo para las materias que tienen clase ese día.
+ * Clases de un día con su materia, asistencias registradas e inscritos, con la
+ * misma regla que las celdas del mes (isCalendarClass: materias activas, sin
+ * archivadas). Los inscritos se cuentan solo para las materias con clase ese día.
  */
 export async function fetchDaySessions(
   supabase: SupabaseClient,
@@ -114,14 +132,23 @@ export async function fetchDaySessions(
       let q = supabase
         .from('sessions')
         .select(
-          'id, subject_id, date, modality, is_makeup, is_active, expires_at, suspended_at, suspension_reason, attendances(count), subject:subjects(name, code)'
+          'id, subject_id, date, modality, is_makeup, is_active, expires_at, suspended_at, suspension_reason, attendances(count), subjects!inner(name, code, is_active)'
         )
+        .eq('subjects.is_active', true)
         .gte('date', range.startIso)
         .lt('date', range.endIso)
       if (batch) q = q.in('subject_id', batch)
       return q.order('date').order('id').range(from, to)
     })
-    rows.push(...unwrapRows(result, 'las clases del día'))
+    rows.push(
+      ...unwrapRows(result, 'las clases del día').filter((r) =>
+        isCalendarClass({
+          isActive: r.is_active,
+          suspendedAt: r.suspended_at,
+          subjectActive: firstOf(r.subjects)?.is_active ?? null,
+        })
+      )
+    )
   }
 
   const subjectIds = [...new Set(rows.map((r) => r.subject_id))]
@@ -142,7 +169,7 @@ export async function fetchDaySessions(
 
   return rows
     .map((r): DaySession => {
-      const subject = Array.isArray(r.subject) ? (r.subject[0] ?? null) : r.subject
+      const subject = firstOf(r.subjects)
       return {
         id: r.id,
         subjectId: r.subject_id,

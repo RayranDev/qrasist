@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest'
 import {
   bogotaMonthOf,
   buildMonthGrid,
+  countClasses,
   dayBounds,
   formatMonthLabel,
+  isCalendarClass,
   monthBounds,
   parseCivilDay,
   parseMonth,
@@ -141,5 +143,49 @@ describe('summarizeDays', () => {
     expect(days.get('2026-10-27')).toEqual({ held: 2, suspended: 1 })
     // Archived (inactive, not suspended) sessions are not classes.
     expect(days.has('2026-10-29')).toBe(false)
+  })
+})
+
+describe('isCalendarClass / countClasses', () => {
+  const held = { isActive: true, suspendedAt: null }
+  const suspended = { isActive: false, suspendedAt: '2026-10-01T10:00:00Z' }
+  const archived = { isActive: false, suspendedAt: null }
+
+  it('treats held and suspended sessions as classes and archived ones as nothing', () => {
+    expect(isCalendarClass(held)).toBe(true)
+    expect(isCalendarClass({ isActive: null, suspendedAt: null })).toBe(true)
+    expect(isCalendarClass(suspended)).toBe(true)
+    expect(isCalendarClass(archived)).toBe(false)
+  })
+
+  it('drops every session of an archived subject, suspended or not', () => {
+    expect(isCalendarClass({ ...held, subjectActive: false })).toBe(false)
+    expect(isCalendarClass({ ...suspended, subjectActive: false })).toBe(false)
+    expect(isCalendarClass({ ...held, subjectActive: true })).toBe(true)
+  })
+
+  it('counts held and suspended separately; total classes = held + suspended', () => {
+    expect(countClasses([held, held, suspended, archived])).toEqual({ held: 2, suspended: 1 })
+    expect(countClasses([archived, archived])).toEqual({ held: 0, suspended: 0 })
+    expect(countClasses([{ ...held, subjectActive: false }, suspended])).toEqual({
+      held: 0,
+      suspended: 1,
+    })
+  })
+
+  it('gives the cell, month and day panel the same numbers', () => {
+    const sessions = [
+      { date: '2026-10-05T13:00:00Z', ...held },
+      { date: '2026-10-05T15:00:00Z', ...suspended },
+      { date: '2026-10-05T17:00:00Z', ...archived },
+      { date: '2026-10-05T19:00:00Z', ...held, subjectActive: false },
+      { date: '2026-10-06T13:00:00Z', ...archived },
+    ]
+    const days = summarizeDays(sessions)
+    // The panel counts the same sessions of that day with the same rule.
+    expect(days.get('2026-10-05')).toEqual(countClasses(sessions.slice(0, 4)))
+    expect(days.get('2026-10-05')).toEqual({ held: 1, suspended: 1 })
+    // An archived-only day has no cell data at all.
+    expect(days.has('2026-10-06')).toBe(false)
   })
 })

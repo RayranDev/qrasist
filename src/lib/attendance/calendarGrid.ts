@@ -154,6 +154,8 @@ export interface CalendarSessionInput {
   date: string
   isActive: boolean | null
   suspendedAt: string | null
+  /** false si la materia está archivada; sus clases no cuentan (igual que en los reportes). */
+  subjectActive?: boolean | null
 }
 
 export interface DaySummary {
@@ -163,19 +165,44 @@ export interface DaySummary {
 }
 
 /**
- * Cuenta las clases de cada día civil de Bogotá. Las archivadas
- * (is_active = false sin suspensión) no cuentan: no son clases vigentes.
+ * Regla ÚNICA de qué cuenta como clase en el calendario (celdas, total del mes
+ * y panel del día), alineada con los reportes descargables: solo materias
+ * activas, y las sesiones archivadas (is_active = false sin suspensión) no son
+ * clases vigentes. Las suspendidas sí son clases del calendario, pero se
+ * cuentan aparte de las dictadas.
  */
-export function summarizeDays(sessions: CalendarSessionInput[]): Map<string, DaySummary> {
-  const byDay = new Map<string, DaySummary>()
+export function isCalendarClass(
+  s: Pick<CalendarSessionInput, 'isActive' | 'suspendedAt' | 'subjectActive'>
+): boolean {
+  if (s.subjectActive === false) return false
+  return !!s.suspendedAt || s.isActive !== false
+}
+
+/**
+ * Conteo de un conjunto de sesiones: `held` = dictadas o por dictar,
+ * `suspended` = suspendidas; el total de clases es held + suspended.
+ */
+export function countClasses(
+  sessions: Pick<CalendarSessionInput, 'isActive' | 'suspendedAt' | 'subjectActive'>[]
+): DaySummary {
+  const summary: DaySummary = { held: 0, suspended: 0 }
   for (const s of sessions) {
-    const suspended = !!s.suspendedAt
-    if (!suspended && s.isActive === false) continue
-    const day = bogotaCalendarDate(new Date(s.date))
-    const summary = byDay.get(day) ?? { held: 0, suspended: 0 }
-    if (suspended) summary.suspended++
+    if (!isCalendarClass(s)) continue
+    if (s.suspendedAt) summary.suspended++
     else summary.held++
-    byDay.set(day, summary)
   }
-  return byDay
+  return summary
+}
+
+/** Cuenta las clases de cada día civil de Bogotá con la regla de isCalendarClass. */
+export function summarizeDays(sessions: CalendarSessionInput[]): Map<string, DaySummary> {
+  const byDay = new Map<string, CalendarSessionInput[]>()
+  for (const s of sessions) {
+    if (!isCalendarClass(s)) continue
+    const day = bogotaCalendarDate(new Date(s.date))
+    const list = byDay.get(day)
+    if (list) list.push(s)
+    else byDay.set(day, [s])
+  }
+  return new Map([...byDay].map(([day, list]) => [day, countClasses(list)]))
 }
