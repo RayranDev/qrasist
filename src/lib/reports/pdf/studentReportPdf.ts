@@ -19,6 +19,10 @@ import { countOf } from '@/lib/utils/plural'
 export interface StudentPdfMeta {
   studentName: string
   studentCode: string | null
+  /** Alcance del reporte cuando no es todo el historial (p. ej. un rango de fechas). */
+  scopeLabel?: string
+  /** Texto de "sin materias" cuando lo ve alguien distinto del estudiante. */
+  emptyMessage?: string
   generatedAt?: Date
 }
 
@@ -31,22 +35,28 @@ export async function renderStudentReportPdf(
     subtitleLines: [
       `Estudiante: ${meta.studentName}${meta.studentCode ? ` (${meta.studentCode})` : ''}`,
       `${countOf(history.length, 'materia inscrita', 'materias inscritas')}`,
+      ...(meta.scopeLabel ? [`Alcance: ${meta.scopeLabel}`] : []),
     ],
     orientation: 'portrait',
     generatedAt: formatGeneratedAt(meta.generatedAt),
     runningTitle: `Historial de asistencia · ${meta.studentName}`,
   })
 
+  // Con rango, conteos y porcentaje son del rango; el estado, el máximo de
+  // faltas y los cortes siguen siendo semestrales. Los encabezados lo dicen
+  // para que no se lean como una sola cifra. Sin rango, todo queda como siempre.
+  const ranged = !!meta.scopeLabel
+
   pdf.section('Resumen por materia')
   pdf.table(
     [
       { header: 'Materia', width: 30 },
-      { header: 'Clases', width: 7, align: 'right' },
-      { header: 'Asist.', width: 7, align: 'right' },
-      { header: 'Faltas', width: 7, align: 'right' },
-      { header: 'Máx.', width: 7, align: 'right' },
-      { header: '% Asist.', width: 9, align: 'right' },
-      { header: 'Estado', width: 20 },
+      { header: ranged ? 'Clases (rango)' : 'Clases', width: 7, align: 'right' },
+      { header: ranged ? 'Asist. (rango)' : 'Asist.', width: 7, align: 'right' },
+      { header: ranged ? 'Faltas (rango)' : 'Faltas', width: 7, align: 'right' },
+      { header: ranged ? 'Máx. semestre' : 'Máx.', width: 7, align: 'right' },
+      { header: ranged ? '% Asist. (rango)' : '% Asist.', width: 9, align: 'right' },
+      { header: ranged ? 'Estado semestral' : 'Estado', width: 20 },
     ],
     history.map((h): (string | PdfCell)[] => [
       `${h.subjectCode} · ${h.subjectName}`,
@@ -57,7 +67,7 @@ export async function renderStudentReportPdf(
       formatPct(h.attendancePct),
       { text: h.statusLabel, tone: statusTone(h.status) },
     ]),
-    { emptyMessage: 'No tienes materias inscritas.' }
+    { emptyMessage: meta.emptyMessage ?? 'No tienes materias inscritas.' }
   )
   pdf.legend([
     { label: 'Presente / Normal', tone: 'success' },
@@ -66,21 +76,23 @@ export async function renderStudentReportPdf(
     { label: 'Justificada', tone: 'info' },
   ])
   pdf.paragraph(
-    'El estado se calcula sobre todo el semestre. Las clases suspendidas no cuentan como dictadas. "Máx." es el máximo de faltas permitido en la materia.',
+    ranged
+      ? 'Clases, asistencias, faltas y porcentaje corresponden solo al rango elegido. El estado, el máximo de faltas ("Máx. semestre") y el desglose por corte se calculan sobre todo el semestre. Las clases suspendidas no cuentan como dictadas.'
+      : 'El estado se calcula sobre todo el semestre. Las clases suspendidas no cuentan como dictadas. "Máx." es el máximo de faltas permitido en la materia.',
     { muted: true, size: 8.5 }
   )
 
   for (const h of history) {
     pdf.section(`${h.subjectCode} · ${h.subjectName}`)
     pdf.paragraph(
-      `Docente: ${h.professorName} · Estado: ${h.statusLabel} · ${h.attended} de ${countOf(h.sessionsHeld, 'clase asistida', 'clases asistidas')}${h.late > 0 ? `, ${countOf(h.late, 'con tardanza', 'con tardanza')}` : ''}${h.justified > 0 ? `, ${countOf(h.justified, 'justificada')}` : ''}.`,
+      `Docente: ${h.professorName} · ${ranged ? 'Estado semestral' : 'Estado'}: ${h.statusLabel} · ${ranged ? 'En el rango: ' : ''}${h.attended} de ${countOf(h.sessionsHeld, 'clase asistida', 'clases asistidas')}${h.late > 0 ? `, ${countOf(h.late, 'con tardanza', 'con tardanza')}` : ''}${h.justified > 0 ? `, ${countOf(h.justified, 'justificada')}` : ''}.`,
       { size: 9 }
     )
 
     if (h.cuts.length > 0) {
       pdf.table(
         [
-          { header: 'Corte', width: 28 },
+          { header: ranged ? 'Corte (semestre)' : 'Corte', width: 28 },
           { header: 'Clases', width: 12, align: 'right' },
           { header: 'Asistidas', width: 14, align: 'right' },
           { header: 'Tardes', width: 12, align: 'right' },

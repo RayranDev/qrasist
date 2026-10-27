@@ -26,7 +26,7 @@ function fakeClient(tables: Tables) {
         const picked = Array.isArray(entry) ? (entry.length > 1 ? entry.shift() : entry[0]) : entry
         return { data: picked?.data ?? [], error: picked?.error ?? null }
       }
-      for (const method of ['select', 'eq', 'in', 'order', 'range', 'gte', 'lte', 'not']) {
+      for (const method of ['select', 'eq', 'in', 'order', 'range', 'gte', 'lt', 'lte', 'not']) {
         builder[method] = vi.fn((...args: unknown[]) => {
           calls.push({ table, method, args })
           return builder
@@ -91,6 +91,72 @@ describe('loadReportData errors', () => {
       await expect(loadReportData(client, { periodId: 'p1' })).rejects.toThrow()
     }
   )
+})
+
+describe('loadReportData dateRange', () => {
+  const dateRange = { startIso: '2026-10-05T05:00:00.000Z', endIso: '2026-10-10T05:00:00.000Z' }
+
+  it('bounds sessions, attendances and justifications to the window', async () => {
+    const { client, calls } = fakeClient({ subjects: { data: [subjectRow('s1')] } })
+    await loadReportData(client, { subjectIds: ['s1'], dateRange })
+
+    const sessionCalls = calls.filter((c) => c.table === 'sessions')
+    expect(sessionCalls.find((c) => c.method === 'gte')?.args).toEqual(['date', dateRange.startIso])
+    expect(sessionCalls.find((c) => c.method === 'lt')?.args).toEqual(['date', dateRange.endIso])
+
+    for (const table of ['attendances', 'absence_justifications']) {
+      const tableCalls = calls.filter((c) => c.table === table)
+      expect(tableCalls.find((c) => c.method === 'gte')?.args).toEqual([
+        'sessions.date',
+        dateRange.startIso,
+      ])
+      expect(tableCalls.find((c) => c.method === 'lt')?.args).toEqual([
+        'sessions.date',
+        dateRange.endIso,
+      ])
+    }
+    // Attendance rows carry the scan time for the range report.
+    const select = calls.find((c) => c.table === 'attendances' && c.method === 'select')
+    expect(String(select?.args[0])).toContain('scanned_at')
+  })
+
+  it('does not filter by date when no window is given', async () => {
+    const { client, calls } = fakeClient({ subjects: { data: [subjectRow('s1')] } })
+    await loadReportData(client, { subjectIds: ['s1'] })
+    expect(calls.some((c) => c.method === 'gte' || c.method === 'lt')).toBe(false)
+  })
+
+  it('skips the justifications query on request', async () => {
+    const { client, calls } = fakeClient({ subjects: { data: [subjectRow('s1')] } })
+    const data = await loadReportData(client, { subjectIds: ['s1'], skipJustifications: true })
+    expect(data.justifications).toEqual([])
+    expect(calls.some((c) => c.table === 'absence_justifications')).toBe(false)
+    expect(calls.some((c) => c.table === 'attendances')).toBe(true)
+
+    const normal = fakeClient({ subjects: { data: [subjectRow('s1')] } })
+    await loadReportData(normal.client, { subjectIds: ['s1'] })
+    expect(normal.calls.some((c) => c.table === 'absence_justifications')).toBe(true)
+  })
+
+  it('maps the scan time into the attendance inputs', async () => {
+    const { client } = fakeClient({
+      subjects: { data: [subjectRow('s1')] },
+      attendances: {
+        data: [
+          {
+            session_id: 'x',
+            student_id: 'a',
+            status: 'PRESENT',
+            marked_by: null,
+            manual_reason: null,
+            scanned_at: '2026-10-05T13:02:00Z',
+          },
+        ],
+      },
+    })
+    const data = await loadReportData(client, { subjectIds: ['s1'], dateRange })
+    expect(data.attendances[0].scannedAt).toBe('2026-10-05T13:02:00Z')
+  })
 })
 
 describe('generateAdminReport', () => {
