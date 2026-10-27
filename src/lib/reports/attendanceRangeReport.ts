@@ -73,6 +73,8 @@ export interface RangeCutSummary {
   cutId: string | null
   name: string
   sequence: number | null
+  /** Período de la materia, para distinguir cortes homónimos de períodos distintos. */
+  periodName: string | null
   sessionsHeld: number
   sessionsSuspended: number
   attendances: number
@@ -137,11 +139,17 @@ function round1(value: number): number {
 
 type CutBucket = Omit<RangeCutSummary, 'attendancePct'>
 
-function newBucket(cutId: string | null, name: string, sequence: number | null): CutBucket {
+function newBucket(
+  cutId: string | null,
+  name: string,
+  sequence: number | null,
+  periodName: string | null
+): CutBucket {
   return {
     cutId,
     name,
     sequence,
+    periodName,
     sessionsHeld: 0,
     sessionsSuspended: 0,
     attendances: 0,
@@ -211,7 +219,7 @@ export function buildRangeReport(input: RangeReportInput): RangeReport {
     const buckets = new Map<string, CutBucket>()
     for (const cut of sortedCuts) {
       if (cut.startDate <= input.to && cut.endDate >= input.from) {
-        buckets.set(cut.id, newBucket(cut.id, cut.name, cut.sequence))
+        buckets.set(cut.id, newBucket(cut.id, cut.name, cut.sequence, subject.periodName ?? null))
       }
     }
     let unassigned: CutBucket | null = null
@@ -219,7 +227,7 @@ export function buildRangeReport(input: RangeReportInput): RangeReport {
       if (sortedCuts.length === 0) return null
       const cut = sortedCuts.find((c) => day >= c.startDate && day <= c.endDate)
       if (cut) return buckets.get(cut.id) ?? null
-      unassigned ??= newBucket(null, UNASSIGNED_CUT_NAME, null)
+      unassigned ??= newBucket(null, UNASSIGNED_CUT_NAME, null, subject.periodName ?? null)
       return unassigned
     }
 

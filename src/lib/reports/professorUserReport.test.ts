@@ -208,6 +208,46 @@ describe('buildProfessorUserReport', () => {
       expect(subjects[0]).toMatchObject({ held: 2, suspended: 1 })
     })
 
+    it('adds "Sin corte asignado" for held classes before the first cut and between cuts, so everything reconciles', () => {
+      const gappy = [
+        { id: 'k1', name: 'Corte 1', startDate: '2026-10-01', endDate: '2026-10-05', sequence: 1 },
+        { id: 'k2', name: 'Corte 2', startDate: '2026-10-12', endDate: '2026-10-31', sequence: 2 },
+      ]
+      const input = {
+        ...withCuts,
+        subjects: [{ ...subject('s1', 'ART-100', 'Arte'), cuts: gappy }],
+        sessions: [
+          ...withCuts.sessions.filter((s) => s.subjectId === 's1'),
+          session('pre', 's1', '2026-09-28T13:00:00Z'), // before the first cut
+          session('gap', 's1', '2026-10-08T13:00:00Z'), // between cuts
+        ],
+        // a attends only the class before the first cut.
+        attendances: [...withCuts.attendances, attendance('pre', 'a')],
+        cutClassStats: [],
+      }
+      const [row] = buildProfessorUserReport(input).subjects
+      const unassigned = row.cuts.find((c) => c.cutId === null)!
+      expect(unassigned).toMatchObject({
+        name: 'Sin corte asignado',
+        sequence: null,
+        held: 2,
+        // The suspended class of Oct 6 also sits in the gap.
+        suspended: 1,
+        scheduled: null,
+        omitted: null,
+        avgAttendancePct: 25,
+      })
+      // Last, after the real cuts.
+      expect(row.cuts.map((c) => c.name)).toEqual(['Corte 1', 'Corte 2', 'Sin corte asignado'])
+      // Cuts + unassigned add up to the general figure (no date range).
+      expect(row.cuts.reduce((sum, c) => sum + c.held, 0)).toBe(row.held)
+    })
+
+    it('adds no unassigned row when every held class falls inside a cut', () => {
+      const { subjects } = buildProfessorUserReport(withCuts)
+      expect(subjects[0].cuts.some((c) => c.cutId === null)).toBe(false)
+    })
+
     it('leaves subjects without cuts with no cut breakdown', () => {
       const { subjects } = buildProfessorUserReport(withCuts)
       expect(subjects[1].cuts).toEqual([])

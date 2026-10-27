@@ -5,6 +5,8 @@
  * dictada, rango, clases en curso) y buildClassList; sin I/O (las consultas
  * viven en professorUserReportService.ts).
  */
+import { UNASSIGNED_CUT_NAME } from '@/lib/attendance/cutsBreakdown'
+import { bogotaCalendarDate } from '@/lib/utils/businessDays'
 import {
   buildAttendanceReport,
   buildClassList,
@@ -20,10 +22,14 @@ import {
 
 /** Cifras de una materia dentro de un corte (el corte completo, no el rango del reporte). */
 export interface ProfessorCutRow {
-  cutId: string
+  /** null en la fila "Sin corte asignado" (clases que no caen en ningún corte). */
+  cutId: string | null
   name: string
-  sequence: number
-  /** Clases esperadas del corte según el horario; null si la materia no tiene horario. */
+  sequence: number | null
+  /**
+   * Clases esperadas del corte según el horario; null si la materia no tiene
+   * horario y también en "Sin corte asignado" (no tiene horario propio).
+   */
   scheduled: number | null
   held: number
   suspended: number
@@ -97,7 +103,12 @@ const NO_PERIOD_LABEL = 'Sin período'
  * Desglose por corte de cada materia con cortes: reusa buildAttendanceReport
  * acotado a las fechas de cada corte, así que clase dictada, clases en curso
  * y promedio de asistencia siguen exactamente las mismas reglas que el
- * resumen general.
+ * resumen general. Las clases dictadas que no caen en ningún corte (antes del
+ * primero, entre cortes o después del último) van a la fila "Sin corte
+ * asignado", igual que en los reportes de estudiante, coordinación y rango, de
+ * modo que cortes + sin asignar cuadran con la cifra general del período.
+ * Solo ve las clases cargadas: con un rango de fechas, las que quedan fuera de
+ * los cortes y del rango pedido no se cargan.
  */
 function buildCutRows(input: ProfessorUserReportInput): Map<string, ProfessorCutRow[]> {
   const bySubject = new Map<string, ProfessorCutRow[]>()
@@ -135,7 +146,43 @@ function buildCutRows(input: ProfessorUserReportInput): Map<string, ProfessorCut
       bySubject.set(summary.subjectId, list)
     }
   }
-  for (const list of bySubject.values()) list.sort((a, b) => a.sequence - b.sequence)
+
+  for (const subject of input.subjects) {
+    if (subject.cuts.length === 0) continue
+    const outside = input.sessions.filter((session) => {
+      if (session.subjectId !== subject.id) return false
+      const day = bogotaCalendarDate(new Date(session.date))
+      return !subject.cuts.some((c) => day >= c.startDate && day <= c.endDate)
+    })
+    if (outside.length === 0) continue
+    const summary = buildAttendanceReport({
+      subjects: [subject],
+      sessions: outside,
+      enrollments: input.enrollments,
+      attendances: input.attendances,
+      justifications: [],
+      held: input.held,
+    }).subjectSummaries[0]
+    if (!summary || summary.sessionsHeld === 0) continue
+    const list = bySubject.get(subject.id) ?? []
+    list.push({
+      cutId: null,
+      name: UNASSIGNED_CUT_NAME,
+      sequence: null,
+      scheduled: null,
+      held: summary.sessionsHeld,
+      suspended: summary.sessionsSuspended,
+      omitted: null,
+      omittedJustified: null,
+      avgAttendancePct: summary.avgAttendancePct,
+    })
+    bySubject.set(subject.id, list)
+  }
+  for (const list of bySubject.values()) {
+    list.sort(
+      (a, b) => (a.sequence ?? Number.MAX_SAFE_INTEGER) - (b.sequence ?? Number.MAX_SAFE_INTEGER)
+    )
+  }
   return bySubject
 }
 

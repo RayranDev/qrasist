@@ -272,8 +272,16 @@ export async function fetchClassStats(
 ): Promise<SubjectClassStats[]> {
   const now = query.now ?? new Date()
   const contexts = await loadContexts(supabase, query)
+  return contexts.map((ctx) => statsForWindow(ctx, now, query.from, query.to))
+}
 
-  return contexts.map((ctx) => ({
+function statsForWindow(
+  ctx: SubjectOmissionContext,
+  now: Date,
+  from?: string,
+  to?: string
+): SubjectClassStats {
+  return {
     subjectId: ctx.subjectId,
     subjectName: ctx.subjectName,
     subjectCode: ctx.subjectCode,
@@ -286,10 +294,35 @@ export async function fetchClassStats(
       sessions: ctx.sessions,
       justifications: ctx.justifications,
       now,
-      from: query.from,
-      to: query.to,
+      from,
+      to,
     }),
-  }))
+  }
+}
+
+export interface ClassStatsWindow {
+  /** Identificador que el llamador usa para recuperar el resultado de esta ventana. */
+  key: string
+  /** 'YYYY-MM-DD' inclusivos. */
+  from?: string
+  to?: string
+}
+
+/**
+ * Igual que fetchClassStats pero para varias ventanas de fechas a la vez: las
+ * consultas (materias, horarios, sesiones, justificaciones) se hacen UNA vez y
+ * cada ventana solo recalcula los conteos en memoria. Para N cortes evita
+ * descargar N veces los datos de todo el período.
+ */
+export async function fetchClassStatsByWindow(
+  supabase: SupabaseClient,
+  query: Pick<ClassOmissionQuery, 'subjectIds' | 'now'> & { windows: ClassStatsWindow[] }
+): Promise<Map<string, SubjectClassStats[]>> {
+  const now = query.now ?? new Date()
+  const contexts = await loadContexts(supabase, { subjectIds: query.subjectIds, now })
+  return new Map(
+    query.windows.map((w) => [w.key, contexts.map((ctx) => statsForWindow(ctx, now, w.from, w.to))])
+  )
 }
 
 /** Omisiones aún sin justificar, para el contador del dashboard del admin. */

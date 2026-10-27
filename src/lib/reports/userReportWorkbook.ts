@@ -249,7 +249,8 @@ export async function buildProfessorUserWorkbook(
         subjectCode: s.subjectCode,
         subjectName: s.subjectName,
         cut: cutLabel(c.name),
-        scheduled: c.scheduled ?? 'Sin horario',
+        // "Sin corte asignado" no tiene horario propio: celdas vacías, no "Sin horario".
+        scheduled: c.cutId === null ? '' : (c.scheduled ?? 'Sin horario'),
         held: c.held,
         suspended: c.suspended,
         omitted: c.omitted ?? '',

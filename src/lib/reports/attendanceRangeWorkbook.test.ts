@@ -284,6 +284,49 @@ describe('buildRangeWorkbook per cut', () => {
     expect(cutOf('FIS-102', '05/10/2026')).toBe('')
   })
 
+  it('keeps headers unique when two periods have a cut with the same name', async () => {
+    const cutIn = (id: string) => [
+      { id, name: 'Corte 1', startDate: '2026-10-01', endDate: '2026-10-31', sequence: 1 },
+    ]
+    const two = buildRangeReport({
+      subjects: [
+        { ...subject, id: 's1', code: 'MAT-101', cuts: cutIn('a1'), periodName: '2026-1' },
+        { ...subject, id: 's2', code: 'FIS-102', cuts: cutIn('b1'), periodName: '2026-2' },
+      ],
+      sessions: ['s1', 's2'].map((subjectId) => ({
+        id: `${subjectId}-a`,
+        subjectId,
+        date: '2026-10-05T13:00:00Z',
+        isActive: true,
+        suspendedAt: null,
+      })),
+      enrollments: ['s1', 's2'].map((subjectId) => ({
+        subjectId,
+        studentId: 'a',
+        studentCode: '001',
+        studentName: 'Ana',
+      })),
+      attendances: [],
+      justifications: [],
+      held: { now: new Date('2026-10-20T12:00:00Z'), defaultClassMinutes: 90 },
+      from: '2026-10-05',
+      to: '2026-10-09',
+    })
+    const sheet = (await load(two)).getWorksheet('Resumen por materia') as ExcelJS.Worksheet
+    const header = headerOf(sheet)
+    expect(new Set(header).size).toBe(header.length)
+    expect(header).toContain('Corte 1 (2026-1) · Clases')
+    expect(header).toContain('Corte 1 (2026-2) · Clases')
+    const rows = rowsOf(sheet)
+    const first = rows.find((r) => r['Código Materia'] === 'MAT-101')
+    const second = rows.find((r) => r['Código Materia'] === 'FIS-102')
+    expect(first).toMatchObject({ 'Corte 1 (2026-1) · Clases': 1, 'Corte 1 (2026-2) · Clases': '' })
+    expect(second).toMatchObject({
+      'Corte 1 (2026-1) · Clases': '',
+      'Corte 1 (2026-2) · Clases': 1,
+    })
+  })
+
   it('does not add cut columns, the Corte column or the note when no subject has cuts', async () => {
     const loaded = await load(report)
     expect(headerOf(loaded.getWorksheet('Detalle') as ExcelJS.Worksheet)).not.toContain('Corte')

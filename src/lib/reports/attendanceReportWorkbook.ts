@@ -8,8 +8,7 @@
 import type ExcelJS from 'exceljs'
 import { buildWorkbook, type ExportSheet } from '@/lib/excel/exportWorkbook'
 import { INSTITUTION_NAME } from '@/lib/brand'
-import type { CutBreakdown } from '@/lib/attendance/cutsBreakdown'
-import type { AttendanceReport, StudentSubjectRow } from './attendanceReport'
+import type { AttendanceReport } from './attendanceReport'
 import { collectCutColumns, cutPercentCell, findCut, generalHeader } from './cutColumns'
 import { COUNTED_ABSENCES_NOTE, formatDateEs, formatGeneratedAt } from './pdf/format'
 
@@ -52,22 +51,6 @@ function finishSheet(sheet: ExcelJS.Worksheet) {
 }
 
 const cutKey = (cutColumnKey: string, field: string) => `cut:${cutColumnKey}:${field}`
-
-/** Clases dictadas y asistencia promedio de un corte en una materia, a partir de las filas de sus estudiantes. */
-function subjectCutFigures(rows: StudentSubjectRow[], key: string) {
-  const cuts = rows.map((r) => findCut(r.cuts, key)).filter((c): c is CutBreakdown => !!c)
-  if (cuts.length === 0) return null
-  const pcts = cuts.filter((c) => c.sessionsHeld > 0).map((c) => c.percentage)
-  return {
-    // Todos los estudiantes comparten las clases terminadas; la clase en curso
-    // solo cuenta para quien ya escaneó, así que se toma el máximo.
-    sessionsHeld: Math.max(...cuts.map((c) => c.sessionsHeld)),
-    avgPct:
-      pcts.length > 0
-        ? Math.round((pcts.reduce((sum, p) => sum + p, 0) / pcts.length) * 10) / 10
-        : '',
-  }
-}
 
 export async function buildAttendanceReportWorkbook(
   report: AttendanceReport,
@@ -142,12 +125,12 @@ export async function buildAttendanceReportWorkbook(
     })),
   }
 
-  const rowsBySubject = new Map<string, StudentSubjectRow[]>()
-  for (const r of report.rows) {
-    const list = rowsBySubject.get(r.subjectId)
-    if (list) list.push(r)
-    else rowsBySubject.set(r.subjectId, [r])
-  }
+  // Las clases por corte de la materia salen de sus propios datos (no de las
+  // filas de estudiantes): se muestran aunque no haya estudiantes visibles (sin
+  // inscritos o ocultos por el filtro de estado); el promedio queda vacío.
+  const summaryCutColumns = collectCutColumns(report.subjectSummaries.map((s) => s.cuts))
+  const summaryHasCuts = summaryCutColumns.length > 0
+  const generalSummary = (header: string) => generalHeader(header, summaryHasCuts, ranged)
 
   const subjects: ExportSheet = {
     name: 'Resumen por materia',
@@ -157,17 +140,21 @@ export async function buildAttendanceReportWorkbook(
       { header: 'Carrera', key: 'career', width: 28 },
       { header: 'Docente', key: 'professorName', width: 26 },
       { header: 'Inscritos', key: 'enrolled', width: 11 },
-      ...cutColumns.flatMap((c) => [
+      ...summaryCutColumns.flatMap((c) => [
         { header: `${c.name} · Clases`, key: cutKey(c.key, 'held'), width: 14 },
         { header: `${c.name} · % Asistencia Promedio`, key: cutKey(c.key, 'avg'), width: 28 },
       ]),
-      { header: general('Clases Dictadas'), key: 'sessionsHeld', width: hasCuts ? 24 : 15 },
+      {
+        header: generalSummary('Clases Dictadas'),
+        key: 'sessionsHeld',
+        width: summaryHasCuts ? 24 : 15,
+      },
       { header: 'Clases Suspendidas', key: 'sessionsSuspended', width: 18 },
       { header: 'Reposiciones', key: 'makeups', width: 14 },
       {
-        header: general('% Asistencia Promedio'),
+        header: generalSummary('% Asistencia Promedio'),
         key: 'avgAttendancePct',
-        width: hasCuts ? 32 : 21,
+        width: summaryHasCuts ? 32 : 21,
       },
       { header: 'Normal', key: 'normal', width: 10 },
       { header: 'En Riesgo', key: 'atRisk', width: 11 },
@@ -180,11 +167,11 @@ export async function buildAttendanceReportWorkbook(
       professorName: s.professorName,
       enrolled: s.enrolled,
       ...Object.fromEntries(
-        cutColumns.flatMap((c) => {
-          const figures = subjectCutFigures(rowsBySubject.get(s.subjectId) || [], c.key)
+        summaryCutColumns.flatMap((c) => {
+          const cut = findCut(s.cuts, c.key)
           return [
-            [cutKey(c.key, 'held'), figures ? figures.sessionsHeld : ''],
-            [cutKey(c.key, 'avg'), figures ? figures.avgPct : ''],
+            [cutKey(c.key, 'held'), cut ? cut.sessionsHeld : ''],
+            [cutKey(c.key, 'avg'), cut ? (cut.avgAttendancePct ?? '') : ''],
           ]
         })
       ),
@@ -275,7 +262,7 @@ export async function buildAttendanceReportWorkbook(
         value:
           'El estado (Normal, En riesgo, Perdida por fallas) se calcula sobre todo el semestre; los conteos y porcentajes corresponden al alcance del reporte.',
       },
-      ...(hasCuts
+      ...(hasCuts || summaryHasCuts
         ? [
             {
               field: 'Cortes',

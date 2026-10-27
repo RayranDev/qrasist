@@ -231,6 +231,39 @@ describe('buildProfessorUserWorkbook per cut', () => {
     })
   })
 
+  it('writes "Sin corte asignado" between the cuts and the general row when classes fall outside every cut', async () => {
+    const onlyFirstCut = buildProfessorUserReport({
+      subjects: [{ ...subject('con', 'Con cortes', true), cuts: [cuts[0]] }],
+      sessions: sessionsOf('con'),
+      enrollments: [
+        { subjectId: 'con', studentId: 'st', studentCode: 'S1', studentName: 'Alumno' },
+      ],
+      // Feb 10 (Corte 1) and Mar 17 / Mar 24 (outside the only cut).
+      attendances: [attend('con-0'), attend('con-2')],
+      classStats: [],
+      from: null,
+      to: null,
+    })
+    const workbook = await reload(
+      await buildProfessorUserWorkbook(onlyFirstCut, { professorName: 'Ana', scopeLabel: 'Todo' })
+    )
+    const rows = rowsOf(workbook.getWorksheet('Resumen por corte')!)
+    expect(rows.map((r) => r['Corte'])).toEqual([
+      'Corte 1',
+      'Sin corte asignado',
+      'General (período)',
+    ])
+    expect(rows[1]).toMatchObject({
+      'Clases Dictadas': 2,
+      'Clases Programadas': '',
+      '% Asistencia Promedio': 50,
+    })
+    // Cuts + unassigned reconcile with the general row.
+    expect(Number(rows[0]['Clases Dictadas']) + Number(rows[1]['Clases Dictadas'])).toBe(
+      rows[2]['Clases Dictadas']
+    )
+  })
+
   it('keeps the original workbook when no subject has cuts', async () => {
     const plain = buildProfessorUserReport({
       subjects: [subject('sin', 'Sin cortes', false)],

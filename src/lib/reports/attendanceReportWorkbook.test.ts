@@ -208,6 +208,72 @@ describe('buildAttendanceReportWorkbook per cut', () => {
     expect(info.join(' ')).toContain('sobre todo el semestre')
   })
 
+  describe('subject summary without visible students', () => {
+    const subjectWithCuts = {
+      id: 'cuts',
+      code: 'DER101',
+      name: 'Con cortes',
+      professorId: 'p1',
+      professorName: 'Ana',
+      careerNames: ['Derecho'],
+      policy: { maxPercentage: 20, totalPlannedSessions: 10 },
+      cuts: twoCuts,
+    }
+    const sessions = ['2026-02-10', '2026-02-24', '2026-03-17', '2026-03-24'].map((d, i) => ({
+      id: `cuts-${i}`,
+      subjectId: 'cuts',
+      date: `${d}T17:00:00Z`,
+      isActive: true,
+      suspendedAt: null,
+    }))
+
+    it('still shows the per-cut class counts when the subject has no enrolled students', async () => {
+      const report = buildAttendanceReport({
+        subjects: [subjectWithCuts],
+        sessions,
+        enrollments: [],
+        attendances: [],
+        justifications: [],
+      })
+      const loaded = await load(report)
+      const row = rowsOf(loaded.getWorksheet('Resumen por materia')!)[0]
+      expect(row).toMatchObject({
+        'Corte 1 · Clases': 2,
+        'Corte 2 · Clases': 2,
+        'Corte 1 · % Asistencia Promedio': '',
+        'Corte 2 · % Asistencia Promedio': '',
+        'Clases Dictadas (general)': 4,
+      })
+    })
+
+    it('still shows the per-cut class counts when the status filter hides every student', async () => {
+      const report = buildAttendanceReport({
+        subjects: [subjectWithCuts],
+        sessions,
+        enrollments: [
+          { subjectId: 'cuts', studentId: 'st', studentCode: 'S1', studentName: 'Alumno' },
+        ],
+        // Attends everything, so the student is Normal and the filter hides them.
+        attendances: sessions.map((s) => ({
+          sessionId: s.id,
+          studentId: 'st',
+          status: 'PRESENT' as const,
+          markedBy: null,
+          manualReason: null,
+        })),
+        justifications: [],
+        filters: { status: 'FAILED_ATTENDANCE' },
+      })
+      expect(report.rows).toHaveLength(0)
+      const row = rowsOf((await load(report)).getWorksheet('Resumen por materia')!)[0]
+      expect(row).toMatchObject({
+        'Corte 1 · Clases': 2,
+        'Corte 2 · Clases': 2,
+        'Corte 1 · % Asistencia Promedio': '',
+      })
+    })
+  })
+
   it('does not invent cut columns when no subject has cuts', async () => {
     const report = buildAttendanceReport({
       subjects: [

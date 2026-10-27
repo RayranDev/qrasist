@@ -84,7 +84,7 @@ export async function renderProfessorUserReportPdf(
         ...s.cuts.map((c, i): (string | PdfCell)[] => [
           i === 0 ? `${s.subjectCode} · ${s.subjectName}` : '',
           cutLabel(c.name),
-          c.scheduled === null ? 'Sin horario' : String(c.scheduled),
+          c.scheduled === null ? (c.cutId === null ? '---' : 'Sin horario') : String(c.scheduled),
           String(c.held),
           String(c.suspended),
           c.omitted === null ? '---' : String(c.omitted),

@@ -44,22 +44,46 @@ export function cutKeyOf(cut: Pick<CutBreakdown, 'cutId'>): string {
  * sin corte al final. Vacía si ninguna fila tiene cortes.
  */
 export function collectCutColumns(
-  lists: Iterable<Pick<CutBreakdown, 'cutId' | 'name' | 'sequence'>[]>
+  lists: Iterable<
+    (Pick<CutBreakdown, 'cutId' | 'name' | 'sequence'> & { periodName?: string | null })[]
+  >
 ): CutColumn[] {
-  const byKey = new Map<string, CutColumn>()
+  const byKey = new Map<string, CutColumn & { periodName: string }>()
   for (const list of lists) {
     for (const cut of list) {
       const key = cutKeyOf(cut)
       if (!byKey.has(key)) {
-        byKey.set(key, { key, name: cutLabel(cut.name), sequence: cut.sequence })
+        byKey.set(key, {
+          key,
+          name: cutLabel(cut.name),
+          sequence: cut.sequence,
+          periodName: cut.periodName?.trim() ?? '',
+        })
       }
     }
   }
-  return [...byKey.values()].sort(
+  const columns = [...byKey.values()].sort(
     (a, b) =>
       (a.sequence ?? Number.MAX_SAFE_INTEGER) - (b.sequence ?? Number.MAX_SAFE_INTEGER) ||
       a.name.localeCompare(b.name, 'es')
   )
+
+  // Dos cortes distintos (otro id, p. ej. el mismo nombre en dos períodos)
+  // darían encabezados idénticos: solo en ese caso se distinguen, con el
+  // período si lo hay y es único dentro del grupo, o con un ordinal.
+  const groups = new Map<string, typeof columns>()
+  for (const column of columns) {
+    groups.set(column.name, [...(groups.get(column.name) ?? []), column])
+  }
+  for (const group of groups.values()) {
+    if (group.length < 2) continue
+    const periods = group.map((c) => c.periodName)
+    const usePeriod = periods.every((p) => p !== '') && new Set(periods).size === periods.length
+    group.forEach((column, i) => {
+      column.name = `${column.name} (${usePeriod ? column.periodName : i + 1})`
+    })
+  }
+  return columns.map(({ key, name, sequence }) => ({ key, name, sequence }))
 }
 
 export function findCut<T extends Pick<CutBreakdown, 'cutId'>>(

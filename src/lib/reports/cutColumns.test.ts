@@ -35,6 +35,32 @@ describe('collectCutColumns', () => {
     expect(columns.map((c) => c.name)).toEqual(['Corte 1', 'Corte 2', 'Sin corte asignado'])
   })
 
+  it('tells apart two different cuts with the same name by period when available', () => {
+    const columns = collectCutColumns([
+      [{ ...cut('a1', 'Corte 1', 1), periodName: '2026-1' }],
+      [{ ...cut('b1', 'Corte 1', 1), periodName: '2026-2' }],
+    ])
+    expect(columns.map((c) => c.name)).toEqual(['Corte 1 (2026-1)', 'Corte 1 (2026-2)'])
+    expect(new Set(columns.map((c) => c.key)).size).toBe(2)
+  })
+
+  it('falls back to an ordinal when the period is missing or does not tell them apart', () => {
+    const noPeriod = collectCutColumns([[cut('a1', 'Corte 1', 1)], [cut('b1', 'Corte 1', 1)]])
+    expect(noPeriod.map((c) => c.name)).toEqual(['Corte 1 (1)', 'Corte 1 (2)'])
+
+    const samePeriod = collectCutColumns([
+      [{ ...cut('a1', 'Corte 1', 1), periodName: '2026-1' }],
+      [{ ...cut('b1', 'Corte 1', 1), periodName: '2026-1' }],
+    ])
+    expect(samePeriod.map((c) => c.name)).toEqual(['Corte 1 (1)', 'Corte 1 (2)'])
+  })
+
+  it('leaves names untouched when there is no collision (the same cut seen in many rows)', () => {
+    const row = { ...cut('a1', 'Corte 1', 1), periodName: '2026-1' }
+    const columns = collectCutColumns([[row], [row], [{ ...cut('a2', 'Corte 2', 2) }]])
+    expect(columns.map((c) => c.name)).toEqual(['Corte 1', 'Corte 2'])
+  })
+
   it('returns no columns when no row has cuts', () => {
     expect(collectCutColumns([[], []])).toEqual([])
   })
