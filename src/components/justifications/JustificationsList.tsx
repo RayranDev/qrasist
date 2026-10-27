@@ -10,6 +10,7 @@ import { useToast } from '@/components/toast/ToastProvider'
 import ReasonModal from '@/components/attendance/ReasonModal'
 import { reviewJustification, getJustificationAttachmentUrl } from '@/lib/actions/justifications'
 import { countOf } from '@/lib/utils/plural'
+import { justificationRowStyle } from './rowStyle'
 
 export interface JustificationRow {
   id: string
@@ -181,82 +182,85 @@ export default function JustificationsList({
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="divide-y divide-gray-50">
-            {sorted.map((j) => (
-              <div key={j.id} className="px-5 py-4 flex flex-col gap-2.5">
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div className="min-w-0">
-                    <p className="flex items-center gap-2 flex-wrap font-bold text-gray-900 text-sm">
-                      <RoleBadge role="STUDENT" variant="compact" />
-                      <span>{j.student?.name || 'Estudiante'}</span>
-                      <span className="text-xs font-mono text-gray-400">
-                        {j.student?.student_code || '---'}
-                      </span>
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {j.subject?.name} ({j.subject?.code}) ·{' '}
-                      {j.session?.date
-                        ? new Date(j.session.date).toLocaleDateString('es-CO', {
-                            timeZone: 'America/Bogota',
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric',
-                          })
-                        : '—'}
-                    </p>
+          <div className="divide-y divide-gray-200">
+            {sorted.map((j, index) => {
+              const style = justificationRowStyle(j.status, index)
+              return (
+                <div key={j.id} className={`px-5 py-4 flex flex-col gap-2.5 ${style.row}`}>
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-2 flex-wrap font-bold text-gray-900 text-sm">
+                        <RoleBadge role="STUDENT" variant="compact" />
+                        <span>{j.student?.name || 'Estudiante'}</span>
+                        <span className="text-xs font-mono text-gray-400">
+                          {j.student?.student_code || '---'}
+                        </span>
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {j.subject?.name} ({j.subject?.code}) ·{' '}
+                        {j.session?.date
+                          ? new Date(j.session.date).toLocaleDateString('es-CO', {
+                              timeZone: 'America/Bogota',
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })
+                          : '—'}
+                      </p>
+                    </div>
+                    <StatusBadge status={j.status} canReview={canReview} />
                   </div>
-                  <StatusBadge status={j.status} canReview={canReview} />
-                </div>
 
-                <p className="text-sm text-gray-700 bg-gray-50/80 rounded-xl px-3 py-2">
-                  {j.reason}
-                </p>
-
-                {j.review_note && (
-                  <p className="text-xs text-gray-500">
-                    <span className="font-semibold">Nota de revisión: </span>
-                    {j.review_note}
+                  <p className={`text-sm text-gray-700 rounded-xl px-3 py-2 ${style.reasonBox}`}>
+                    {j.reason}
                   </p>
-                )}
 
-                <div className="flex items-center gap-2 flex-wrap">
-                  {j.attachment_path && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      leftIcon={<Paperclip className="w-3.5 h-3.5" />}
-                      onClick={() => handleViewAttachment(j.id)}
-                    >
-                      Ver adjunto
-                    </Button>
+                  {j.review_note && (
+                    <p className="text-xs text-gray-500">
+                      <span className="font-semibold">Nota de revisión: </span>
+                      {j.review_note}
+                    </p>
                   )}
 
-                  {canReview && j.status === 'PENDING' && (
-                    <>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {j.attachment_path && (
                       <Button
                         type="button"
-                        variant="primary"
+                        variant="outline"
                         size="sm"
-                        isLoading={busyId === j.id}
-                        onClick={() => handleApprove(j)}
+                        leftIcon={<Paperclip className="w-3.5 h-3.5" />}
+                        onClick={() => handleViewAttachment(j.id)}
                       >
-                        Aprobar
+                        Ver adjunto
                       </Button>
-                      <Button
-                        type="button"
-                        variant="danger"
-                        size="sm"
-                        disabled={busyId === j.id}
-                        onClick={() => setRejectTarget(j)}
-                      >
-                        Rechazar
-                      </Button>
-                    </>
-                  )}
+                    )}
+
+                    {canReview && j.status === 'PENDING' && (
+                      <>
+                        <Button
+                          type="button"
+                          variant="primary"
+                          size="sm"
+                          isLoading={busyId === j.id}
+                          onClick={() => handleApprove(j)}
+                        >
+                          Aprobar
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="danger"
+                          size="sm"
+                          disabled={busyId === j.id}
+                          onClick={() => setRejectTarget(j)}
+                        >
+                          Rechazar
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
