@@ -40,4 +40,35 @@ describe('student report PDF', () => {
     expect(all).toContain('Corte 1')
     expect(all).toContain('Paro de transporte')
   })
+
+  it('labels range figures apart from semester figures only when a range is given', async () => {
+    const history = buildStudentHistory({
+      studentId: 'st-0',
+      subjects: [subject],
+      sessions,
+      attendances,
+      justifications,
+    })
+    const meta = {
+      studentName: 'Ana',
+      studentCode: '1',
+      generatedAt: new Date('2026-10-20T20:45:00Z'),
+    }
+
+    const plain = (await extractPages(await renderStudentReportPdf(history, meta))).join(' ')
+    expect(plain).not.toContain('(rango)')
+    expect(plain).not.toContain('Estado semestral')
+    expect(plain).not.toContain('Máx. semestre')
+
+    const ranged = (
+      await extractPages(
+        await renderStudentReportPdf(history, { ...meta, scopeLabel: '01/10/2026 - 31/10/2026' })
+      )
+    ).join(' ')
+    expect(ranged).toContain('Alcance: 01/10/2026 - 31/10/2026')
+    expect(ranged).toContain('Faltas (rango)')
+    expect(ranged).toContain('Máx. semestre')
+    expect(ranged).toContain('Estado semestral')
+    expect(ranged).toContain('Corte (semestre)')
+  })
 })

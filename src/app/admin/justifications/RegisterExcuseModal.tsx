@@ -7,6 +7,7 @@ import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
+import { RoleBadge } from '@/components/ui/RoleBadge'
 import { useToast } from '@/components/toast/ToastProvider'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -23,7 +24,6 @@ import {
 } from '@/lib/justifications/eligibility'
 import { capitalizeFirst } from '@/lib/utils/spanishDate'
 
-const DEFAULT_REASON = 'Excusa médica validada por coordinación.'
 const MAX_REASON = 1000
 const MIN_REASON = 10
 const SEARCH_DEBOUNCE_MS = 300
@@ -52,7 +52,7 @@ export default function RegisterExcuseModal() {
   const [loadingAbsences, setLoadingAbsences] = useState(false)
   const [sessionId, setSessionId] = useState('')
 
-  const [reason, setReason] = useState(DEFAULT_REASON)
+  const [reason, setReason] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -65,7 +65,7 @@ export default function RegisterExcuseModal() {
     setStudent(null)
     setAbsences(null)
     setSessionId('')
-    setReason(DEFAULT_REASON)
+    setReason('')
     setFile(null)
     setFileError(null)
     setError(null)
@@ -214,7 +214,10 @@ export default function RegisterExcuseModal() {
               {student ? (
                 <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border border-navy-200 bg-navy-50/60">
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-gray-900 truncate">{student.name}</p>
+                    <p className="flex items-center gap-2 text-sm font-bold text-gray-900">
+                      <RoleBadge role="STUDENT" variant="compact" />
+                      <span className="truncate">{student.name}</span>
+                    </p>
                     <p className="text-xs font-mono text-gray-500">
                       {student.student_code || '---'}
                     </p>
@@ -252,7 +255,10 @@ export default function RegisterExcuseModal() {
                             onClick={() => selectStudent(r)}
                             className="w-full text-left px-3.5 py-2.5 hover:bg-gray-50 transition focus-visible:outline-none focus-visible:bg-gray-50"
                           >
-                            <span className="block text-sm font-bold text-gray-900">{r.name}</span>
+                            <span className="flex items-center gap-2 text-sm font-bold text-gray-900">
+                              <RoleBadge role="STUDENT" variant="compact" />
+                              {r.name}
+                            </span>
                             <span className="block text-xs font-mono text-gray-500">
                               {r.student_code || '---'}
                             </span>
@@ -337,7 +343,8 @@ export default function RegisterExcuseModal() {
                     value={reason}
                     onChange={(e) => setReason(e.target.value.slice(0, MAX_REASON))}
                     rows={3}
-                    className="w-full px-3.5 py-2.5 text-sm bg-white border border-gray-200 rounded-xl outline-none hover:border-gray-300 focus:border-navy-600 focus:ring-2 focus:ring-navy-100"
+                    placeholder="Describe el motivo de la excusa…"
+                    className="w-full px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 bg-white border border-gray-200 rounded-xl outline-none hover:border-gray-300 focus:border-navy-600 focus:ring-2 focus:ring-navy-100"
                   />
                 </div>
 

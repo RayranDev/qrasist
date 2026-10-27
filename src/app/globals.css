@@ -1,6 +1,9 @@
 @import 'tailwindcss';
 
 :root {
+  /* The UI is light-only (white cards on --surface). Declaring the scheme keeps
+     native controls (date pickers, scrollbars, autofill) light in OS dark mode. */
+  color-scheme: light;
   --background: #ffffff;
   --foreground: #171717;
   /* Fondo de las pantallas de la app (distinto del blanco de <body>) */
@@ -43,13 +46,6 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
@@ -62,6 +58,22 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Preflight makes form controls inherit color; pin an explicit one so typed text
+   and placeholders never depend on the page foreground. Kept in the base layer so
+   utility classes (text-red-900, disabled:text-gray-400...) still override it. */
+@layer base {
+  input,
+  textarea,
+  select {
+    color: #111827;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: #9ca3af;
+  }
 }
 
 @keyframes qr-scan {

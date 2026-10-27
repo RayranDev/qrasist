@@ -74,6 +74,7 @@ interface AttendanceRow {
   status: string
   marked_by: string | null
   manual_reason: string | null
+  scanned_at: string | null
 }
 
 interface JustificationRow {
@@ -93,6 +94,14 @@ export interface ReportDataQuery {
   studentId?: string
   /** Descarta materias archivadas (is_active = false). */
   activeOnly?: boolean
+  /**
+   * Acota sesiones, asistencias y justificaciones a las clases cuya fecha cae
+   * en [startIso, endIso) (instantes ISO). Sin esto se carga todo el historial
+   * de las materias.
+   */
+  dateRange?: { startIso: string; endIso: string }
+  /** No consulta justificaciones (devuelve []): para reportes que no las usan. */
+  skipJustifications?: boolean
 }
 
 export interface ReportData {
@@ -123,6 +132,8 @@ function chunk<T>(items: T[], size: number): T[][] {
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
   return out
 }
+
+const JUSTIFICATION_SELECT = 'session_id, student_id, subject_id, status, reason'
 
 const SUBJECT_SELECT = `
   id, name, code, is_active, professor_id, period_id,
@@ -220,16 +231,18 @@ export async function loadReportData(
     SUBJECT_CHUNK
   )) {
     const [sessionRes, enrollmentRes, attendanceRes, justificationRes] = await Promise.all([
-      fetchAllRows<SessionRow>((from, to) =>
-        supabase
+      fetchAllRows<SessionRow>((from, to) => {
+        let q = supabase
           .from('sessions')
           .select(
             'id, subject_id, date, class_ends_at, is_active, suspended_at, suspension_reason, modality, is_makeup, makeup_reason'
           )
           .in('subject_id', part)
-          .order('id')
-          .range(from, to)
-      ),
+        if (query.dateRange) {
+          q = q.gte('date', query.dateRange.startIso).lt('date', query.dateRange.endIso)
+        }
+        return q.order('id').range(from, to)
+      }),
       fetchAllRows<EnrollmentRow>((from, to) => {
         let q = supabase
           .from('enrollments')
@@ -244,21 +257,39 @@ export async function loadReportData(
         let q = supabase
           .from('attendances')
           .select(
-            'session_id, student_id, status, marked_by, manual_reason, sessions!inner(subject_id)'
+            'session_id, student_id, status, marked_by, manual_reason, scanned_at, sessions!inner(subject_id)'
           )
           .in('sessions.subject_id', part)
         if (query.studentId) q = q.eq('student_id', query.studentId)
+        if (query.dateRange) {
+          q = q
+            .gte('sessions.date', query.dateRange.startIso)
+            .lt('sessions.date', query.dateRange.endIso)
+        }
         return q.order('id').range(from, to)
       }),
-      fetchAllRows<JustificationRow>((from, to) => {
-        let q = supabase
-          .from('absence_justifications')
-          .select('session_id, student_id, subject_id, status, reason')
-          .eq('status', 'APPROVED')
-          .in('subject_id', part)
-        if (query.studentId) q = q.eq('student_id', query.studentId)
-        return q.order('id').range(from, to)
-      }),
+      query.skipJustifications
+        ? Promise.resolve({ data: [] as JustificationRow[], error: null })
+        : fetchAllRows<JustificationRow>((from, to) => {
+            let q = supabase
+              .from('absence_justifications')
+              // El literal del select le da tipos al builder; con el rango se agrega
+              // el join solo para poder filtrar por la fecha de la clase.
+              .select(
+                (query.dateRange
+                  ? `${JUSTIFICATION_SELECT}, sessions!inner(date)`
+                  : JUSTIFICATION_SELECT) as typeof JUSTIFICATION_SELECT
+              )
+              .eq('status', 'APPROVED')
+              .in('subject_id', part)
+            if (query.studentId) q = q.eq('student_id', query.studentId)
+            if (query.dateRange) {
+              q = q
+                .gte('sessions.date', query.dateRange.startIso)
+                .lt('sessions.date', query.dateRange.endIso)
+            }
+            return q.order('id').range(from, to)
+          }),
     ])
 
     for (const e of [sessionRes, enrollmentRes, attendanceRes, justificationRes]) {
@@ -296,6 +327,7 @@ export async function loadReportData(
         status: a.status === 'LATE' ? 'LATE' : 'PRESENT',
         markedBy: a.marked_by,
         manualReason: a.manual_reason,
+        scannedAt: a.scanned_at,
       })
     }
     for (const j of justificationRes.data) {

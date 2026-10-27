@@ -20,7 +20,9 @@ export type StudentReportResult =
 
 export async function generateStudentReport(
   supabase: SupabaseClient,
-  studentId: string
+  studentId: string,
+  /** Rango opcional de días civiles de Bogotá; el estado sigue siendo semestral. */
+  options: { range?: { from: string | null; to: string | null } } = {}
 ): Promise<StudentReportResult> {
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
@@ -69,6 +71,7 @@ export async function generateStudentReport(
     attendances: data.attendances,
     justifications: data.justifications,
     held: data.held,
+    range: options.range,
   })
 
   return {

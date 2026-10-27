@@ -12,6 +12,8 @@ import BulkImportButton from '@/components/admin/BulkImportButton'
 import SubjectFilters from './SubjectFilters'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { BookMarked } from 'lucide-react'
+import { sanitizeSearchTerm } from '@/lib/utils/searchTerm'
+import { RoleBadge } from '@/components/ui/RoleBadge'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +37,7 @@ export default async function AdminSubjectsPage({
     level?: string
     professor?: string
     status?: string
+    q?: string
   }>
 }) {
   const params = await searchParams
@@ -99,6 +102,8 @@ export default async function AdminSubjectsPage({
       ? params.professor
       : undefined
 
+  const searchQuery = sanitizeSearchTerm(params.q)
+
   let query = supabase
     .from('subjects')
     .select(
@@ -107,6 +112,10 @@ export default async function AdminSubjectsPage({
     )
     .eq('is_active', statusFilter === 'active')
     .order('name')
+
+  if (searchQuery) {
+    query = query.or(`name.ilike.%${searchQuery}%,code.ilike.%${searchQuery}%`)
+  }
 
   if (careerFilter) {
     let ids = subjectCareerLinks
@@ -160,7 +169,7 @@ export default async function AdminSubjectsPage({
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-              <h2 className="text-xl font-semibold">Materias</h2>
+              <h2 className="text-xl font-semibold text-gray-900">Materias</h2>
               <div className="flex items-center gap-3">
                 <BulkImportButton types={['SUBJECT', 'ENROLLMENT']} />
                 <ExportSubjectsButton subjects={exportRows} />
@@ -175,6 +184,7 @@ export default async function AdminSubjectsPage({
               levelFilter={levelFilter}
               professorFilter={professorFilter}
               statusFilter={statusFilter}
+              searchQuery={searchQuery}
               inactiveCount={inactiveCount || 0}
             />
 
@@ -228,8 +238,9 @@ export default async function AdminSubjectsPage({
                         />
                       </div>
                       <h3 className="font-bold text-gray-900 mb-1 text-lg">{sub.name}</h3>
-                      <p className="text-sm text-gray-500 font-medium mb-3">
-                        Prof. {sub.professor?.name || 'Sin asignar'}
+                      <p className="flex items-center gap-1.5 text-sm text-gray-500 font-medium mb-3">
+                        {sub.professor && <RoleBadge role="PROFESSOR" variant="compact" />}
+                        <span>Prof. {sub.professor?.name || 'Sin asignar'}</span>
                       </p>
 
                       <SubjectCareerAssignment
@@ -254,8 +265,8 @@ export default async function AdminSubjectsPage({
                 <div className="col-span-full">
                   <EmptyState
                     icon={<BookMarked className="w-5 h-5" />}
-                    title="Ninguna materia coincide con estos filtros"
-                    description="Prueba ajustando los filtros, o crea una materia nueva."
+                    title="Ninguna materia coincide con tu búsqueda"
+                    description="Prueba ajustando la búsqueda o los filtros, o crea una materia nueva."
                     action={
                       <a
                         href="#crear-materia"
@@ -279,13 +290,13 @@ export default async function AdminSubjectsPage({
                   <PageLink
                     page={currentPage - 1}
                     disabled={currentPage <= 1}
-                    params={params}
+                    params={{ ...params, q: searchQuery }}
                     label="← Anterior"
                   />
                   <PageLink
                     page={currentPage + 1}
                     disabled={currentPage >= totalPages}
-                    params={params}
+                    params={{ ...params, q: searchQuery }}
                     label="Siguiente →"
                   />
                 </div>
@@ -306,7 +317,7 @@ function PageLink({
 }: {
   page: number
   disabled: boolean
-  params: { career?: string; level?: string; professor?: string; status?: string }
+  params: { career?: string; level?: string; professor?: string; status?: string; q?: string }
   label: string
 }) {
   const qs = new URLSearchParams()
@@ -314,6 +325,7 @@ function PageLink({
   if (params.level) qs.set('level', params.level)
   if (params.professor) qs.set('professor', params.professor)
   if (params.status) qs.set('status', params.status)
+  if (params.q) qs.set('q', params.q)
   if (page > 1) qs.set('page', String(page))
   const href = qs.toString() ? `?${qs.toString()}` : '?'
 

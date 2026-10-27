@@ -62,7 +62,7 @@ export default function ReasonModal({
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={3}
-          className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:border-navy-600 focus:ring-2 focus:ring-navy-100 transition-all mb-4"
+          className="w-full px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:border-navy-600 focus:ring-2 focus:ring-navy-100 transition-all mb-4"
           placeholder={placeholder}
         />
 

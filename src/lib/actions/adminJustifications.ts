@@ -10,6 +10,7 @@ import {
   validateAttachmentMeta,
   validateReasonLength,
 } from '@/lib/justifications/eligibility'
+import { sanitizeSearchTerm } from '@/lib/utils/searchTerm'
 import { revalidatePath } from 'next/cache'
 
 /**
@@ -67,11 +68,8 @@ export async function searchStudentsForExcuse(
   if (!auth.ok) return { success: false, error: auth.error }
 
   // Se quitan los caracteres con significado en el filtro .or() de PostgREST
-  // y los comodines de LIKE, igual que la búsqueda de la bitácora.
-  const q = (query || '')
-    .trim()
-    .replace(/[,()%*\\]/g, '')
-    .slice(0, 80)
+  // y los comodines de LIKE.
+  const q = sanitizeSearchTerm(query, 80)
   if (q.length < 2) return { success: true, students: [] }
 
   const { data, error } = await auth.supabase
