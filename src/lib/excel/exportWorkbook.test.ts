@@ -53,6 +53,22 @@ describe('buildWorkbook — formula injection prevention', () => {
     expect(await cellValue([{ name: 'x', note: 42 }], 2, 'note')).toBe(42)
   })
 
+  it('neutralizes a formula in a header cell too', async () => {
+    const workbook = await buildWorkbook([
+      {
+        name: 'Datos',
+        columns: [
+          { header: '=HYPERLINK("x","y")', key: 'a' },
+          { header: 'Normal', key: 'b' },
+        ],
+        rows: [{ a: 1, b: 2 }],
+      },
+    ])
+    const header = workbook.getWorksheet('Datos')!.getRow(1)
+    expect(header.getCell(1).value).toBe(`'=HYPERLINK("x","y")`)
+    expect(header.getCell(2).value).toBe('Normal')
+  })
+
   it('sanitizes every row, not just the first', async () => {
     const rows = [
       { name: 'ok', note: 'fine' },

@@ -4,6 +4,7 @@
  * contra inscritos. Horizontal A4.
  */
 import type { ProfessorUserReport } from '@/lib/reports/professorUserReport'
+import { cutLabel } from '@/lib/reports/cutColumns'
 import { PdfReport, type PdfCell, type PdfTone } from './pdfDocument'
 import { formatBogotaTime } from '@/lib/utils/bogotaDay'
 import { formatDateEs, formatGeneratedAt, formatPct } from './format'
@@ -82,7 +83,7 @@ export async function renderProfessorUserReportPdf(
       withCuts.flatMap((s): (string | PdfCell)[][] => [
         ...s.cuts.map((c, i): (string | PdfCell)[] => [
           i === 0 ? `${s.subjectCode} · ${s.subjectName}` : '',
-          c.name,
+          cutLabel(c.name),
           c.scheduled === null ? 'Sin horario' : String(c.scheduled),
           String(c.held),
           String(c.suspended),

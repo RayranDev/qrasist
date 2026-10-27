@@ -20,6 +20,21 @@ export interface CutColumn {
   sequence: number | null
 }
 
+/** Largo máximo con el que se imprime el nombre de un corte (igual al tope al crearlo). */
+export const MAX_CUT_LABEL_LENGTH = 60
+
+/**
+ * Nombre de corte listo para imprimir: recorta con puntos suspensivos los
+ * nombres más largos que el tope actual (puede haberlos en datos antiguos) para
+ * que un encabezado nunca desborde un reporte.
+ */
+export function cutLabel(name: string): string {
+  const trimmed = name.trim()
+  return trimmed.length > MAX_CUT_LABEL_LENGTH
+    ? `${trimmed.slice(0, MAX_CUT_LABEL_LENGTH - 3).trimEnd()}...`
+    : trimmed
+}
+
 export function cutKeyOf(cut: Pick<CutBreakdown, 'cutId'>): string {
   return cut.cutId ?? UNASSIGNED_CUT_KEY
 }
@@ -35,7 +50,9 @@ export function collectCutColumns(
   for (const list of lists) {
     for (const cut of list) {
       const key = cutKeyOf(cut)
-      if (!byKey.has(key)) byKey.set(key, { key, name: cut.name, sequence: cut.sequence })
+      if (!byKey.has(key)) {
+        byKey.set(key, { key, name: cutLabel(cut.name), sequence: cut.sequence })
+      }
     }
   }
   return [...byKey.values()].sort(

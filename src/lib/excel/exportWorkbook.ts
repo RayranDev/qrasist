@@ -60,7 +60,8 @@ export async function buildWorkbook(sheets: ExportSheet[]): Promise<ExcelJS.Work
   for (const sheetDef of sheets) {
     const sheet = workbook.addWorksheet(sheetDef.name)
     sheet.columns = sheetDef.columns.map((c) => ({
-      header: c.header,
+      // Los encabezados también pueden incluir texto de usuario (p. ej. el nombre de un corte).
+      header: String(sanitizeCellValue(c.header)),
       key: c.key,
       width: c.width ?? 20,
     }))

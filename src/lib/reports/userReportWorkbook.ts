@@ -7,7 +7,7 @@ import type ExcelJS from 'exceljs'
 import { buildWorkbook, type ExportSheet } from '@/lib/excel/exportWorkbook'
 import { INSTITUTION_NAME } from '@/lib/brand'
 import { formatBogotaTime } from '@/lib/utils/bogotaDay'
-import { cutPercentCell } from './cutColumns'
+import { cutLabel, cutPercentCell } from './cutColumns'
 import type { StudentSubjectHistory } from './attendanceReport'
 import type { ProfessorUserReport } from './professorUserReport'
 import {
@@ -119,7 +119,7 @@ export async function buildStudentUserWorkbook(
       ...h.cuts.map((c) => ({
         subjectCode: h.subjectCode,
         subjectName: h.subjectName,
-        cut: c.name,
+        cut: cutLabel(c.name),
         sessionsHeld: c.sessionsHeld,
         attended: c.attended,
         late: c.late,
@@ -248,7 +248,7 @@ export async function buildProfessorUserWorkbook(
       ...s.cuts.map((c) => ({
         subjectCode: s.subjectCode,
         subjectName: s.subjectName,
-        cut: c.name,
+        cut: cutLabel(c.name),
         scheduled: c.scheduled ?? 'Sin horario',
         held: c.held,
         suspended: c.suspended,

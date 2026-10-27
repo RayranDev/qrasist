@@ -27,8 +27,14 @@ interface CutInput {
   endDate: string
 }
 
+/** Máximo de caracteres del nombre de un corte (se imprime en encabezados de reportes). */
+const MAX_CUT_NAME_LENGTH = 60
+
 function validateCutInput(data: CutInput): string | null {
   if (!data.name.trim()) return 'El nombre del corte es obligatorio'
+  if (data.name.trim().length > MAX_CUT_NAME_LENGTH) {
+    return `El nombre del corte no puede superar los ${MAX_CUT_NAME_LENGTH} caracteres`
+  }
   if (!data.startDate || !data.endDate) return 'Las fechas de inicio y fin son obligatorias'
   if (data.startDate > data.endDate) {
     return 'La fecha de inicio debe ser anterior o igual a la fecha de fin'

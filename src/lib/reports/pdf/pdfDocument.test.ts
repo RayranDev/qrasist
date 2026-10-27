@@ -44,6 +44,42 @@ describe('PDF primitives', () => {
     expect(broken.join('')).toBe('A'.repeat(80))
   })
 
+  it('wraps a very long unspaced string in linear time without losing characters', async () => {
+    const doc = await PDFDocument.create()
+    const font = await doc.embedFont(StandardFonts.Helvetica)
+    const long = 'abcdefghij'.repeat(500)
+    const started = performance.now()
+    const lines = wrapText(font, long, 8, 120)
+    const elapsed = performance.now() - started
+
+    expect(lines.join('')).toBe(long)
+    for (const line of lines) expect(font.widthOfTextAtSize(line, 8)).toBeLessThanOrEqual(120)
+    // The previous implementation took ~23 s for 3000 characters.
+    expect(elapsed).toBeLessThan(1000)
+  })
+
+  it('breaks words exactly where the previous word-splitting did for normal text', async () => {
+    const doc = await PDFDocument.create()
+    const font = await doc.embedFont(StandardFonts.Helvetica)
+    // Reference: the previous (slow) per-character search.
+    const reference = (word: string, size: number, maxWidth: number) => {
+      const widthOf = (s: string) => font.widthOfTextAtSize(s, size)
+      const out: string[] = []
+      let rest = word
+      while (widthOf(rest) > maxWidth && rest.length > 1) {
+        let cut = rest.length - 1
+        while (cut > 1 && widthOf(rest.slice(0, cut)) > maxWidth) cut--
+        out.push(rest.slice(0, cut))
+        rest = rest.slice(cut)
+      }
+      out.push(rest)
+      return out
+    }
+    for (const word of ['A'.repeat(80), 'iiiiiillllll'.repeat(12), 'WWmm.,;:'.repeat(15)]) {
+      expect(wrapText(font, word, 8, 60)).toEqual(reference(word, 8, 60))
+    }
+  })
+
   it('numbers pages and repeats the table header when a table spans pages', async () => {
     const pdf = await PdfReport.create({
       title: 'Prueba',

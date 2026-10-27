@@ -8,7 +8,7 @@ import { buildWorkbook, type ExportSheet } from '@/lib/excel/exportWorkbook'
 import { INSTITUTION_NAME } from '@/lib/brand'
 import { formatBogotaTime } from '@/lib/utils/bogotaDay'
 import { RANGE_STATUS_LABELS, type RangeReport, type RangeStatus } from './attendanceRangeReport'
-import { collectCutColumns, findCut, generalHeader } from './cutColumns'
+import { collectCutColumns, cutLabel, findCut, generalHeader } from './cutColumns'
 import { formatDateEs, formatGeneratedAt } from './pdf/format'
 
 export interface RangeWorkbookMeta {
@@ -58,7 +58,7 @@ export async function buildRangeWorkbook(
       classTime: formatBogotaTime(r.sessionDate),
       subjectCode: r.subjectCode,
       subjectName: r.subjectName,
-      cutName: r.cutName,
+      cutName: cutLabel(r.cutName),
       professorName: r.professorName,
       studentCode: r.studentCode,
       studentName: r.studentName,
