@@ -3,15 +3,29 @@ import { redirect } from 'next/navigation'
 import EnrollmentManager from './EnrollmentManager'
 import MobileWarningBanner from '@/components/MobileWarningBanner'
 import BackLink from '@/components/BackLink'
+import { sanitizeSearchTerm } from '@/lib/utils/searchTerm'
+import { pageBounds, parsePageParam, totalPagesFor } from '@/lib/utils/pagination'
+import { buildEnrollmentsHref } from './enrollmentsHref'
 
 export const dynamic = 'force-dynamic'
 
+const PAGE_SIZE = 25
+
+interface StudentRow {
+  id: string
+  name: string
+  student_code: string | null
+}
+
 export default async function SubjectEnrollmentsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ q?: string; page?: string; epage?: string }>
 }) {
   const { id } = await params
+  const query = await searchParams
 
   const { supabase } = await requireRole(['ADMIN'])
 
@@ -29,28 +43,111 @@ export default async function SubjectEnrollmentsPage({
     .eq('is_active', true)
   const subjectCareerIds = (subjectCareers || []).map((sc) => sc.career_id)
 
-  // Obtener inscripciones actuales
-  const { data: enrolledStudents } = await supabase
-    .from('enrollments')
-    .select('student:profiles(id, name)')
-    .eq('subject_id', id)
+  const basePath = `/admin/subjects/${id}/enrollments`
+  const searchQuery = sanitizeSearchTerm(query.q)
+  const availablePage = parsePageParam(query.page)
+  const enrolledPage = parsePageParam(query.epage)
 
-  // Solo estudiantes activos, con su(s) carrera(s), disponibles
-  // para inscribir (regla D: debe coincidir con la de la materia)
-  const { data: allStudentsRaw } = await supabase
-    .from('profiles')
-    .select('id, name, student_careers(career_id, is_active)')
-    .eq('role', 'STUDENT')
-    .eq('is_active', true)
-    .order('name')
+  let enrolledStudents: StudentRow[] = []
+  let enrolledTotal = 0
+  let availableStudents: StudentRow[] = []
+  let availableTotal = 0
+  let eligibleExist = false
+  let loadFailed = false
 
-  const allStudents = (allStudentsRaw || []).map((s) => ({
-    id: s.id,
-    name: s.name,
-    careerIds: ((s.student_careers || []) as { career_id: string; is_active: boolean }[])
-      .filter((sc) => sc.is_active)
-      .map((sc) => sc.career_id),
-  }))
+  if (subjectCareerIds.length > 0) {
+    // Se sacan comas, parentesis y comodines: tienen significado especial en la
+    // sintaxis de filtros .or() de PostgREST (ver sanitizeSearchTerm).
+    const searchFilter = `name.ilike.%${searchQuery}%,student_code.ilike.%${searchQuery}%`
+
+    // Inscritos en esta materia, paginados y filtrables por la misma busqueda.
+    // Se consulta desde profiles con enrollments!inner para poder ordenar y
+    // filtrar por nombre/codigo en el servidor.
+    let enrolledQuery = supabase
+      .from('profiles')
+      .select('id, name, student_code, enrollments!inner(subject_id)', { count: 'exact' })
+      .eq('enrollments.subject_id', id)
+      .order('name')
+    if (searchQuery) enrolledQuery = enrolledQuery.or(searchFilter)
+
+    // Disponibles: solo estudiantes activos (regla D: con una carrera activa en
+    // comun con la materia) que todavia no estan inscritos. El anti-join se
+    // expresa con enrollments!left filtrado por esta materia + is null, para
+    // no cargar los ids de los inscritos en la URL.
+    let availableQuery = supabase
+      .from('profiles')
+      .select(
+        'id, name, student_code, student_careers!inner(career_id, is_active), enrollments!left(subject_id)',
+        { count: 'exact' }
+      )
+      .eq('role', 'STUDENT')
+      .eq('is_active', true)
+      .eq('student_careers.is_active', true)
+      .in('student_careers.career_id', subjectCareerIds)
+      .eq('enrollments.subject_id', id)
+      .is('enrollments', null)
+      .order('name')
+    if (searchQuery) availableQuery = availableQuery.or(searchFilter)
+
+    const enrolledBounds = pageBounds(enrolledPage, PAGE_SIZE)
+    const availableBounds = pageBounds(availablePage, PAGE_SIZE)
+
+    const [enrolledRes, availableRes] = await Promise.all([
+      enrolledQuery.range(enrolledBounds.from, enrolledBounds.to),
+      availableQuery.range(availableBounds.from, availableBounds.to),
+    ])
+
+    // PostgREST answers PGRST103 (416) when the requested range starts past the
+    // last row, e.g. after removing the only row of the last page. Fall back to
+    // page 1 of that list instead of showing an error.
+    const enrolledOutOfRange = enrolledRes.error?.code === 'PGRST103'
+    const availableOutOfRange = availableRes.error?.code === 'PGRST103'
+    if (enrolledOutOfRange || availableOutOfRange) {
+      redirect(
+        buildEnrollmentsHref(basePath, {
+          q: searchQuery,
+          page: availableOutOfRange ? 1 : availablePage,
+          epage: enrolledOutOfRange ? 1 : enrolledPage,
+        })
+      )
+    }
+
+    if (enrolledRes.error || availableRes.error) {
+      loadFailed = true
+      console.error('enrollments page query failed', enrolledRes.error, availableRes.error)
+    }
+
+    enrolledStudents = (enrolledRes.data || []) as unknown as StudentRow[]
+    enrolledTotal = enrolledRes.count ?? 0
+    availableStudents = (availableRes.data || []) as unknown as StudentRow[]
+    availableTotal = availableRes.count ?? 0
+
+    // After an enroll/unenroll the current page can end up past the last one
+    // (e.g. the last row of the last page was removed): jump to the new last page.
+    const lastEnrolledPage = totalPagesFor(enrolledTotal, PAGE_SIZE)
+    const lastAvailablePage = totalPagesFor(availableTotal, PAGE_SIZE)
+    if (!loadFailed && (enrolledPage > lastEnrolledPage || availablePage > lastAvailablePage)) {
+      redirect(
+        buildEnrollmentsHref(basePath, {
+          q: searchQuery,
+          page: Math.min(availablePage, lastAvailablePage),
+          epage: Math.min(enrolledPage, lastEnrolledPage),
+        })
+      )
+    }
+
+    // Empty-state wording: nobody eligible vs. everybody eligible already enrolled.
+    if (availableTotal === 0 && !searchQuery) {
+      const { count } = await supabase
+        .from('profiles')
+        .select('id, student_careers!inner(career_id)', { count: 'exact', head: true })
+        .eq('role', 'STUDENT')
+        .eq('is_active', true)
+        .eq('student_careers.is_active', true)
+        .in('student_careers.career_id', subjectCareerIds)
+      eligibleExist = (count ?? 0) > 0
+    }
+  }
 
   return (
     <div className="min-h-screen bg-surface">
@@ -86,16 +183,29 @@ export default async function SubjectEnrollmentsPage({
               </p>
             </div>
           ) : (
-            <EnrollmentManager
-              subjectId={id}
-              enrolledStudents={
-                (enrolledStudents || []) as unknown as Parameters<
-                  typeof EnrollmentManager
-                >[0]['enrolledStudents']
-              }
-              allStudents={allStudents}
-              subjectCareerIds={subjectCareerIds}
-            />
+            <>
+              {loadFailed && (
+                <div
+                  role="alert"
+                  className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm font-medium text-amber-800"
+                >
+                  No se pudo cargar la lista de estudiantes. Recarga la página e inténtalo de nuevo.
+                </div>
+              )}
+              <EnrollmentManager
+                subjectId={id}
+                basePath={basePath}
+                searchQuery={searchQuery}
+                pageSize={PAGE_SIZE}
+                enrolledStudents={enrolledStudents}
+                enrolledTotal={enrolledTotal}
+                enrolledPage={enrolledPage}
+                availableStudents={availableStudents}
+                availableTotal={availableTotal}
+                availablePage={availablePage}
+                eligibleExist={eligibleExist}
+              />
+            </>
           )}
         </div>
       </div>
