@@ -179,3 +179,131 @@ describe('buildRangeWorkbook', () => {
     expect(fields.has('Generado (hora de Bogotá)')).toBe(true)
   })
 })
+
+describe('buildRangeWorkbook per cut', () => {
+  const cuts = [
+    { id: 'k1', name: 'Corte 1', startDate: '2026-10-01', endDate: '2026-10-06', sequence: 1 },
+    { id: 'k2', name: 'Corte 2', startDate: '2026-10-07', endDate: '2026-10-31', sequence: 2 },
+  ]
+  const plain = { ...subject, id: 's2', code: 'FIS-102', name: 'Física' }
+  const mixed = buildRangeReport({
+    subjects: [{ ...subject, cuts }, plain],
+    sessions: ['s1', 's2'].flatMap((subjectId) => [
+      {
+        id: `${subjectId}-a`,
+        subjectId,
+        date: '2026-10-05T13:00:00Z',
+        isActive: true,
+        suspendedAt: null,
+      },
+      {
+        id: `${subjectId}-b`,
+        subjectId,
+        date: '2026-10-08T13:00:00Z',
+        isActive: true,
+        suspendedAt: null,
+      },
+    ]),
+    enrollments: ['s1', 's2'].map((subjectId) => ({
+      subjectId,
+      studentId: 'a',
+      studentCode: '001',
+      studentName: 'Ana',
+    })),
+    // Ana attends only the first class of each subject.
+    attendances: ['s1-a', 's2-a'].map((sessionId) => ({
+      sessionId,
+      studentId: 'a',
+      status: 'PRESENT' as const,
+      markedBy: null,
+      manualReason: null,
+      scannedAt: null,
+    })),
+    justifications: [],
+    held: { now: new Date('2026-10-20T12:00:00Z'), defaultClassMinutes: 90 },
+    from: '2026-10-05',
+    to: '2026-10-09',
+  })
+
+  async function load(r: typeof mixed) {
+    const wb = await buildRangeWorkbook(r, {
+      scopeLabel: '05/10/2026 - 09/10/2026',
+      generatedAt: new Date('2026-10-20T20:45:00Z'),
+    })
+    const loaded = new ExcelJS.Workbook()
+    await loaded.xlsx.load((await wb.xlsx.writeBuffer()) as ArrayBuffer)
+    return loaded
+  }
+
+  function rowsOf(sheet: ExcelJS.Worksheet): Record<string, unknown>[] {
+    const header = headerOf(sheet)
+    const out: Record<string, unknown>[] = []
+    sheet.eachRow((row, n) => {
+      if (n > 1)
+        out.push(Object.fromEntries(header.map((h, i) => [h, row.getCell(i + 1).value ?? ''])))
+    })
+    return out
+  }
+
+  it('shows each cut and then the general figures, empty for subjects without cuts', async () => {
+    const sheet = (await load(mixed)).getWorksheet('Resumen por materia') as ExcelJS.Worksheet
+    const header = headerOf(sheet)
+    expect(header.indexOf('Corte 2 · % Asistencia')).toBeLessThan(
+      header.indexOf('% Asistencia (general)')
+    )
+    const rows = rowsOf(sheet)
+    const withCuts = rows.find((r) => r['Código Materia'] === 'MAT-101')
+    const withoutCuts = rows.find((r) => r['Código Materia'] === 'FIS-102')
+    expect(withCuts).toMatchObject({
+      'Código Materia': 'MAT-101',
+      'Corte 1 · Clases': 1,
+      'Corte 1 · Asistencias': 1,
+      'Corte 1 · % Asistencia': 100,
+      'Corte 2 · Clases': 1,
+      'Corte 2 · Asistencias': 0,
+      'Corte 2 · % Asistencia': 0,
+      'Clases Dictadas (general)': 2,
+      '% Asistencia (general)': 50,
+    })
+    expect(withoutCuts).toMatchObject({
+      'Código Materia': 'FIS-102',
+      'Corte 1 · Clases': '',
+      'Corte 2 · % Asistencia': '',
+      'Clases Dictadas (general)': 2,
+      '% Asistencia (general)': 50,
+    })
+  })
+
+  it('adds a Corte column to the detail, empty for subjects without cuts', async () => {
+    const sheet = (await load(mixed)).getWorksheet('Detalle') as ExcelJS.Worksheet
+    const rows = rowsOf(sheet)
+    const cutOf = (code: string, date: string) =>
+      rows.find((r) => r['Código Materia'] === code && r['Fecha'] === date)?.['Corte']
+    expect(cutOf('MAT-101', '05/10/2026')).toBe('Corte 1')
+    expect(cutOf('MAT-101', '08/10/2026')).toBe('Corte 2')
+    expect(cutOf('FIS-102', '05/10/2026')).toBe('')
+  })
+
+  it('does not add cut columns, the Corte column or the note when no subject has cuts', async () => {
+    const loaded = await load(report)
+    expect(headerOf(loaded.getWorksheet('Detalle') as ExcelJS.Worksheet)).not.toContain('Corte')
+    expect(headerOf(loaded.getWorksheet('Resumen por materia') as ExcelJS.Worksheet)).toEqual([
+      'Código Materia',
+      'Materia',
+      'Docente',
+      'Inscritos',
+      'Clases Dictadas',
+      'Clases Suspendidas',
+      'Asistencias',
+      'Tardanzas',
+      'Justificadas',
+      'Ausencias',
+      '% Asistencia',
+    ])
+    const fields: string[] = []
+    ;(loaded.getWorksheet('Información') as ExcelJS.Worksheet).eachRow((r) =>
+      fields.push(String(r.getCell(1).value))
+    )
+    expect(fields).not.toContain('Cortes')
+  })
+})

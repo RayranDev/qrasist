@@ -18,7 +18,14 @@
  *  - Asistencias de quien ya no está inscrito no se listan (el reporte parte
  *    de las inscripciones, igual que buildClassList).
  *  - Los días son días civiles de Bogotá, ambos extremos inclusivos.
+ *  - Una materia con cortes definidos trae además su desglose por corte: las
+ *    clases del rango se reparten por el corte que contiene su día y cada corte
+ *    se acota al rango (solo cuenta lo que cae dentro). Se listan los cortes
+ *    que se cruzan con el rango, aunque queden con 0 clases; los que no se
+ *    cruzan no aparecen. Las clases fuera de todo corte van a "Sin corte
+ *    asignado". Sin cortes definidos solo hay cifra general.
  */
+import { UNASSIGNED_CUT_NAME } from '@/lib/attendance/cutsBreakdown'
 import { bogotaCalendarDate } from '@/lib/utils/businessDays'
 import { hasClassEnded } from '@/lib/attendance/heldSessions'
 import type {
@@ -56,6 +63,24 @@ export interface RangeDetailRow {
   statusLabel: string
   /** timestamptz ISO del registro de asistencia; null si no hay. */
   scannedAt: string | null
+  /** Corte que contiene la clase; vacío si la materia no tiene cortes definidos. */
+  cutName: string
+}
+
+/** Cifras de una materia dentro de un corte, acotadas al rango del reporte. */
+export interface RangeCutSummary {
+  /** null en el bucket "Sin corte asignado". */
+  cutId: string | null
+  name: string
+  sequence: number | null
+  sessionsHeld: number
+  sessionsSuspended: number
+  attendances: number
+  late: number
+  justified: number
+  absent: number
+  /** Misma fórmula que el general; null sin clases dictadas en el corte. */
+  attendancePct: number | null
 }
 
 export interface RangeSubjectSummary {
@@ -73,6 +98,8 @@ export interface RangeSubjectSummary {
   absent: number
   /** attendances / (attendances + justified + absent); null sin clases dictadas. */
   attendancePct: number | null
+  /** Desglose por corte dentro del rango; vacío si la materia no tiene cortes. */
+  cuts: RangeCutSummary[]
 }
 
 export interface RangeReport {
@@ -106,6 +133,30 @@ export class RangeReportTooLargeError extends Error {
 
 function round1(value: number): number {
   return Math.round(value * 10) / 10
+}
+
+type CutBucket = Omit<RangeCutSummary, 'attendancePct'>
+
+function newBucket(cutId: string | null, name: string, sequence: number | null): CutBucket {
+  return {
+    cutId,
+    name,
+    sequence,
+    sessionsHeld: 0,
+    sessionsSuspended: 0,
+    attendances: 0,
+    late: 0,
+    justified: 0,
+    absent: 0,
+  }
+}
+
+function toCutSummary(bucket: CutBucket): RangeCutSummary {
+  const possible = bucket.attendances + bucket.justified + bucket.absent
+  return {
+    ...bucket,
+    attendancePct: possible > 0 ? round1((bucket.attendances / possible) * 100) : null,
+  }
 }
 
 export function buildRangeReport(input: RangeReportInput): RangeReport {
@@ -154,6 +205,24 @@ export function buildRangeReport(input: RangeReportInput): RangeReport {
     let sessionsHeld = 0
     let sessionsSuspended = 0
 
+    // Cortes del rango: los que se cruzan con él, en orden. Una clase del
+    // rango siempre cae en uno de ellos o fuera de todos (sin corte).
+    const sortedCuts = [...subject.cuts].sort((a, b) => a.sequence - b.sequence)
+    const buckets = new Map<string, CutBucket>()
+    for (const cut of sortedCuts) {
+      if (cut.startDate <= input.to && cut.endDate >= input.from) {
+        buckets.set(cut.id, newBucket(cut.id, cut.name, cut.sequence))
+      }
+    }
+    let unassigned: CutBucket | null = null
+    const bucketOf = (day: string): CutBucket | null => {
+      if (sortedCuts.length === 0) return null
+      const cut = sortedCuts.find((c) => day >= c.startDate && day <= c.endDate)
+      if (cut) return buckets.get(cut.id) ?? null
+      unassigned ??= newBucket(null, UNASSIGNED_CUT_NAME, null)
+      return unassigned
+    }
+
     for (const session of relevant) {
       const suspended = !!session.suspendedAt
       const ended =
@@ -169,10 +238,16 @@ export function buildRangeReport(input: RangeReportInput): RangeReport {
       const counted =
         !suspended &&
         (ended || enrolled.some((e) => attendanceByKey.has(`${e.studentId}|${session.id}`)))
-      if (suspended) sessionsSuspended++
-      else if (counted) sessionsHeld++
-
       const date = bogotaCalendarDate(new Date(session.date))
+      const bucket = bucketOf(date)
+      if (suspended) {
+        sessionsSuspended++
+        if (bucket) bucket.sessionsSuspended++
+      } else if (counted) {
+        sessionsHeld++
+        if (bucket) bucket.sessionsHeld++
+      }
+
       const push = (
         enrollment: ReportEnrollmentInput,
         status: RangeStatus,
@@ -192,6 +267,7 @@ export function buildRangeReport(input: RangeReportInput): RangeReport {
           status,
           statusLabel: RANGE_STATUS_LABELS[status],
           scannedAt,
+          cutName: bucket?.name ?? '',
         })
       }
 
@@ -204,7 +280,11 @@ export function buildRangeReport(input: RangeReportInput): RangeReport {
         const attendance = attendanceByKey.get(key)
         if (attendance) {
           counts.attendances++
-          if (attendance.status === 'LATE') counts.late++
+          if (bucket) bucket.attendances++
+          if (attendance.status === 'LATE') {
+            counts.late++
+            if (bucket) bucket.late++
+          }
           push(enrollment, attendance.status, attendance.scannedAt ?? null)
         } else if (!ended) {
           // Clase en curso: solo cuenta para quien ya registró asistencia, así
@@ -212,9 +292,11 @@ export function buildRangeReport(input: RangeReportInput): RangeReport {
           continue
         } else if (approved.has(key)) {
           counts.justified++
+          if (bucket) bucket.justified++
           push(enrollment, 'JUSTIFIED', null)
         } else {
           counts.absent++
+          if (bucket) bucket.absent++
           push(enrollment, 'ABSENT', null)
         }
       }
@@ -233,6 +315,7 @@ export function buildRangeReport(input: RangeReportInput): RangeReport {
       justified: counts.justified,
       absent: counts.absent,
       attendancePct: possible > 0 ? round1((counts.attendances / possible) * 100) : null,
+      cuts: [...buckets.values(), ...(unassigned ? [unassigned] : [])].map(toCutSummary),
     })
   }
 

@@ -8,6 +8,7 @@ import { buildWorkbook, type ExportSheet } from '@/lib/excel/exportWorkbook'
 import { INSTITUTION_NAME } from '@/lib/brand'
 import { formatBogotaTime } from '@/lib/utils/bogotaDay'
 import { RANGE_STATUS_LABELS, type RangeReport, type RangeStatus } from './attendanceRangeReport'
+import { collectCutColumns, findCut, generalHeader } from './cutColumns'
 import { formatDateEs, formatGeneratedAt } from './pdf/format'
 
 export interface RangeWorkbookMeta {
@@ -29,6 +30,14 @@ export async function buildRangeWorkbook(
   report: RangeReport,
   meta: RangeWorkbookMeta
 ): Promise<ExcelJS.Workbook> {
+  // Materias con cortes: cada corte (acotado al rango) y después el general.
+  // Las materias sin cortes dejan vacías las celdas de corte (ver cutColumns.ts).
+  const cutColumns = collectCutColumns(report.summary.map((s) => s.cuts))
+  const hasCuts = cutColumns.length > 0
+  // El rango entero es el alcance, así que el general se marca solo para no
+  // confundirlo con las columnas de cada corte.
+  const general = (header: string) => generalHeader(header, hasCuts, false)
+
   const detail: ExportSheet = {
     name: 'Detalle',
     columns: [
@@ -36,6 +45,8 @@ export async function buildRangeWorkbook(
       { header: 'Hora de la Clase', key: 'classTime', width: 16 },
       { header: 'Código Materia', key: 'subjectCode', width: 16 },
       { header: 'Materia', key: 'subjectName', width: 30 },
+      // Permite filtrar por corte en Excel; vacío si la materia no tiene cortes.
+      ...(hasCuts ? [{ header: 'Corte', key: 'cutName', width: 20 }] : []),
       { header: 'Docente', key: 'professorName', width: 26 },
       { header: 'Código Estudiante', key: 'studentCode', width: 18 },
       { header: 'Estudiante', key: 'studentName', width: 30 },
@@ -47,6 +58,7 @@ export async function buildRangeWorkbook(
       classTime: formatBogotaTime(r.sessionDate),
       subjectCode: r.subjectCode,
       subjectName: r.subjectName,
+      cutName: r.cutName,
       professorName: r.professorName,
       studentCode: r.studentCode,
       studentName: r.studentName,
@@ -62,15 +74,33 @@ export async function buildRangeWorkbook(
       { header: 'Materia', key: 'subjectName', width: 30 },
       { header: 'Docente', key: 'professorName', width: 26 },
       { header: 'Inscritos', key: 'enrolled', width: 11 },
-      { header: 'Clases Dictadas', key: 'sessionsHeld', width: 15 },
+      ...cutColumns.flatMap((c) => [
+        { header: `${c.name} · Clases`, key: `cut:${c.key}:held`, width: 14 },
+        { header: `${c.name} · Asistencias`, key: `cut:${c.key}:att`, width: 18 },
+        { header: `${c.name} · % Asistencia`, key: `cut:${c.key}:pct`, width: 18 },
+      ]),
+      { header: general('Clases Dictadas'), key: 'sessionsHeld', width: hasCuts ? 24 : 15 },
       { header: 'Clases Suspendidas', key: 'sessionsSuspended', width: 18 },
-      { header: 'Asistencias', key: 'attendances', width: 13 },
-      { header: 'Tardanzas', key: 'late', width: 11 },
-      { header: 'Justificadas', key: 'justified', width: 13 },
-      { header: 'Ausencias', key: 'absent', width: 11 },
-      { header: '% Asistencia', key: 'attendancePct', width: 13 },
+      { header: general('Asistencias'), key: 'attendances', width: hasCuts ? 22 : 13 },
+      { header: general('Tardanzas'), key: 'late', width: hasCuts ? 20 : 11 },
+      { header: general('Justificadas'), key: 'justified', width: hasCuts ? 22 : 13 },
+      { header: general('Ausencias'), key: 'absent', width: hasCuts ? 20 : 11 },
+      { header: general('% Asistencia'), key: 'attendancePct', width: hasCuts ? 24 : 13 },
     ],
-    rows: report.summary.map((s) => ({ ...s, attendancePct: s.attendancePct ?? '' })),
+    rows: report.summary.map(({ cuts, ...s }) => ({
+      ...s,
+      ...Object.fromEntries(
+        cutColumns.flatMap((c) => {
+          const cut = findCut(cuts, c.key)
+          return [
+            [`cut:${c.key}:held`, cut ? cut.sessionsHeld : ''],
+            [`cut:${c.key}:att`, cut ? cut.attendances : ''],
+            [`cut:${c.key}:pct`, cut ? (cut.attendancePct ?? '') : ''],
+          ]
+        })
+      ),
+      attendancePct: s.attendancePct ?? '',
+    })),
   }
 
   const info: ExportSheet = {
@@ -89,6 +119,15 @@ export async function buildRangeWorkbook(
         value:
           'Las ausencias se derivan de las inscripciones en las clases dictadas. Las clases suspendidas no generan ausencias y las clases en curso solo muestran a quien ya registró asistencia. El % de asistencia es asistencias / (asistencias + justificadas + ausencias).',
       },
+      ...(hasCuts
+        ? [
+            {
+              field: 'Cortes',
+              value:
+                'Las columnas de cada corte cuentan solo las clases del rango elegido que caen en ese corte; los cortes que no se cruzan con el rango no aparecen. Las columnas "(general)" suman todo el rango. Las clases fuera de todo corte figuran como "Sin corte asignado". Las materias sin cortes definidos solo tienen cifra general y dejan vacías las columnas de corte.',
+            },
+          ]
+        : []),
     ],
   }
 

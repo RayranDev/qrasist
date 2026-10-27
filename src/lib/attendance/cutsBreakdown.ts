@@ -44,7 +44,7 @@ export interface CutBreakdown {
   percentage: number
 }
 
-const UNASSIGNED_CUT_NAME = 'Sin corte asignado'
+export const UNASSIGNED_CUT_NAME = 'Sin corte asignado'
 
 interface Bucket {
   held: number
