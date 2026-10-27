@@ -4,6 +4,9 @@ import { useState } from 'react'
 import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
 import RoleSelect from './RoleSelect'
+import AssignSubjectsDialog from './AssignSubjectsDialog'
+import EnrollSubjectsDialog from './EnrollSubjectsDialog'
+import type { PostRoleChangeStep } from '@/lib/admin/roleChangeImpact'
 import {
   CreateUserForm,
   ActionButtons,
@@ -131,12 +134,43 @@ export default function AdminUserList({
     name: string
     role: 'STUDENT' | 'PROFESSOR'
   } | null>(null)
+  // Lives here (not in RoleSelect) so the step survives the list refresh that
+  // follows a role change, even when the new role filters the row out.
+  const [roleStep, setRoleStep] = useState<{
+    id: string
+    name: string
+    step: PostRoleChangeStep
+  } | null>(null)
 
   return (
     <>
       <div id="crear-usuario">
         <CreateUserForm />
       </div>
+
+      {roleStep?.step === 'assign-subjects' && (
+        <AssignSubjectsDialog
+          professorId={roleStep.id}
+          professorName={roleStep.name}
+          onClose={() => setRoleStep(null)}
+          onAssignCareers={() => {
+            setCareersProf({ id: roleStep.id, name: roleStep.name })
+            setRoleStep(null)
+          }}
+        />
+      )}
+
+      {roleStep?.step === 'enroll-subjects' && (
+        <EnrollSubjectsDialog
+          studentId={roleStep.id}
+          studentName={roleStep.name}
+          onClose={() => setRoleStep(null)}
+          onAssignCareers={() => {
+            setCareersUser({ id: roleStep.id, name: roleStep.name })
+            setRoleStep(null)
+          }}
+        />
+      )}
 
       {historyUser && (
         <StudentHistoryModal
@@ -304,7 +338,12 @@ export default function AdminUserList({
               <div className="flex items-center justify-between pt-3 border-t border-gray-100 gap-2 flex-wrap">
                 <div className="shrink-0">
                   {profile.is_active !== false ? (
-                    <RoleSelect userId={profile.id} currentRole={profile.role} />
+                    <RoleSelect
+                      userId={profile.id}
+                      currentRole={profile.role}
+                      userName={profile.name}
+                      onRoleChangeStep={setRoleStep}
+                    />
                   ) : (
                     <RoleBadge role={profile.role} />
                   )}
@@ -438,7 +477,12 @@ export default function AdminUserList({
                   </td>
                   <td className="px-6 py-4">
                     {profile.is_active !== false ? (
-                      <RoleSelect userId={profile.id} currentRole={profile.role} />
+                      <RoleSelect
+                        userId={profile.id}
+                        currentRole={profile.role}
+                        userName={profile.name}
+                        onRoleChangeStep={setRoleStep}
+                      />
                     ) : (
                       <RoleBadge role={profile.role} />
                     )}

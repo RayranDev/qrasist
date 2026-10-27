@@ -14,6 +14,9 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'enrollment_request.approve': 'Aprobó solicitud de inscripción',
   'enrollment_request.reject': 'Rechazó solicitud de inscripción',
   'user.role_change': 'Cambió el rol de un usuario',
+  'user.role_change_failed': 'Falló un cambio de rol (se revirtió o requiere revisión)',
+  'user.assign_subjects': 'Asignó materias a un docente',
+  'user.enroll_subjects': 'Matriculó a un estudiante en materias',
   'user.create': 'Creó una cuenta',
   'user.deactivate': 'Desactivó una cuenta',
   'user.reactivate': 'Reactivó una cuenta',
@@ -60,6 +63,30 @@ export function summarizeAuditDetails(action: string, details: Record<string, un
       break
     case 'user.role_change':
       parts.push(`${details.role_before ?? '?'} → ${details.role_after ?? '?'}`)
+      if (typeof details.enrollments_removed === 'number' && details.enrollments_removed > 0) {
+        parts.push(`desmatriculado de ${details.enrollments_removed}`)
+      }
+      if (typeof details.subjects_unassigned === 'number' && details.subjects_unassigned > 0) {
+        parts.push(`desvinculado de ${details.subjects_unassigned} materias como docente`)
+      }
+      if (details.pending_requests_cancel_failed === true) {
+        parts.push('no se cancelaron las solicitudes pendientes')
+      }
+      break
+    case 'user.role_change_failed':
+      parts.push(`${details.role_before ?? '?'} → ${details.role_after ?? '?'}`)
+      if (details.outcome === 'revert_failed') parts.push('NO se pudo restaurar el rol')
+      else if (details.outcome === 'reverted') parts.push('rol restaurado')
+      break
+    case 'user.enroll_subjects':
+      if (typeof details.enrolled_count === 'number') {
+        parts.push(`${details.enrolled_count} materias`)
+      }
+      break
+    case 'user.assign_subjects':
+      if (typeof details.assigned_count === 'number') {
+        parts.push(`${details.assigned_count} materias`)
+      }
       break
     case 'user.update_account':
       parts.push(

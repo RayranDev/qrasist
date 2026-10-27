@@ -1,32 +1,84 @@
 'use client'
 
 import { useState } from 'react'
-import { updateUserRole } from '@/lib/actions/admin'
+import { getRoleChangeImpact, updateUserRole } from '@/lib/actions/admin'
 import { useToast } from '@/components/toast/ToastProvider'
 import { RoleBadge } from '@/components/ui/RoleBadge'
 import { ROLE_LABEL, type UserRole } from '@/components/ui/roleMeta'
+import {
+  buildRoleChangeWarning,
+  hasRoleChangeImpact,
+  resolvePostRoleChangeStep,
+  type PostRoleChangeStep,
+} from '@/lib/admin/roleChangeImpact'
+import { countOf } from '@/lib/utils/plural'
+import RoleChangeConfirmDialog from './RoleChangeConfirmDialog'
 
 interface Props {
   userId: string
   currentRole: UserRole
+  /** Shown in the confirmation warning. */
+  userName?: string
+  /**
+   * Called after a successful change, with the optional follow-up for the NEW role
+   * (PROFESSOR: assign subjects, STUDENT: enroll in subjects; ADMIN: not called).
+   */
+  onRoleChangeStep?: (user: { id: string; name: string; step: PostRoleChangeStep }) => void
 }
 
-export default function RoleSelect({ userId, currentRole }: Props) {
+export default function RoleSelect({ userId, currentRole, userName, onRoleChangeStep }: Props) {
   const [loading, setLoading] = useState(false)
+  const [pending, setPending] = useState<{ newRole: UserRole; paragraphs: string[] } | null>(null)
   const showToast = useToast()
+
+  const applyChange = async (newRole: UserRole, confirmed: boolean) => {
+    setLoading(true)
+    const result = await updateUserRole(userId, newRole, confirmed ? { unenroll: true } : undefined)
+    setLoading(false)
+    setPending(null)
+    if (result.success) {
+      const removed = result.enrollmentsRemoved ?? 0
+      const unassigned = result.subjectsUnassigned ?? 0
+      const details = [
+        removed > 0 ? `Se desmatriculó de ${countOf(removed, 'materia')}.` : '',
+        unassigned > 0 ? `Se desvinculó de ${countOf(unassigned, 'materia')} como docente.` : '',
+      ].filter(Boolean)
+      showToast([`Rol actualizado a ${ROLE_LABEL[newRole]}.`, ...details].join(' '), 'success')
+      const step = resolvePostRoleChangeStep(newRole)
+      if (step) onRoleChangeStep?.({ id: userId, name: userName || 'Este usuario', step })
+    } else {
+      showToast(result.error || 'No se pudo actualizar el rol.', 'error')
+    }
+  }
 
   const handleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newRole = e.target.value as UserRole
     if (newRole === currentRole) return
 
     setLoading(true)
-    const result = await updateUserRole(userId, newRole)
-    if (result.success) {
-      showToast(`Rol actualizado a ${ROLE_LABEL[newRole]}.`, 'success')
-    } else {
-      showToast(result.error || 'No se pudo actualizar el rol.', 'error')
+    const impactResult = await getRoleChangeImpact(userId, newRole)
+    if (!impactResult.success) {
+      setLoading(false)
+      showToast(impactResult.error || 'No se pudo revisar el cambio de rol.', 'error')
+      return
     }
-    setLoading(false)
+
+    // The <select> is controlled by `currentRole`, so cancelling the dialog just
+    // leaves it showing the role that is really in effect.
+    if (hasRoleChangeImpact(impactResult.impact)) {
+      setLoading(false)
+      setPending({
+        newRole,
+        paragraphs: buildRoleChangeWarning({
+          userName: userName || 'Este usuario',
+          newRole,
+          impact: impactResult.impact,
+        }),
+      })
+      return
+    }
+
+    await applyChange(newRole, false)
   }
 
   return (
@@ -43,6 +95,16 @@ export default function RoleSelect({ userId, currentRole }: Props) {
         <option value="PROFESSOR">{ROLE_LABEL.PROFESSOR}</option>
         <option value="ADMIN">{ROLE_LABEL.ADMIN}</option>
       </select>
+
+      {pending && (
+        <RoleChangeConfirmDialog
+          newRole={pending.newRole}
+          paragraphs={pending.paragraphs}
+          loading={loading}
+          onConfirm={() => applyChange(pending.newRole, true)}
+          onCancel={() => setPending(null)}
+        />
+      )}
     </div>
   )
 }

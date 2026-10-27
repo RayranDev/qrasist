@@ -8,6 +8,7 @@ import {
   updateGlobalAbsencePolicy,
 } from '@/lib/actions/adminAcademicPolicy'
 import { buildPolicyOverwriteMessage } from '@/lib/admin/policyOverwrite'
+import { buildCurrentPolicySummary } from '@/lib/admin/policySummary'
 import { pluralize } from '@/lib/utils/plural'
 
 interface GlobalAbsencePolicyModalProps {
@@ -181,7 +182,7 @@ export default function GlobalAbsencePolicyModal({
                   <h3 id="policy-modal-title" className="text-sm font-bold text-neutral-900">
                     Política Institucional de Asistencias
                   </h3>
-                  <p className="text-xs text-neutral-500">
+                  <p className="text-xs text-neutral-600">
                     Criterio de reprobación y tolerancia de inasistencias
                   </p>
                 </div>
@@ -198,13 +199,27 @@ export default function GlobalAbsencePolicyModal({
 
             {/* Formulario */}
             <form onSubmit={handleReview} className="p-6 space-y-5">
+              {/* Política vigente (props iniciales): los campos de abajo arrancan con estos valores */}
+              <p
+                data-testid="current-policy-summary"
+                className="px-3 py-2 text-xs font-medium text-neutral-800 bg-neutral-50 border border-neutral-200/70 rounded-xl"
+              >
+                {buildCurrentPolicySummary({
+                  ruleType: initialRuleType,
+                  percentage: initialPercentage,
+                  count: initialCount,
+                  plannedSessions: initialPlannedSessions,
+                  lateAfterMinutes: initialLateAfterMinutes,
+                  latesPerAbsence: initialLatesPerAbsence,
+                })}
+              </p>
               <fieldset
                 disabled={confirmCount !== null || loading}
                 className="space-y-5 min-w-0 border-0 p-0 m-0"
               >
                 {/* Selector de Tipo de Regla */}
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-800 mb-2">
                     Tipo de regla de inasistencia
                   </label>
                   <div className="grid grid-cols-2 gap-2 p-1 bg-neutral-100 rounded-xl border border-neutral-200/60">
@@ -253,7 +268,7 @@ export default function GlobalAbsencePolicyModal({
                       onChange={(e) => setPercentage(Number(e.target.value))}
                       className="w-full h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-neutral-900"
                     />
-                    <p className="text-[11px] text-neutral-500 mt-1.5">
+                    <p className="text-xs text-neutral-600 mt-1.5">
                       Estándar universitario habitual: 20% (el estudiante reprueba al acumular más
                       del {percentage}% de inasistencias).
                     </p>
@@ -269,9 +284,9 @@ export default function GlobalAbsencePolicyModal({
                       max={30}
                       value={count}
                       onChange={(e) => setCount(Math.max(1, Number(e.target.value)))}
-                      className="w-full px-3 py-2 text-xs font-mono border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                      className="w-full px-3 py-2 text-xs font-mono text-neutral-900 placeholder:text-neutral-400 bg-white border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900"
                     />
-                    <p className="text-[11px] text-neutral-500 mt-1">
+                    <p className="text-xs text-neutral-600 mt-1">
                       El estudiante entra en estado de reprobación a partir de la falla número{' '}
                       {count + 1}.
                     </p>
@@ -289,9 +304,9 @@ export default function GlobalAbsencePolicyModal({
                     max={60}
                     value={plannedSessions}
                     onChange={(e) => setPlannedSessions(Math.max(1, Number(e.target.value)))}
-                    className="w-full px-3 py-2 text-xs font-mono border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                    className="w-full px-3 py-2 text-xs font-mono text-neutral-900 placeholder:text-neutral-400 bg-white border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900"
                   />
-                  <p className="text-[11px] text-neutral-500 mt-1">
+                  <p className="text-xs text-neutral-600 mt-1">
                     Generalmente 16 semanas para períodos semestrales regulares.
                   </p>
                 </div>
@@ -310,7 +325,7 @@ export default function GlobalAbsencePolicyModal({
                       onChange={(e) => setLateAfterMinutes(e.target.value)}
                       placeholder="Vacío = sin seguimiento"
                       title="Minutos tras generar el QR a partir de los cuales el escaneo cuenta como tarde. Vacío desactiva el seguimiento de tardanzas."
-                      className="w-full px-3 py-2 text-xs font-mono border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                      className="w-full px-3 py-2 text-xs font-mono text-neutral-900 placeholder:text-neutral-400 bg-white border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900"
                     />
                   </div>
                   <div>
@@ -325,7 +340,7 @@ export default function GlobalAbsencePolicyModal({
                       onChange={(e) => setLatesPerAbsence(e.target.value)}
                       placeholder="Ej. 3 (opcional)"
                       title="Cada cuántas tardanzas se suma una inasistencia. Vacío = las tardanzas nunca se convierten en falta."
-                      className="w-full px-3 py-2 text-xs font-mono border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                      className="w-full px-3 py-2 text-xs font-mono text-neutral-900 placeholder:text-neutral-400 bg-white border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900"
                     />
                   </div>
                 </div>
