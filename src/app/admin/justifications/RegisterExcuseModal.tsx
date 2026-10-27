@@ -23,7 +23,6 @@ import {
 } from '@/lib/justifications/eligibility'
 import { capitalizeFirst } from '@/lib/utils/spanishDate'
 
-const DEFAULT_REASON = 'Excusa médica validada por coordinación.'
 const MAX_REASON = 1000
 const MIN_REASON = 10
 const SEARCH_DEBOUNCE_MS = 300
@@ -52,7 +51,7 @@ export default function RegisterExcuseModal() {
   const [loadingAbsences, setLoadingAbsences] = useState(false)
   const [sessionId, setSessionId] = useState('')
 
-  const [reason, setReason] = useState(DEFAULT_REASON)
+  const [reason, setReason] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -65,7 +64,7 @@ export default function RegisterExcuseModal() {
     setStudent(null)
     setAbsences(null)
     setSessionId('')
-    setReason(DEFAULT_REASON)
+    setReason('')
     setFile(null)
     setFileError(null)
     setError(null)
@@ -337,6 +336,7 @@ export default function RegisterExcuseModal() {
                     value={reason}
                     onChange={(e) => setReason(e.target.value.slice(0, MAX_REASON))}
                     rows={3}
+                    placeholder="Describe el motivo de la excusa…"
                     className="w-full px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 bg-white border border-gray-200 rounded-xl outline-none hover:border-gray-300 focus:border-navy-600 focus:ring-2 focus:ring-navy-100"
                   />
                 </div>
