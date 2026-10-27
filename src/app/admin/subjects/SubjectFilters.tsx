@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Search } from 'lucide-react'
@@ -43,8 +43,13 @@ export default function SubjectFilters({
 }) {
   const router = useRouter()
   const [query, setQuery] = useState(searchQuery)
+  const pendingSearch = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const navigate = (overrides: Record<string, string | undefined>) => {
+    // A select change already carries the typed text, so a pending debounced
+    // push built from stale props must not fire afterwards and undo it.
+    if (pendingSearch.current) clearTimeout(pendingSearch.current)
+    pendingSearch.current = null
     const params = new URLSearchParams()
     const next = {
       career: careerFilter,
@@ -67,8 +72,10 @@ export default function SubjectFilters({
   // navigate() never carries `page`, so every new search starts at page 1.
   useEffect(() => {
     if (query.trim() === searchQuery) return
-    const timeout = setTimeout(() => navigate({ q: query.trim() || undefined }), 400)
-    return () => clearTimeout(timeout)
+    pendingSearch.current = setTimeout(() => navigate({ q: query.trim() || undefined }), 400)
+    return () => {
+      if (pendingSearch.current) clearTimeout(pendingSearch.current)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query])
 
