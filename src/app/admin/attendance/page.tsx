@@ -24,6 +24,7 @@ import { formatBogotaDateTime } from '@/lib/utils/bogotaDay'
 import ReportDownloadButton from '@/components/ReportDownloadButton'
 import { attendanceRangeUrl } from '@/lib/reports/attendanceRangeUrl'
 import AttendanceCalendar from './AttendanceCalendar'
+import AttendanceDayPanel from './AttendanceDayPanel'
 import SubjectPicker from './SubjectPicker'
 import PastClassModal from './PastClassModal'
 import SessionActiveToggle from './SessionActiveToggle'
@@ -333,8 +334,19 @@ export default async function AdminAttendancePage({
                 <AttendanceCalendar
                   month={month}
                   today={today}
-                  now={now}
                   summaries={summarizeDays(monthSessions)}
+                  selectedDay={selectedDay}
+                  filters={{ careerId: careerId || undefined, subjectId: selectedSubject?.id }}
+                />
+              </div>
+              {/* The calendar is a visual filter: the day's classes sit right
+                  beside it (below it on narrow screens), then the roster of the
+                  opened class. No sticky: this column can be taller than the
+                  viewport. */}
+              <aside className="lg:col-span-2 space-y-6">
+                <AttendanceDayPanel
+                  month={month}
+                  now={now}
                   selectedDay={selectedDay}
                   daySessions={daySessions}
                   selectedSessionId={calendarSession?.id}
@@ -355,10 +367,8 @@ export default async function AdminAttendancePage({
                     )
                   }
                 />
-              </div>
-              <aside className="lg:col-span-2 lg:sticky lg:top-4">
-                {calendarSession ? (
-                  <div className="space-y-3">
+                {calendarSession && (
+                  <div id="roster-panel" className="scroll-mt-4 space-y-3">
                     <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
                       {calendarSession.subjectName} · {formatBogotaDateTime(calendarSession.date)}
                     </p>
@@ -368,12 +378,6 @@ export default async function AdminAttendancePage({
                       autoRefresh={false}
                     />
                   </div>
-                ) : (
-                  <EmptyState
-                    icon={<Users className="w-5 h-5" />}
-                    title="Abre una clase"
-                    description="Selecciona una clase del día para ver a los inscritos y marcar presente, tarde o quitar el registro."
-                  />
                 )}
               </aside>
             </div>
