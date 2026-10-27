@@ -100,7 +100,7 @@ export function buildRoleChangeWarning(input: {
     const n = taughtSubjects.total
     const one = n === 1
     paragraphs.push(
-      `${intro} dejará de ser docente: ${n} ${pluralize(n, 'materia')} ${one ? 'seguirá asignada' : 'seguirán asignadas'} a su nombre (${describeSubjects(taughtSubjects)}) y no ${one ? 'podrá gestionarla' : 'podrá gestionarlas'} hasta que ${one ? 'la reasignes' : 'las reasignes'} desde Materias.`
+      `${intro} dejará de ser docente, pero seguirá apareciendo como docente de ${n} ${pluralize(n, 'materia')} (${describeSubjects(taughtSubjects)}) hasta que ${one ? 'la reasignes' : 'las reasignes'} desde Materias.`
     )
   }
 

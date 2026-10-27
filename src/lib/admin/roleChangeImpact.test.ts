@@ -127,7 +127,7 @@ describe('buildRoleChangeWarning', () => {
     expect(both[1]).toBe('Además, se cancelarán 3 solicitudes de inscripción pendientes.')
   })
 
-  it('warns that taught subjects stay assigned but unmanageable', () => {
+  it('warns that the user still appears as professor of the taught subjects', () => {
     const [text] = buildRoleChangeWarning({
       userName: 'Luis',
       newRole: 'STUDENT',
@@ -138,8 +138,9 @@ describe('buildRoleChangeWarning', () => {
     })
     expect(text).toContain('Al pasar a Estudiante, Luis dejará de ser docente')
     expect(text).toContain(
-      '2 materias seguirán asignadas a su nombre (MAT5 Materia 5, MAT6 Materia 6)'
+      'seguirá apareciendo como docente de 2 materias (MAT5 Materia 5, MAT6 Materia 6)'
     )
     expect(text).toContain('hasta que las reasignes desde Materias')
+    expect(text).not.toMatch(/gestionar/)
   })
 })
