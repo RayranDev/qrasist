@@ -60,6 +60,9 @@ export function summarizeAuditDetails(action: string, details: Record<string, un
       break
     case 'user.role_change':
       parts.push(`${details.role_before ?? '?'} → ${details.role_after ?? '?'}`)
+      if (typeof details.enrollments_removed === 'number' && details.enrollments_removed > 0) {
+        parts.push(`desmatriculado de ${details.enrollments_removed}`)
+      }
       break
     case 'user.update_account':
       parts.push(

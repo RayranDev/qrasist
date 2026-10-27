@@ -304,7 +304,11 @@ export default function AdminUserList({
               <div className="flex items-center justify-between pt-3 border-t border-gray-100 gap-2 flex-wrap">
                 <div className="shrink-0">
                   {profile.is_active !== false ? (
-                    <RoleSelect userId={profile.id} currentRole={profile.role} />
+                    <RoleSelect
+                      userId={profile.id}
+                      currentRole={profile.role}
+                      userName={profile.name}
+                    />
                   ) : (
                     <RoleBadge role={profile.role} />
                   )}
@@ -438,7 +442,11 @@ export default function AdminUserList({
                   </td>
                   <td className="px-6 py-4">
                     {profile.is_active !== false ? (
-                      <RoleSelect userId={profile.id} currentRole={profile.role} />
+                      <RoleSelect
+                        userId={profile.id}
+                        currentRole={profile.role}
+                        userName={profile.name}
+                      />
                     ) : (
                       <RoleBadge role={profile.role} />
                     )}

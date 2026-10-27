@@ -1,0 +1,116 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import RoleSelect from './RoleSelect'
+import { emptyRoleChangeImpact } from '@/lib/admin/roleChangeImpact'
+
+const mockImpact = vi.fn()
+const mockUpdate = vi.fn()
+const mockToast = vi.fn()
+
+vi.mock('@/lib/actions/admin', () => ({
+  getRoleChangeImpact: (...a: unknown[]) => mockImpact(...a),
+  updateUserRole: (...a: unknown[]) => mockUpdate(...a),
+}))
+vi.mock('@/components/toast/ToastProvider', () => ({ useToast: () => mockToast }))
+
+const studentWithEnrollments = {
+  success: true,
+  impact: {
+    ...emptyRoleChangeImpact('STUDENT'),
+    enrollments: { total: 2, subjects: [{ code: 'MAT1', name: 'Cálculo' }] },
+  },
+}
+
+function renderSelect() {
+  render(<RoleSelect userId="u1" currentRole="STUDENT" userName="Ana Pérez" />)
+  return screen.getByLabelText('Rol del usuario') as HTMLSelectElement
+}
+
+describe('RoleSelect role change confirmation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockUpdate.mockResolvedValue({ success: true, enrollmentsRemoved: 0 })
+  })
+
+  it('applies the change straight away when there is no impact', async () => {
+    mockImpact.mockResolvedValue({ success: true, impact: emptyRoleChangeImpact('STUDENT') })
+    const select = renderSelect()
+
+    fireEvent.change(select, { target: { value: 'PROFESSOR' } })
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith('u1', 'PROFESSOR', undefined))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('asks for confirmation when the student is enrolled and keeps the current role on cancel', async () => {
+    mockImpact.mockResolvedValue(studentWithEnrollments)
+    const select = renderSelect()
+
+    fireEvent.change(select, { target: { value: 'PROFESSOR' } })
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
+    expect(dialog.textContent).toContain(
+      'Al pasar a Docente, Ana Pérez dejará de ser estudiante y se desmatriculará de 2 materias'
+    )
+    expect(mockUpdate).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(mockUpdate).not.toHaveBeenCalled()
+    expect(select.value).toBe('STUDENT')
+  })
+
+  it('closes the dialog with Escape without changing anything', async () => {
+    mockImpact.mockResolvedValue(studentWithEnrollments)
+    const select = renderSelect()
+    fireEvent.change(select, { target: { value: 'PROFESSOR' } })
+    await screen.findByRole('dialog')
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(mockUpdate).not.toHaveBeenCalled()
+    expect(select.value).toBe('STUDENT')
+  })
+
+  it('moves focus to the cancel button when the dialog opens', async () => {
+    mockImpact.mockResolvedValue(studentWithEnrollments)
+    const select = renderSelect()
+    fireEvent.change(select, { target: { value: 'PROFESSOR' } })
+    await screen.findByRole('dialog')
+
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancelar' }))
+  })
+
+  it('applies the change with the confirmation flag when the admin confirms', async () => {
+    mockImpact.mockResolvedValue(studentWithEnrollments)
+    mockUpdate.mockResolvedValue({ success: true, enrollmentsRemoved: 2 })
+    const select = renderSelect()
+    fireEvent.change(select, { target: { value: 'PROFESSOR' } })
+    await screen.findByRole('dialog')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sí, cambiar a Docente' }))
+
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith('u1', 'PROFESSOR', { unenroll: true })
+    )
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(mockToast).toHaveBeenCalledWith(
+      'Rol actualizado a Docente. Se desmatriculó de 2 materias.',
+      'success'
+    )
+  })
+
+  it('does not change anything when the impact check fails', async () => {
+    mockImpact.mockResolvedValue({ success: false, error: 'boom' })
+    const select = renderSelect()
+
+    fireEvent.change(select, { target: { value: 'PROFESSOR' } })
+
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith('boom', 'error'))
+    expect(mockUpdate).not.toHaveBeenCalled()
+    expect(select.value).toBe('STUDENT')
+  })
+})
