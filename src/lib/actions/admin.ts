@@ -138,15 +138,31 @@ async function clearStudentEnrollments(supabase: ServerClient, adminId: string, 
  * off a professor that has an existing cleanup pattern: pending enrollment requests
  * are tied to the subject (the admin can still review them), and attendance
  * 'marked_by' / reviewed_by columns are history.
+ *
+ * The taught subject ids are read BEFORE the update and returned in every outcome,
+ * so the audit entry can say what was at stake even if the response of a committed
+ * update is lost (`taughtSubjectIds` is null only if that read itself failed).
  */
 async function clearProfessorSubjects(supabase: ServerClient, professorId: string) {
+  const { data: taught, error: readError } = await supabase
+    .from('subjects')
+    .select('id')
+    .eq('professor_id', professorId)
+    .order('id')
+  if (readError) return { stage: 'failed' as const, taughtSubjectIds: null }
+  const taughtSubjectIds = (taught || []).map((r) => r.id as string)
+
   const { data: cleared, error } = await supabase
     .from('subjects')
     .update({ professor_id: null })
     .eq('professor_id', professorId)
     .select('id')
-  if (error) return { stage: 'failed' as const }
-  return { stage: 'ok' as const, unassignedSubjectIds: (cleared || []).map((r) => r.id as string) }
+  if (error) return { stage: 'failed' as const, taughtSubjectIds }
+  return {
+    stage: 'ok' as const,
+    taughtSubjectIds,
+    unassignedSubjectIds: (cleared || []).map((r) => r.id as string),
+  }
 }
 
 /**
@@ -253,6 +269,13 @@ export async function updateUserRole(
         role_after: newRole,
         reason: failure.reason,
         outcome: revertFailed ? 'revert_failed' : 'reverted',
+        ...(professorCleanup
+          ? {
+              taught_subjects_count: professorCleanup.taughtSubjectIds?.length ?? null,
+              taught_subject_ids:
+                professorCleanup.taughtSubjectIds?.slice(0, AUDIT_SUBJECT_IDS_CAP) ?? null,
+            }
+          : {}),
       },
     })
     revalidatePath('/admin/users')

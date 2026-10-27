@@ -5,6 +5,8 @@ interface CallEntry {
   table: string
   ops: string[]
   args: Record<string, unknown[]>
+  /** Every call in order (args keeps only the last call per method). */
+  history: [string, unknown[]][]
 }
 
 type Result = { data?: unknown; error?: unknown; count?: number | null }
@@ -25,7 +27,7 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
     auth: { getUser: mockGetUser },
     from: (table: string) => {
-      const entry: CallEntry = { table, ops: [], args: {} }
+      const entry: CallEntry = { table, ops: [], args: {}, history: [] }
       calls.push(entry)
       const builder: unknown = new Proxy(
         {},
@@ -38,6 +40,7 @@ vi.mock('@/lib/supabase/server', () => ({
             return (...args: unknown[]) => {
               entry.ops.push(prop)
               entry.args[prop] = args
+              entry.history.push([prop, args])
               return builder
             }
           },
@@ -171,12 +174,36 @@ describe('enrollStudentInSubjects', () => {
     expect(res.failures).toEqual([
       { subjectId: 's2', code: 'C-s2', error: 'El estudiante ya está inscrito.' },
     ])
-    expect(res.error).toBe('Se inscribió en 1 de 2 materias.')
+    expect(res.error).toBe('Se inscribió en 1 de 2 materias; revisa las que fallaron.')
     expect(mockLogAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         details: expect.objectContaining({ subject_ids: ['s1'], failed_count: 1 }),
       })
     )
+  })
+})
+
+describe('enrollStudentInSubjects write-stage wording', () => {
+  beforeEach(() => {
+    calls.length = 0
+    results.clear()
+    mockGetUser.mockReset()
+    mockLogAudit.mockReset()
+  })
+
+  it('says nothing was enrolled (not "0 of N") when every insert fails after validation', async () => {
+    asAdminWithStudent({ role: 'STUDENT', is_active: true })
+    results.set('subjects.select', { data: [subjectRow('s1'), subjectRow('s2')] })
+    results.set('enrollments.select', { data: [] })
+    results.set('enrollments.insert', [{ error: { code: 'XX' } }, { error: { code: 'XX' } }])
+
+    const res = await enrollStudentInSubjects('st-1', ['s1', 's2'])
+
+    expect(res.success).toBe(false)
+    expect(res.enrolled).toEqual([])
+    expect(res.error).toBe('No se inscribió en ninguna materia: revisa las que fallaron.')
+    expect(res.failures).toHaveLength(2)
+    expect(mockLogAudit).not.toHaveBeenCalled()
   })
 })
 
@@ -187,50 +214,133 @@ describe('listSubjectsEnrollableByStudent', () => {
     mockGetUser.mockReset()
   })
 
+  const candidate = (i: number) => ({
+    id: `s${i}`,
+    code: `C${i}`,
+    name: `Materia ${i}`,
+    subject_careers: [{ career_id: 'career-1' }],
+  })
+  const orders = (entry: CallEntry) =>
+    entry.history.filter(([op]) => op === 'order').map(([, args]) => args)
+
   it('says so when the student has no careers instead of listing anything', async () => {
     asAdminWithStudent({ role: 'STUDENT', is_active: true })
     results.set('student_careers.select', { data: [] })
 
     const res = await listSubjectsEnrollableByStudent('st-1')
 
-    expect(res).toEqual({ success: true, noCareers: true, subjects: [], total: 0 })
+    expect(res).toEqual({
+      success: true,
+      noCareers: true,
+      subjects: [],
+      total: 0,
+      truncated: false,
+    })
     expect(calls.some((c) => c.table === 'subjects')).toBe(false)
   })
 
-  it('filters by career, excludes enrolled subjects, sanitizes the search and limits to one page', async () => {
+  it('filters by career, sanitizes the search and orders by name then id', async () => {
     asAdminWithStudent({ role: 'STUDENT', is_active: true })
-    results.set('enrollments.select', { data: [{ subject_id: 'e1' }, { subject_id: 'e2' }] })
-    results.set('subjects.select', {
-      data: [
-        { id: 's1', code: 'MAT1', name: 'Cálculo', subject_careers: [{ career_id: 'career-1' }] },
-      ],
-      count: 44,
-    })
+    results.set('enrollments.select', { data: [] })
+    results.set('subjects.select', { data: [candidate(1)] })
 
     const res = await listSubjectsEnrollableByStudent('st-1', ' MAT,(1)% ')
 
     expect(res).toEqual({
       success: true,
       noCareers: false,
-      subjects: [{ id: 's1', code: 'MAT1', name: 'Cálculo' }],
-      total: 44,
+      subjects: [{ id: 's1', code: 'C1', name: 'Materia 1' }],
+      total: 1,
+      truncated: false,
     })
     const query = calls.find((c) => c.table === 'subjects')!
     expect(query.args.in).toEqual(['subject_careers.career_id', ['career-1']])
-    expect(query.args.not).toEqual(['id', 'in', '(e1,e2)'])
     expect(query.args.or).toEqual(['name.ilike.%MAT1%,code.ilike.%MAT1%'])
-    expect(query.args.limit).toEqual([20])
-    expect(query.ops.filter((op) => op === 'order')).toHaveLength(2)
+    expect(orders(query)).toEqual([['name'], ['id']])
+    expect(query.args.limit).toEqual([500])
   })
 
-  it('does not add an exclusion when the student has no enrollments', async () => {
+  it('reads the enrolled ids in a stable order and never sends them to PostgREST', async () => {
     asAdminWithStudent({ role: 'STUDENT', is_active: true })
-    results.set('enrollments.select', { data: [] })
-    results.set('subjects.select', { data: [], count: 0 })
+    results.set('enrollments.select', { data: [{ subject_id: 's1' }] })
+    results.set('subjects.select', { data: [candidate(1), candidate(2)] })
 
     await listSubjectsEnrollableByStudent('st-1')
 
+    const enrolledQuery = calls.find((c) => c.table === 'enrollments')!
+    expect(orders(enrolledQuery)).toEqual([['subject_id']])
+    expect(enrolledQuery.args.limit).toEqual([2000])
     expect(calls.find((c) => c.table === 'subjects')!.ops).not.toContain('not')
+  })
+
+  it('excludes every enrolled subject in memory, even with more than 200 enrollments', async () => {
+    asAdminWithStudent({ role: 'STUDENT', is_active: true })
+    // The student is enrolled in s0..s249; s250..s259 are the only free candidates.
+    const enrolled = Array.from({ length: 250 }, (_, i) => ({ subject_id: `s${i}` }))
+    results.set('enrollments.select', { data: enrolled })
+    results.set('subjects.select', {
+      data: Array.from({ length: 260 }, (_, i) => candidate(i)),
+    })
+
+    const res = await listSubjectsEnrollableByStudent('st-1')
+
+    expect(res.success).toBe(true)
+    if (!res.success) return
+    expect(res.subjects.map((s) => s.id)).toEqual(
+      Array.from({ length: 10 }, (_, i) => `s${250 + i}`)
+    )
+    expect(res.total).toBe(10)
+    expect(res.truncated).toBe(false)
+  })
+
+  it('returns the first 20 of the filtered candidates with the filtered total', async () => {
+    asAdminWithStudent({ role: 'STUDENT', is_active: true })
+    results.set('enrollments.select', { data: [{ subject_id: 's0' }] })
+    results.set('subjects.select', { data: Array.from({ length: 31 }, (_, i) => candidate(i)) })
+
+    const res = await listSubjectsEnrollableByStudent('st-1')
+
+    expect(res.success).toBe(true)
+    if (!res.success) return
+    expect(res.subjects).toHaveLength(20)
+    expect(res.subjects[0].id).toBe('s1')
+    expect(res.total).toBe(30)
+  })
+
+  it('flags the list as truncated when the candidate window is full', async () => {
+    asAdminWithStudent({ role: 'STUDENT', is_active: true })
+    results.set('enrollments.select', { data: [] })
+    results.set('subjects.select', { data: Array.from({ length: 500 }, (_, i) => candidate(i)) })
+
+    const res = await listSubjectsEnrollableByStudent('st-1')
+
+    expect(res.success).toBe(true)
+    if (!res.success) return
+    expect(res.truncated).toBe(true)
+    expect(res.subjects).toHaveLength(20)
+    expect(res.total).toBe(500)
+  })
+
+  it('treats a non-string search as empty', async () => {
+    asAdminWithStudent({ role: 'STUDENT', is_active: true })
+    results.set('enrollments.select', { data: [] })
+    results.set('subjects.select', { data: [] })
+
+    const res = await listSubjectsEnrollableByStudent('st-1', { evil: true } as unknown as string)
+
+    expect(res.success).toBe(true)
+    expect(calls.find((c) => c.table === 'subjects')!.ops).not.toContain('or')
+  })
+
+  it('fails cleanly when a query errors', async () => {
+    asAdminWithStudent({ role: 'STUDENT', is_active: true })
+    results.set('enrollments.select', { data: null, error: { message: 'boom' } })
+    expect((await listSubjectsEnrollableByStudent('st-1')).success).toBe(false)
+
+    asAdminWithStudent({ role: 'STUDENT', is_active: true })
+    results.set('enrollments.select', { data: [] })
+    results.set('subjects.select', { data: null, error: { message: 'boom' } })
+    expect((await listSubjectsEnrollableByStudent('st-1')).success).toBe(false)
   })
 
   it('rejects non-admin callers and non-students', async () => {

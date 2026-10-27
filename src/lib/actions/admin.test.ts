@@ -167,7 +167,7 @@ describe('updateUserRole', () => {
     const res = await updateUserRole('u1', 'STUDENT')
 
     expect(res).toEqual({ success: true, enrollmentsRemoved: 0, subjectsUnassigned: 2 })
-    const subjectsUpdate = calls.find((c) => c.table === 'subjects')
+    const subjectsUpdate = calls.find((c) => c.table === 'subjects' && c.ops[0] === 'update')
     expect(subjectsUpdate?.args.update?.[0]).toEqual({ professor_id: null })
     expect(subjectsUpdate?.eqs).toEqual([['professor_id', 'u1']])
     expect(tablesTouched('delete')).toEqual([])
@@ -249,6 +249,67 @@ describe('updateUserRole', () => {
       })
     )
     consoleError.mockRestore()
+  })
+
+  it('reads the taught subject ids before the unassign update and audits them on failure', async () => {
+    asAdmin('PROFESSOR')
+    results.set('profiles.update', [ONE_ROW, ONE_ROW])
+    results.set('subjects.select', { data: [{ id: 's1' }, { id: 's2' }], error: null })
+    results.set('subjects.update', { data: null, error: { message: 'boom' } })
+
+    await updateUserRole('u1', 'STUDENT')
+
+    const subjectOps = calls.filter((c) => c.table === 'subjects').map((c) => c.ops[0])
+    expect(subjectOps).toEqual(['select', 'update'])
+    expect(mockLogAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'user.role_change_failed',
+        details: expect.objectContaining({
+          reason: 'professor_unassign_failed',
+          outcome: 'reverted',
+          taught_subjects_count: 2,
+          taught_subject_ids: ['s1', 's2'],
+        }),
+      })
+    )
+  })
+
+  it('keeps the taught subject ids in the audit entry when the revert also fails (capped at 50)', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    asAdmin('PROFESSOR')
+    results.set('profiles.update', [ONE_ROW, NO_ROWS])
+    const many = Array.from({ length: 60 }, (_, i) => ({ id: `s${i}` }))
+    results.set('subjects.select', { data: many, error: null })
+    results.set('subjects.update', { data: null, error: { message: 'boom' } })
+
+    await updateUserRole('u1', 'ADMIN')
+
+    const details = mockLogAudit.mock.calls[0][0].details
+    expect(details.outcome).toBe('revert_failed')
+    expect(details.taught_subjects_count).toBe(60)
+    expect(details.taught_subject_ids).toHaveLength(50)
+    consoleError.mockRestore()
+  })
+
+  it('does not unassign anything when the taught subjects cannot be read', async () => {
+    asAdmin('PROFESSOR')
+    results.set('profiles.update', [ONE_ROW, ONE_ROW])
+    results.set('subjects.select', { data: null, error: { message: 'boom' } })
+
+    const res = await updateUserRole('u1', 'STUDENT')
+
+    expect(res.success).toBe(false)
+    expect(calls.filter((c) => c.table === 'subjects').map((c) => c.ops[0])).toEqual(['select'])
+    expect(profileUpdates()).toHaveLength(2)
+    expect(mockLogAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        details: expect.objectContaining({
+          reason: 'professor_unassign_failed',
+          taught_subject_ids: null,
+          taught_subjects_count: null,
+        }),
+      })
+    )
   })
 
   it('aborts without changing anything when the previous role cannot be read', async () => {

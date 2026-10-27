@@ -306,6 +306,11 @@ export async function listSubjectsAssignableToProfessor(
  * and the per-subject failures are returned. If a concurrent change makes an
  * individual write fail afterwards, `assigned` and `failures` say exactly what
  * happened -- the result never hides a partial outcome.
+ *
+ * Known limitation (accepted): validation and writes are separate statements, so a
+ * concurrent change (e.g. the professor's role) between them is not caught; closing
+ * that would need a DB trigger/migration. It also runs several sequential queries
+ * per subject (bounded by the 50-subject cap).
  */
 export async function assignSubjectsToProfessor(
   professorId: string,
@@ -427,7 +432,12 @@ export async function assignSubjectsToProfessor(
   return {
     success: failures.length === 0,
     ...(failures.length > 0
-      ? { error: `Se asignaron ${assigned.length} de ${ids.length} materias.` }
+      ? {
+          error:
+            assigned.length === 0
+              ? 'No se asignó ninguna materia: revisa las que fallaron.'
+              : `Se asignaron ${assigned.length} de ${ids.length} materias; revisa las que fallaron.`,
+        }
       : {}),
     assigned,
     failures,

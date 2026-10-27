@@ -9,6 +9,13 @@ export const MAX_ASSIGN_SUBJECTS = 50
 /** Results shown at once in the picker; the admin narrows down with the search box. */
 export const ASSIGNABLE_SUBJECTS_PAGE_SIZE = 20
 
+/**
+ * Candidate subjects fetched (name, id order) before enrolled ones are filtered out in
+ * memory when listing what a student can be enrolled in. If the window is full the
+ * list is flagged as truncated and the admin is asked to narrow the search.
+ */
+export const ENROLLABLE_CANDIDATE_CAP = 500
+
 export type NormalizedSubjectIds = { ok: true; ids: string[] } | { ok: false; error: string }
 
 /** Trims, drops blanks, removes duplicates and enforces the 1..MAX_ASSIGN_SUBJECTS range. */

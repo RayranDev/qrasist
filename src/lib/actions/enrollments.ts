@@ -6,7 +6,11 @@ import { checkAdmin } from './authGuards'
 import { checkStudentEnrollable, getStudentCareerIds } from './enrollmentGuards'
 import { logAudit } from '@/lib/audit/auditLog'
 import { sanitizeSearchTerm } from '@/lib/utils/searchTerm'
-import { ASSIGNABLE_SUBJECTS_PAGE_SIZE, normalizeSubjectIds } from '@/lib/admin/assignSubjects'
+import {
+  ASSIGNABLE_SUBJECTS_PAGE_SIZE,
+  ENROLLABLE_CANDIDATE_CAP,
+  normalizeSubjectIds,
+} from '@/lib/admin/assignSubjects'
 
 export async function addEnrollment(subjectId: string, studentId: string) {
   const supabase = await createClient()
@@ -76,9 +80,8 @@ export interface EnrollSubjectFailure {
   error: string
 }
 
-// A student is enrolled in dozens of subjects at most; this only bounds the
-// NOT IN list sent to PostgREST. enrollStudentInSubjects re-checks anyway.
-const ENROLLED_EXCLUSION_CAP = 200
+// Safety limit, not expected to be reached: a student has dozens of enrollments.
+const ENROLLED_IDS_SAFETY_LIMIT = 2000
 
 async function getActiveStudent(supabase: Awaited<ReturnType<typeof createClient>>, id: string) {
   const { data } = await supabase.from('profiles').select('role, is_active').eq('id', id).single()
@@ -87,14 +90,27 @@ async function getActiveStudent(supabase: Awaited<ReturnType<typeof createClient
 
 /**
  * Active subjects the student can be enrolled in (they share an active career,
- * rule D) and is not enrolled in yet, searchable by code or name. Limited to one
- * page: the admin narrows the list with the search box.
+ * rule D) and is not enrolled in yet, searchable by code or name. Returns one page
+ * (the admin narrows the list with the search box).
+ *
+ * Enrolled subjects are excluded in memory, not with a NOT IN sent to PostgREST
+ * (no URL-length limit, no silent truncation): all of the student's enrollment ids
+ * are read, then up to ENROLLABLE_CANDIDATE_CAP candidate subjects (name, id order)
+ * are fetched and filtered. `total` counts the filtered candidates; when the
+ * candidate window was full there may be more, so `truncated` is set and `total`
+ * is a lower bound.
  */
 export async function listSubjectsEnrollableByStudent(
   studentId: string,
   search?: string
 ): Promise<
-  | { success: true; noCareers: boolean; subjects: EnrollableSubject[]; total: number }
+  | {
+      success: true
+      noCareers: boolean
+      subjects: EnrollableSubject[]
+      total: number
+      truncated: boolean
+    }
   | { success: false; error: string }
 > {
   const supabase = await createClient()
@@ -110,38 +126,44 @@ export async function listSubjectsEnrollableByStudent(
 
   const careerIds = await getStudentCareerIds(supabase, studentId)
   if (careerIds.length === 0) {
-    return { success: true, noCareers: true, subjects: [], total: 0 }
+    return { success: true, noCareers: true, subjects: [], total: 0, truncated: false }
   }
 
   const { data: enrolledRows, error: enrolledError } = await supabase
     .from('enrollments')
     .select('subject_id')
     .eq('student_id', studentId)
-    .limit(ENROLLED_EXCLUSION_CAP)
+    .order('subject_id')
+    .limit(ENROLLED_IDS_SAFETY_LIMIT)
   if (enrolledError) return { success: false, error: 'No se pudieron cargar las materias.' }
-  const enrolledIds = (enrolledRows || []).map((r) => r.subject_id as string)
+  const enrolledIds = new Set((enrolledRows || []).map((r) => r.subject_id as string))
 
-  const term = sanitizeSearchTerm(search)
+  const term = sanitizeSearchTerm(typeof search === 'string' ? search : '')
   let query = supabase
     .from('subjects')
-    .select('id, code, name, subject_careers!inner(career_id)', { count: 'exact' })
+    .select('id, code, name, subject_careers!inner(career_id)')
     .eq('is_active', true)
     .eq('subject_careers.is_active', true)
     .in('subject_careers.career_id', careerIds)
     .order('name')
     .order('id')
-  if (enrolledIds.length > 0) query = query.not('id', 'in', `(${enrolledIds.join(',')})`)
   if (term) query = query.or(`name.ilike.%${term}%,code.ilike.%${term}%`)
 
-  const { data, count, error } = await query.limit(ASSIGNABLE_SUBJECTS_PAGE_SIZE)
+  const { data, error } = await query.limit(ENROLLABLE_CANDIDATE_CAP)
   if (error) return { success: false, error: 'No se pudieron cargar las materias.' }
 
-  const subjects = ((data || []) as EnrollableSubject[]).map((s) => ({
-    id: s.id,
-    code: s.code,
-    name: s.name,
-  }))
-  return { success: true, noCareers: false, subjects, total: count ?? subjects.length }
+  const candidates = (data || []) as EnrollableSubject[]
+  const available = candidates
+    .filter((s) => !enrolledIds.has(s.id))
+    .map((s) => ({ id: s.id, code: s.code, name: s.name }))
+
+  return {
+    success: true,
+    noCareers: false,
+    subjects: available.slice(0, ASSIGNABLE_SUBJECTS_PAGE_SIZE),
+    total: available.length,
+    truncated: candidates.length >= ENROLLABLE_CANDIDATE_CAP,
+  }
 }
 
 /**
@@ -150,6 +172,11 @@ export async function listSubjectsEnrollableByStudent(
  * and the student is not enrolled yet. All are validated first: if any fails
  * nothing is enrolled and the per-subject failures are returned. If an individual
  * insert fails afterwards, `enrolled` and `failures` say exactly what happened.
+ *
+ * Known limitation (accepted): validation and writes are separate statements, so a
+ * concurrent change (e.g. the student's role) between them is not caught; closing
+ * that would need a DB trigger/migration. It also runs several sequential queries
+ * per subject (bounded by the 50-subject cap).
  */
 export async function enrollStudentInSubjects(
   studentId: string,
@@ -270,7 +297,12 @@ export async function enrollStudentInSubjects(
   return {
     success: failures.length === 0,
     ...(failures.length > 0
-      ? { error: `Se inscribió en ${enrolled.length} de ${ids.length} materias.` }
+      ? {
+          error:
+            enrolled.length === 0
+              ? 'No se inscribió en ninguna materia: revisa las que fallaron.'
+              : `Se inscribió en ${enrolled.length} de ${ids.length} materias; revisa las que fallaron.`,
+        }
       : {}),
     enrolled,
     failures,

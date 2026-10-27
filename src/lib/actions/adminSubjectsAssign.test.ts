@@ -170,7 +170,7 @@ describe('assignSubjectsToProfessor', () => {
     expect(res.success).toBe(false)
     expect(res.assigned).toEqual(['s1'])
     expect(res.failures.map((f) => f.subjectId)).toEqual(['s2'])
-    expect(res.error).toBe('Se asignaron 1 de 2 materias.')
+    expect(res.error).toBe('Se asignaron 1 de 2 materias; revisa las que fallaron.')
     expect(mockLogAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         details: expect.objectContaining({ subject_ids: ['s1'], failed_count: 1 }),
