@@ -13,6 +13,7 @@ import SubjectFilters from './SubjectFilters'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { BookMarked } from 'lucide-react'
 import { sanitizeSearchTerm } from '@/lib/utils/searchTerm'
+import { RoleBadge } from '@/components/ui/RoleBadge'
 
 export const dynamic = 'force-dynamic'
 
@@ -237,8 +238,9 @@ export default async function AdminSubjectsPage({
                         />
                       </div>
                       <h3 className="font-bold text-gray-900 mb-1 text-lg">{sub.name}</h3>
-                      <p className="text-sm text-gray-500 font-medium mb-3">
-                        Prof. {sub.professor?.name || 'Sin asignar'}
+                      <p className="flex items-center gap-1.5 text-sm text-gray-500 font-medium mb-3">
+                        {sub.professor && <RoleBadge role="PROFESSOR" variant="compact" />}
+                        <span>Prof. {sub.professor?.name || 'Sin asignar'}</span>
                       </p>
 
                       <SubjectCareerAssignment

@@ -5,6 +5,7 @@ import { UserPlus } from 'lucide-react'
 import { approveEnrollmentRequest, rejectEnrollmentRequest } from '@/lib/actions/enrollmentRequests'
 import { useToast } from '@/components/toast/ToastProvider'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { RoleBadge } from '@/components/ui/RoleBadge'
 
 interface Request {
   id: string
@@ -53,7 +54,10 @@ export default function RequestsList({ requests }: { requests: Request[] }) {
         {items.map((req) => (
           <div key={req.id} className="flex items-center justify-between px-6 py-4">
             <div>
-              <p className="font-bold text-gray-900">{req.student?.name || 'Estudiante'}</p>
+              <p className="flex items-center gap-2 font-bold text-gray-900">
+                <RoleBadge role="STUDENT" variant="compact" />
+                {req.student?.name || 'Estudiante'}
+              </p>
               <p className="text-xs text-gray-400 font-mono">
                 {req.student?.student_code || '---'} ·{' '}
                 {new Date(req.requested_at).toLocaleString('es-CO', { timeZone: 'America/Bogota' })}

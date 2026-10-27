@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { Paperclip, Clock, CheckCircle2, X, FileCheck2 } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { RoleBadge } from '@/components/ui/RoleBadge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useToast } from '@/components/toast/ToastProvider'
 import ReasonModal from '@/components/attendance/ReasonModal'
@@ -185,8 +186,9 @@ export default function JustificationsList({
               <div key={j.id} className="px-5 py-4 flex flex-col gap-2.5">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="min-w-0">
-                    <p className="font-bold text-gray-900 text-sm">
-                      {j.student?.name || 'Estudiante'}{' '}
+                    <p className="flex items-center gap-2 flex-wrap font-bold text-gray-900 text-sm">
+                      <RoleBadge role="STUDENT" variant="compact" />
+                      <span>{j.student?.name || 'Estudiante'}</span>
                       <span className="text-xs font-mono text-gray-400">
                         {j.student?.student_code || '---'}
                       </span>

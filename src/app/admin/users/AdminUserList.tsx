@@ -15,6 +15,7 @@ import { ClipboardList, GraduationCap, UserX } from 'lucide-react'
 import UserSearchBar from './UserSearchBar'
 import FilterPanel, { FilterField } from '@/components/FilterPanel'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { RoleBadge } from '@/components/ui/RoleBadge'
 
 type FilterRole = 'ALL' | 'ADMIN' | 'PROFESSOR' | 'STUDENT'
 type FilterStatus = 'active' | 'inactive'
@@ -263,9 +264,7 @@ export default function AdminUserList({
                   {profile.is_active !== false ? (
                     <RoleSelect userId={profile.id} currentRole={profile.role} />
                   ) : (
-                    <span className="text-xs font-semibold text-gray-400 px-2 py-1 bg-gray-100 rounded-lg">
-                      {profile.role}
-                    </span>
+                    <RoleBadge role={profile.role} />
                   )}
                 </div>
 
@@ -383,7 +382,7 @@ export default function AdminUserList({
                     {profile.is_active !== false ? (
                       <RoleSelect userId={profile.id} currentRole={profile.role} />
                     ) : (
-                      <span className="text-xs font-semibold text-gray-400">{profile.role}</span>
+                      <RoleBadge role={profile.role} />
                     )}
                   </td>
                   <td className="px-6 py-4">

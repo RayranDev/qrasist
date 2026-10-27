@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Users, ChevronDown, ChevronUp } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
+import { RoleBadge } from '@/components/ui/RoleBadge'
 import { getSessionRoster, type RosterStudent } from '@/lib/actions/attendanceManual'
 import AttendanceRowActions from './AttendanceRowActions'
 import LocalTime from '@/components/LocalTime'
@@ -111,7 +112,10 @@ export default function SessionRosterPanel({
                 className="flex items-center justify-between gap-3 py-2.5 px-2"
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-gray-900 truncate">{r.name}</p>
+                  <p className="flex items-center gap-1.5 text-sm font-bold text-gray-900">
+                    <RoleBadge role="STUDENT" variant="compact" />
+                    <span className="truncate">{r.name}</span>
+                  </p>
                   <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                     <Badge
                       variant={

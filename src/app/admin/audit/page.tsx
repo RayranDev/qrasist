@@ -8,6 +8,8 @@ import { AUDIT_ACTION_LABELS, auditActionLabel, summarizeAuditDetails } from './
 import AuditFilters from './AuditFilters'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { ClipboardList } from 'lucide-react'
+import { RoleBadge } from '@/components/ui/RoleBadge'
+import { isUserRole } from '@/components/ui/roleMeta'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +23,7 @@ interface AuditLogRow {
   subject_id: string | null
   details: Record<string, unknown>
   created_at: string
-  actor: { name: string; email: string | null } | null
+  actor: { name: string; email: string | null; role: string | null } | null
   subject: { name: string; code: string } | null
 }
 
@@ -79,7 +81,7 @@ export default async function AdminAuditPage({
     // así que este embed no es ambiguo y no necesita pinearse con
     // !constraint_name.
     .select(
-      'id, action, entity_type, entity_id, subject_id, details, created_at, actor:profiles(name, email), subject:subjects(name, code)',
+      'id, action, entity_type, entity_id, subject_id, details, created_at, actor:profiles(name, email, role), subject:subjects(name, code)',
       {
         count: 'exact',
       }
@@ -155,7 +157,12 @@ export default async function AdminAuditPage({
                           {formatBogotaDateTime(row.created_at)}
                         </td>
                         <td className="px-4 py-3 text-xs">
-                          <p className="font-bold text-gray-900">{row.actor?.name || 'Sistema'}</p>
+                          <p className="flex items-center gap-1.5 font-bold text-gray-900">
+                            {isUserRole(row.actor?.role) && (
+                              <RoleBadge role={row.actor.role} variant="compact" />
+                            )}
+                            {row.actor?.name || 'Sistema'}
+                          </p>
                           {row.actor?.email && (
                             <p className="text-gray-400 font-mono">{row.actor.email}</p>
                           )}

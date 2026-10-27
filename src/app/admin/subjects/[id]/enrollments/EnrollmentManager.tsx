@@ -5,6 +5,7 @@ import { addEnrollment, removeEnrollment } from '@/lib/actions/enrollments'
 import { useToast } from '@/components/toast/ToastProvider'
 import ConfirmModal from '@/components/ConfirmModal'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { RoleBadge } from '@/components/ui/RoleBadge'
 import { Users, UserCheck } from 'lucide-react'
 
 interface Student {
@@ -98,7 +99,10 @@ export default function EnrollmentManager({
                 key={enrollment.student.id}
                 className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-xl border border-gray-100 transition"
               >
-                <div className="font-bold text-gray-900 text-sm">{enrollment.student.name}</div>
+                <div className="flex items-center gap-2 font-bold text-gray-900 text-sm">
+                  <RoleBadge role="STUDENT" variant="compact" />
+                  {enrollment.student.name}
+                </div>
                 <button
                   disabled={loadingId === enrollment.student.id}
                   onClick={() =>
@@ -133,7 +137,10 @@ export default function EnrollmentManager({
                 key={student.id}
                 className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-xl border border-gray-100 transition"
               >
-                <div className="font-medium text-gray-600 text-sm">{student.name}</div>
+                <div className="flex items-center gap-2 font-medium text-gray-600 text-sm">
+                  <RoleBadge role="STUDENT" variant="compact" />
+                  {student.name}
+                </div>
                 <button
                   disabled={loadingId === student.id}
                   onClick={() => handleAdd(student.id, student.name)}

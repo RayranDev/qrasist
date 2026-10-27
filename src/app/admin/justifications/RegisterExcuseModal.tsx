@@ -7,6 +7,7 @@ import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
+import { RoleBadge } from '@/components/ui/RoleBadge'
 import { useToast } from '@/components/toast/ToastProvider'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -213,7 +214,10 @@ export default function RegisterExcuseModal() {
               {student ? (
                 <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border border-navy-200 bg-navy-50/60">
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-gray-900 truncate">{student.name}</p>
+                    <p className="flex items-center gap-2 text-sm font-bold text-gray-900">
+                      <RoleBadge role="STUDENT" variant="compact" />
+                      <span className="truncate">{student.name}</span>
+                    </p>
                     <p className="text-xs font-mono text-gray-500">
                       {student.student_code || '---'}
                     </p>
@@ -251,7 +255,10 @@ export default function RegisterExcuseModal() {
                             onClick={() => selectStudent(r)}
                             className="w-full text-left px-3.5 py-2.5 hover:bg-gray-50 transition focus-visible:outline-none focus-visible:bg-gray-50"
                           >
-                            <span className="block text-sm font-bold text-gray-900">{r.name}</span>
+                            <span className="flex items-center gap-2 text-sm font-bold text-gray-900">
+                              <RoleBadge role="STUDENT" variant="compact" />
+                              {r.name}
+                            </span>
                             <span className="block text-xs font-mono text-gray-500">
                               {r.student_code || '---'}
                             </span>
