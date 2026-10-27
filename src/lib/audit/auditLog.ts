@@ -25,6 +25,7 @@ export type AuditAction =
   | 'enrollment_request.approve'
   | 'enrollment_request.reject'
   | 'user.role_change'
+  | 'user.assign_subjects'
   | 'user.create'
   | 'user.deactivate'
   | 'user.reactivate'

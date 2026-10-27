@@ -14,6 +14,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'enrollment_request.approve': 'Aprobó solicitud de inscripción',
   'enrollment_request.reject': 'Rechazó solicitud de inscripción',
   'user.role_change': 'Cambió el rol de un usuario',
+  'user.assign_subjects': 'Asignó materias a un docente',
   'user.create': 'Creó una cuenta',
   'user.deactivate': 'Desactivó una cuenta',
   'user.reactivate': 'Reactivó una cuenta',
@@ -62,6 +63,11 @@ export function summarizeAuditDetails(action: string, details: Record<string, un
       parts.push(`${details.role_before ?? '?'} → ${details.role_after ?? '?'}`)
       if (typeof details.enrollments_removed === 'number' && details.enrollments_removed > 0) {
         parts.push(`desmatriculado de ${details.enrollments_removed}`)
+      }
+      break
+    case 'user.assign_subjects':
+      if (typeof details.assigned_count === 'number') {
+        parts.push(`${details.assigned_count} materias`)
       }
       break
     case 'user.update_account':

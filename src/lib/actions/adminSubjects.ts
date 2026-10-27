@@ -4,8 +4,11 @@ import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { revalidatePath } from 'next/cache'
 import { checkAdmin } from './authGuards'
-import { checkProfessorAssignable } from './enrollmentGuards'
+import { checkProfessorAssignable, getProfessorCareerIds } from './enrollmentGuards'
 import { subjectSchema } from '@/lib/validations/schemas'
+import { logAudit } from '@/lib/audit/auditLog'
+import { sanitizeSearchTerm } from '@/lib/utils/searchTerm'
+import { ASSIGNABLE_SUBJECTS_PAGE_SIZE, normalizeSubjectIds } from '@/lib/admin/assignSubjects'
 
 export async function createSubject(formData: FormData) {
   const supabase = await createClient()
@@ -214,6 +217,220 @@ export async function updateSubject(
 
   revalidatePath('/admin/subjects')
   return { success: true }
+}
+
+// ------------------------------------------------------------
+// Asignar materias a un profesor (paso opcional al promoverlo)
+// ------------------------------------------------------------
+
+export interface AssignableSubject {
+  id: string
+  code: string
+  name: string
+}
+
+export interface AssignSubjectFailure {
+  subjectId: string
+  code: string | null
+  error: string
+}
+
+async function getActiveProfessor(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  professorId: string
+) {
+  const { data } = await supabase
+    .from('profiles')
+    .select('role, is_active')
+    .eq('id', professorId)
+    .single()
+  return data?.role === 'PROFESSOR' && data.is_active !== false
+}
+
+/**
+ * Active subjects without a professor that this professor may be assigned to
+ * (they share at least one active career), searchable by code or name. Limited to
+ * one page: the admin narrows the list with the search box.
+ */
+export async function listSubjectsAssignableToProfessor(
+  professorId: string,
+  search?: string
+): Promise<
+  | { success: true; noCareers: boolean; subjects: AssignableSubject[]; total: number }
+  | { success: false; error: string }
+> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user || !(await checkAdmin(supabase, user.id))) {
+    return { success: false, error: 'No autorizado' }
+  }
+  if (!(await getActiveProfessor(supabase, professorId))) {
+    return { success: false, error: 'El usuario seleccionado no es un docente activo.' }
+  }
+
+  const careerIds = await getProfessorCareerIds(supabase, professorId)
+  if (careerIds.length === 0) {
+    return { success: true, noCareers: true, subjects: [], total: 0 }
+  }
+
+  const term = sanitizeSearchTerm(search)
+  let query = supabase
+    .from('subjects')
+    .select('id, code, name, subject_careers!inner(career_id)', { count: 'exact' })
+    .eq('is_active', true)
+    .is('professor_id', null)
+    .eq('subject_careers.is_active', true)
+    .in('subject_careers.career_id', careerIds)
+    .order('name')
+  if (term) query = query.or(`name.ilike.%${term}%,code.ilike.%${term}%`)
+
+  const { data, count, error } = await query.limit(ASSIGNABLE_SUBJECTS_PAGE_SIZE)
+  if (error) return { success: false, error: 'No se pudieron cargar las materias.' }
+
+  const subjects = ((data || []) as AssignableSubject[]).map((s) => ({
+    id: s.id,
+    code: s.code,
+    name: s.name,
+  }))
+  return { success: true, noCareers: false, subjects, total: count ?? subjects.length }
+}
+
+/**
+ * Assigns the given subjects to a professor. Every subject must pass the same
+ * checks as updateSubject (checkProfessorAssignable) and still be active and
+ * without a professor. All are validated first: if any fails nothing is applied
+ * and the per-subject failures are returned. If a concurrent change makes an
+ * individual write fail afterwards, `assigned` and `failures` say exactly what
+ * happened -- the result never hides a partial outcome.
+ */
+export async function assignSubjectsToProfessor(
+  professorId: string,
+  subjectIds: string[]
+): Promise<{
+  success: boolean
+  error?: string
+  assigned: string[]
+  failures: AssignSubjectFailure[]
+}> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user || !(await checkAdmin(supabase, user.id))) {
+    return { success: false, error: 'No autorizado', assigned: [], failures: [] }
+  }
+
+  const normalized = normalizeSubjectIds(subjectIds)
+  if (!normalized.ok) {
+    return { success: false, error: normalized.error, assigned: [], failures: [] }
+  }
+  const ids = normalized.ids
+
+  if (!(await getActiveProfessor(supabase, professorId))) {
+    return {
+      success: false,
+      error: 'El usuario seleccionado no es un docente activo.',
+      assigned: [],
+      failures: [],
+    }
+  }
+
+  const { data: found, error: loadError } = await supabase
+    .from('subjects')
+    .select('id, code, is_active, professor_id')
+    .in('id', ids)
+  if (loadError) {
+    return {
+      success: false,
+      error: 'No se pudieron cargar las materias.',
+      assigned: [],
+      failures: [],
+    }
+  }
+  const byId = new Map(
+    (
+      (found || []) as {
+        id: string
+        code: string
+        is_active: boolean
+        professor_id: string | null
+      }[]
+    ).map((s) => [s.id, s])
+  )
+
+  const failures: AssignSubjectFailure[] = []
+  for (const id of ids) {
+    const subject = byId.get(id)
+    if (!subject) {
+      failures.push({ subjectId: id, code: null, error: 'La materia no existe.' })
+    } else if (subject.is_active === false) {
+      failures.push({ subjectId: id, code: subject.code, error: 'La materia está archivada.' })
+    } else if (subject.professor_id) {
+      failures.push({ subjectId: id, code: subject.code, error: 'La materia ya tiene docente.' })
+    } else {
+      const check = await checkProfessorAssignable(supabase, id, professorId)
+      if (!check.ok) failures.push({ subjectId: id, code: subject.code, error: check.error })
+    }
+  }
+
+  if (failures.length > 0) {
+    return {
+      success: false,
+      error: 'No se asignó ninguna materia: revisa las que no se pueden asignar.',
+      assigned: [],
+      failures,
+    }
+  }
+
+  const assigned: string[] = []
+  for (const id of ids) {
+    // The filters make the write atomic against a concurrent assignment.
+    const { data: updated, error } = await supabase
+      .from('subjects')
+      .update({ professor_id: professorId })
+      .eq('id', id)
+      .eq('is_active', true)
+      .is('professor_id', null)
+      .select('id')
+    if (error || !updated || updated.length === 0) {
+      failures.push({
+        subjectId: id,
+        code: byId.get(id)?.code ?? null,
+        error: 'No se pudo asignar: la materia cambió mientras tanto.',
+      })
+    } else {
+      assigned.push(id)
+    }
+  }
+
+  if (assigned.length > 0) {
+    await logAudit({
+      actorId: user.id,
+      action: 'user.assign_subjects',
+      entityType: 'profile',
+      entityId: professorId,
+      details: {
+        subject_ids: assigned,
+        assigned_count: assigned.length,
+        failed_count: failures.length,
+      },
+    })
+    revalidatePath('/admin/subjects')
+    revalidatePath('/admin/users')
+  }
+
+  return {
+    success: failures.length === 0,
+    ...(failures.length > 0
+      ? { error: `Se asignaron ${assigned.length} de ${ids.length} materias.` }
+      : {}),
+    assigned,
+    failures,
+  }
 }
 
 // ------------------------------------------------------------

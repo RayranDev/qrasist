@@ -14,9 +14,16 @@ interface Props {
   currentRole: UserRole
   /** Shown in the confirmation warning. */
   userName?: string
+  /** Called after a successful change to PROFESSOR, to offer assigning subjects. */
+  onPromotedToProfessor?: (user: { id: string; name: string }) => void
 }
 
-export default function RoleSelect({ userId, currentRole, userName }: Props) {
+export default function RoleSelect({
+  userId,
+  currentRole,
+  userName,
+  onPromotedToProfessor,
+}: Props) {
   const [loading, setLoading] = useState(false)
   const [pending, setPending] = useState<{ newRole: UserRole; paragraphs: string[] } | null>(null)
   const showToast = useToast()
@@ -34,6 +41,9 @@ export default function RoleSelect({ userId, currentRole, userName }: Props) {
           : `Rol actualizado a ${ROLE_LABEL[newRole]}.`,
         'success'
       )
+      if (newRole === 'PROFESSOR') {
+        onPromotedToProfessor?.({ id: userId, name: userName || 'Este usuario' })
+      }
     } else {
       showToast(result.error || 'No se pudo actualizar el rol.', 'error')
     }

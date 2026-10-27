@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
 import RoleSelect from './RoleSelect'
+import AssignSubjectsDialog from './AssignSubjectsDialog'
 import {
   CreateUserForm,
   ActionButtons,
@@ -131,12 +132,27 @@ export default function AdminUserList({
     name: string
     role: 'STUDENT' | 'PROFESSOR'
   } | null>(null)
+  // Lives here (not in RoleSelect) so the step survives the list refresh that
+  // follows a role change, even when the new role filters the row out.
+  const [assignFor, setAssignFor] = useState<{ id: string; name: string } | null>(null)
 
   return (
     <>
       <div id="crear-usuario">
         <CreateUserForm />
       </div>
+
+      {assignFor && (
+        <AssignSubjectsDialog
+          professorId={assignFor.id}
+          professorName={assignFor.name}
+          onClose={() => setAssignFor(null)}
+          onAssignCareers={() => {
+            setCareersProf(assignFor)
+            setAssignFor(null)
+          }}
+        />
+      )}
 
       {historyUser && (
         <StudentHistoryModal
@@ -308,6 +324,7 @@ export default function AdminUserList({
                       userId={profile.id}
                       currentRole={profile.role}
                       userName={profile.name}
+                      onPromotedToProfessor={setAssignFor}
                     />
                   ) : (
                     <RoleBadge role={profile.role} />
@@ -446,6 +463,7 @@ export default function AdminUserList({
                         userId={profile.id}
                         currentRole={profile.role}
                         userName={profile.name}
+                        onPromotedToProfessor={setAssignFor}
                       />
                     ) : (
                       <RoleBadge role={profile.role} />
