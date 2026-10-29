@@ -35,7 +35,7 @@ function isAllowedOtpType(value: string | null): value is EmailOtpType {
  * - `code`: formato PKCE de `exchangeCodeForSession`, usado si la
  *   plantilla de Supabase quedó con `{{ .ConfirmationURL }}` por defecto.
  *
- * Ver docs/SUPABASE_AUTH_SETUP.md para configurar la plantilla.
+ * Ver docs/tecnica/SUPABASE_AUTH_SETUP.md para configurar la plantilla.
  */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl

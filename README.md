@@ -126,6 +126,12 @@ npm start          # servidor de producción
 
 ---
 
+## Documentación
+
+Los documentos del proyecto están organizados en [`docs/`](docs/README.md): entregables, registro de cambios de software, guías técnicas, referencias y material archivado.
+
+---
+
 ## Paleta de Colores
 
 | Token      | Valor                   | Uso                     |
