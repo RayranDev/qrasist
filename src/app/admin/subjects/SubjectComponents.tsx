@@ -68,8 +68,15 @@ interface Subject {
 // formulario que se abra: evita subir el estado a un provider por una sola acción.
 const OPEN_CREATE_SUBJECT_EVENT = 'qrasist:open-create-subject'
 
-// `resetKey` identifica la vista del listado (estado, búsqueda y filtros, sin
-// la página). Al cambiar, el formulario se cierra: filtrar o cambiar de pestaña
+function scrollToForm(form: HTMLElement) {
+  const reduceMotion =
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  form.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+}
+
+// `resetKey` identifica la vista del listado (ver buildSubjectsViewKey: estado,
+// búsqueda y filtros, sin la página). Al cambiar, el formulario se cierra: filtrar o cambiar de pestaña
 // solo modifica los searchParams, así que sin esto la instancia sobrevive y el
 // formulario quedaría abierto mientras el admin navega por otras materias.
 // Paginar no cambia la key, para no perder lo escrito al revisar otra página.
@@ -96,7 +103,7 @@ export function CreateSubjectForm({
     const handleOpen = () => {
       if (formRef.current) {
         // Ya estaba abierto: solo se trae a la vista.
-        formRef.current.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+        scrollToForm(formRef.current)
         return
       }
       scrollOnOpen.current = true
@@ -106,12 +113,19 @@ export function CreateSubjectForm({
     return () => window.removeEventListener(OPEN_CREATE_SUBJECT_EVENT, handleOpen)
   }, [])
 
-  // Si se abrió desde el estado vacío, el formulario puede quedar fuera de
-  // pantalla (el listado está más abajo): se trae a la vista una vez montado.
+  // Al abrirse, el foco pasa al primer campo (el botón que lo abrió se
+  // desmonta y el foco caería en <body>). Si se abrió desde el estado vacío, el
+  // formulario puede quedar fuera de pantalla (el listado está más abajo): se
+  // trae a la vista una vez montado.
   useEffect(() => {
-    if (!open || !scrollOnOpen.current) return
-    scrollOnOpen.current = false
-    formRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+    if (!open || !formRef.current) return
+    formRef.current.querySelector<HTMLInputElement>('input[name="name"]')?.focus({
+      preventScroll: true,
+    })
+    if (scrollOnOpen.current) {
+      scrollOnOpen.current = false
+      scrollToForm(formRef.current)
+    }
   }, [open])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {

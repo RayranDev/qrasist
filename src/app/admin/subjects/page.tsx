@@ -11,6 +11,7 @@ import MobileWarningBanner from '@/components/MobileWarningBanner'
 import AdminHeader from '@/components/admin/AdminHeader'
 import BulkImportButton from '@/components/admin/BulkImportButton'
 import SubjectFilters from './SubjectFilters'
+import { buildSubjectsViewKey } from './subjectsViewKey'
 import { sanitizeSearchTerm } from '@/lib/utils/searchTerm'
 import { RoleBadge } from '@/components/ui/RoleBadge'
 
@@ -164,9 +165,13 @@ export default async function AdminSubjectsPage({
 
           <CreateSubjectForm
             periods={periods || []}
-            resetKey={[statusFilter, searchQuery, careerFilter, levelFilter, professorFilter].join(
-              '|'
-            )}
+            resetKey={buildSubjectsViewKey({
+              status: statusFilter,
+              q: searchQuery,
+              career: careerFilter,
+              level: levelFilter,
+              professor: professorFilter,
+            })}
           />
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
