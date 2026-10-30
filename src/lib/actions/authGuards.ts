@@ -51,6 +51,35 @@ export async function checkAdminOrSubjectProfessor(
   return checkSubjectProfessor(supabase, userId, subjectId)
 }
 
+// Versión para lotes de checkAdminOrSubjectProfessor: de `subjectIds`,
+// devuelve las materias cuyas solicitudes puede revisar quien llama, con
+// una consulta de perfil y a lo sumo una de materias (en vez de dos por
+// cada solicitud). Mismas reglas: un ADMIN activo revisa cualquiera; un
+// profesor, solo las de sus materias y con la cuenta activa.
+export async function resolveReviewableSubjects(
+  supabase: SupabaseClient,
+  userId: string,
+  subjectIds: string[]
+): Promise<Set<string>> {
+  const unique = [...new Set(subjectIds)]
+  if (unique.length === 0) return new Set()
+
+  const { data: caller } = await supabase
+    .from('profiles')
+    .select('role, is_active')
+    .eq('id', userId)
+    .single()
+  if (!caller?.is_active) return new Set()
+  if (caller.role === 'ADMIN') return new Set(unique)
+
+  const { data: owned } = await supabase
+    .from('subjects')
+    .select('id')
+    .eq('professor_id', userId)
+    .in('id', unique)
+  return new Set((owned || []).map((s) => s.id as string))
+}
+
 // Igual que checkAdminOrSubjectProfessor pero distinguiendo QUIÉN es,
 // para reglas que tratan distinto a coordinación y a docencia (ej.
 // RF21/RF25: el profesor solo corrige asistencia durante la clase, el

@@ -8,7 +8,7 @@ import {
 } from './dashboardAttention'
 
 const links: AttentionLinks = {
-  enrollmentRequestsHref: '/professor/subjects/s1/requests',
+  enrollmentRequestsHref: '/admin/enrollment-requests',
   justificationsHref: '/admin/justifications?status=PENDING',
   unregisteredClassesHref: '/admin/omissions?status=unjustified',
   recentSuspensionsHref: '/admin/omissions?status=suspended',

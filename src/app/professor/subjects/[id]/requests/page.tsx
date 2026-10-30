@@ -1,20 +1,28 @@
 import { requireRole } from '@/lib/auth/requireRole'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import RequestsList from './RequestsList'
+import EnrollmentRequestsPanel from '@/components/enrollmentRequests/EnrollmentRequestsPanel'
+import type { RequestsSearchParams } from '@/lib/enrollmentRequests/filters'
 
 export const dynamic = 'force-dynamic'
 
-export default async function SubjectRequestsPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function SubjectRequestsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<RequestsSearchParams>
+}) {
   const { id: subjectId } = await params
+  const query = await searchParams
   // requireRole exige cuenta activa: un admin desactivado con sesion viva
   // no debe ver datos de toda la institucion.
   const { supabase, user, role } = await requireRole(['PROFESSOR', 'ADMIN'])
   const isAdmin = role === 'ADMIN'
 
   // Un admin puede revisar solicitudes de cualquier materia (mismo
-  // permiso que ya usa la server action `approveEnrollmentRequest` vía
-  // `checkAdminOrSubjectProfessor`) -- solo el profesor dueño queda
+  // permiso que ya usa la server action `approveEnrollmentRequests` vía
+  // `resolveReviewableSubjects`) -- solo el profesor dueño queda
   // restringido a las suyas.
   const subjectQuery = supabase.from('subjects').select('id, name, code').eq('id', subjectId)
   const { data: subject } = isAdmin
@@ -23,46 +31,27 @@ export default async function SubjectRequestsPage({ params }: { params: Promise<
 
   if (!subject) redirect(isAdmin ? '/admin/subjects' : '/professor/subjects')
 
-  // enrollment_requests tiene dos FK hacia profiles (student_id y
-  // reviewed_by) -- hay que decirle a PostgREST cual usar para el
-  // embed, si no la query falla con PGRST201 (ambiguedad) y se
-  // pierde en silencio como "sin solicitudes".
-  const { data: requests, error: requestsError } = await supabase
-    .from('enrollment_requests')
-    .select(
-      'id, requested_at, student:profiles!enrollment_requests_student_id_fkey(name, student_code)'
-    )
-    .eq('subject_id', subjectId)
-    .eq('status', 'pending')
-    .order('requested_at')
-
-  if (requestsError) {
-    console.error('Error cargando solicitudes de inscripción:', requestsError)
-  }
-
   return (
     <div className="min-h-screen bg-surface">
       <div className="p-4 md:p-8">
         <div className="max-w-3xl mx-auto">
           <Link
-            href={isAdmin ? '/admin/subjects' : '/professor/subjects'}
+            href={isAdmin ? '/admin/enrollment-requests' : '/professor/requests'}
             className="text-navy-700 hover:text-navy-900 font-medium text-sm flex items-center gap-1 mb-2"
           >
-            ← Volver a {isAdmin ? 'Materias' : 'Mis Materias'}
+            ← Volver a todas las solicitudes
           </Link>
           <h1 className="text-3xl font-bold text-gray-900 mb-1">Solicitudes de Inscripción</h1>
           <p className="text-gray-500 mb-8">
             {subject.name} · <span className="font-mono">{subject.code}</span>
           </p>
 
-          <RequestsList
-            requests={
-              (requests || []) as unknown as {
-                id: string
-                requested_at: string
-                student: { name: string; student_code: string | null } | null
-              }[]
-            }
+          <EnrollmentRequestsPanel
+            supabase={supabase}
+            scope={isAdmin ? {} : { professorId: user.id }}
+            params={query}
+            basePath={`/professor/subjects/${subjectId}/requests`}
+            fixedSubjectId={subjectId}
           />
         </div>
       </div>

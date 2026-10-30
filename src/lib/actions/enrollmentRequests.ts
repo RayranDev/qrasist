@@ -3,8 +3,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { checkStudentEnrollable } from './enrollmentGuards'
-import { checkAdminOrSubjectProfessor } from './authGuards'
-import { logAudit } from '@/lib/audit/auditLog'
+import { checkAdmin } from './authGuards'
+import { approveRequests, dedupeIds, rejectRequests } from '@/lib/enrollmentRequests/review'
+import { fetchPendingRequests } from '@/lib/enrollmentRequests/query'
+import { sanitizeRequestFilters } from '@/lib/enrollmentRequests/filters'
+import type { ReviewFailure } from '@/lib/enrollmentRequests/messages'
+import { APPROVE_ALL_MAX, BULK_REVIEW_MAX } from '@/lib/enrollmentRequests/constants'
 
 // Alfabeto sin caracteres ambiguos (0/O, 1/I/L) para que el
 // estudiante lo pueda transcribir sin confundirse.
@@ -161,113 +165,185 @@ export async function requestEnrollmentBySubjectId(subjectId: string) {
   return createEnrollmentRequest(supabase, user.id, subject)
 }
 
-export async function approveEnrollmentRequest(requestId: string) {
+// Las acciones individuales son el caso de un solo id de las masivas: así
+// hay un único camino de aprobación/rechazo (permiso, carrera, reclamo
+// atómico, inscripción con reversa, auditoría).
+async function getReviewer() {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
+  return { supabase, user }
+}
+
+function revalidateRequestPages() {
+  revalidatePath('/professor/subjects')
+  revalidatePath('/professor/requests')
+  revalidatePath('/admin/enrollment-requests')
+  revalidatePath('/admin/dashboard')
+}
+
+export async function approveEnrollmentRequest(requestId: string) {
+  const { supabase, user } = await getReviewer()
   if (!user) return { success: false, error: 'No autenticado.' }
 
-  const { data: request } = await supabase
-    .from('enrollment_requests')
-    .select('id, student_id, subject_id, status')
-    .eq('id', requestId)
-    .single()
-
-  if (!request) return { success: false, error: 'Solicitud no encontrada.' }
-  if (request.status !== 'pending') {
-    return { success: false, error: 'Esta solicitud ya fue procesada.' }
+  const result = await approveRequests(supabase, user.id, [requestId])
+  if (result.approved.length === 0) {
+    return {
+      success: false,
+      error: result.failures[0]?.message || 'No se pudo aprobar la solicitud.',
+    }
   }
 
-  const authorized = await checkAdminOrSubjectProfessor(supabase, user.id, request.subject_id)
-  if (!authorized) {
-    return { success: false, error: 'No tienes permiso para revisar esta solicitud.' }
-  }
-
-  // Revalidar por si algo cambio desde que se hizo la solicitud
-  // (ej. un admin quito la carrera del estudiante o de la materia).
-  const check = await checkStudentEnrollable(supabase, request.subject_id, request.student_id)
-  if (!check.ok) return { success: false, error: check.error }
-
-  // Reclamar la solicitud ANTES de insertar en enrollments (igual que
-  // rejectEnrollmentRequest ya hacia con su propio .eq('status','pending')).
-  // Si esto se hiciera al reves -- insertar primero, actualizar el status
-  // despues -- un reject() concurrente podia ganarle la carrera al UPDATE
-  // final y quedar pisado por este 'approved', dejando una inscripcion
-  // viva para una solicitud que en realidad fue rechazada. Al reclamar
-  // primero con un UPDATE atomico filtrado por status='pending', solo uno
-  // de los dos (approve o reject) puede ganar la carrera.
-  const { data: claimed, error: claimError } = await supabase
-    .from('enrollment_requests')
-    .update({ status: 'approved', reviewed_at: new Date().toISOString(), reviewed_by: user.id })
-    .eq('id', requestId)
-    .eq('status', 'pending')
-    .select('id')
-
-  if (claimError) return { success: false, error: 'No se pudo actualizar la solicitud.' }
-  if (!claimed || claimed.length === 0) {
-    return { success: false, error: 'La solicitud ya fue revisada.' }
-  }
-
-  const { error: enrollError } = await supabase
-    .from('enrollments')
-    .insert({ subject_id: request.subject_id, student_id: request.student_id })
-
-  // 23505 = ya estaba inscrito por otra via -- no es un error real aca.
-  if (enrollError && enrollError.code !== '23505') {
-    return { success: false, error: 'No se pudo aprobar la solicitud.' }
-  }
-
-  await logAudit({
-    actorId: user.id,
-    action: 'enrollment_request.approve',
-    entityType: 'enrollment_request',
-    entityId: requestId,
-    subjectId: request.subject_id,
-    details: { student_id: request.student_id },
-  })
-
-  revalidatePath('/professor/subjects')
+  revalidateRequestPages()
   return { success: true }
 }
 
 export async function rejectEnrollmentRequest(requestId: string) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { supabase, user } = await getReviewer()
   if (!user) return { success: false, error: 'No autenticado.' }
 
-  const { data: request } = await supabase
-    .from('enrollment_requests')
-    .select('id, student_id, subject_id')
-    .eq('id', requestId)
-    .single()
-
-  if (!request) return { success: false, error: 'Solicitud no encontrada.' }
-
-  const authorized = await checkAdminOrSubjectProfessor(supabase, user.id, request.subject_id)
-  if (!authorized) {
-    return { success: false, error: 'No tienes permiso para revisar esta solicitud.' }
+  const result = await rejectRequests(supabase, user.id, [requestId])
+  if (result.rejected.length === 0) {
+    return {
+      success: false,
+      error: result.failures[0]?.message || 'No se pudo rechazar la solicitud.',
+    }
   }
 
-  const { error } = await supabase
-    .from('enrollment_requests')
-    .update({ status: 'rejected', reviewed_at: new Date().toISOString(), reviewed_by: user.id })
-    .eq('id', requestId)
-    .eq('status', 'pending')
-
-  if (error) return { success: false, error: 'No se pudo rechazar la solicitud.' }
-
-  await logAudit({
-    actorId: user.id,
-    action: 'enrollment_request.reject',
-    entityType: 'enrollment_request',
-    entityId: requestId,
-    subjectId: request.subject_id,
-    details: { student_id: request.student_id },
-  })
-
-  revalidatePath('/professor/subjects')
+  revalidateRequestPages()
   return { success: true }
+}
+
+export interface BulkApproveResponse {
+  success: boolean
+  error?: string
+  approved: string[]
+  failures: ReviewFailure[]
+}
+
+export interface BulkRejectResponse {
+  success: boolean
+  error?: string
+  rejected: string[]
+  failures: ReviewFailure[]
+}
+
+export interface ApproveAllResponse extends BulkApproveResponse {
+  /** Solicitudes que coincidían con los filtros al empezar. */
+  total: number
+  /** Solicitudes que ni se intentaron por el tope de la operación (siguen pendientes). */
+  remaining: number
+  /** Solicitudes revisadas que no se pudieron aprobar (p. ej. estudiante sin carrera); siguen pendientes. */
+  skipped: number
+  /** Había más de SCAN_MAX coincidencias: `total` y `remaining` son cotas inferiores. */
+  truncated: boolean
+}
+
+// Valida la lista de ids de una operación masiva: no vacía, solo strings y
+// dentro del tope. Los duplicados se descartan.
+function parseBulkIds(ids: unknown): { ok: true; ids: string[] } | { ok: false; error: string } {
+  if (!Array.isArray(ids)) return { ok: false, error: 'Selecciona al menos una solicitud.' }
+  const unique = dedupeIds(ids.filter((id): id is string => typeof id === 'string'))
+  if (unique.length === 0) return { ok: false, error: 'Selecciona al menos una solicitud.' }
+  if (unique.length > BULK_REVIEW_MAX) {
+    return {
+      ok: false,
+      error: `Puedes procesar hasta ${BULK_REVIEW_MAX} solicitudes por operación.`,
+    }
+  }
+  return { ok: true, ids: unique }
+}
+
+/**
+ * Aprueba hasta BULK_REVIEW_MAX solicitudes. Devuelve el resultado por id:
+ * las aprobadas y, de las demás, el motivo.
+ */
+export async function approveEnrollmentRequests(ids: string[]): Promise<BulkApproveResponse> {
+  const { supabase, user } = await getReviewer()
+  if (!user) return { success: false, error: 'No autenticado.', approved: [], failures: [] }
+
+  const parsed = parseBulkIds(ids)
+  if (!parsed.ok) return { success: false, error: parsed.error, approved: [], failures: [] }
+
+  const result = await approveRequests(supabase, user.id, parsed.ids)
+  if (result.approved.length > 0) revalidateRequestPages()
+  return { success: true, ...result }
+}
+
+/** Rechaza hasta BULK_REVIEW_MAX solicitudes (sin motivo, igual que el rechazo individual). */
+export async function rejectEnrollmentRequests(ids: string[]): Promise<BulkRejectResponse> {
+  const { supabase, user } = await getReviewer()
+  if (!user) return { success: false, error: 'No autenticado.', rejected: [], failures: [] }
+
+  const parsed = parseBulkIds(ids)
+  if (!parsed.ok) return { success: false, error: parsed.error, rejected: [], failures: [] }
+
+  const result = await rejectRequests(supabase, user.id, parsed.ids)
+  if (result.rejected.length > 0) revalidateRequestPages()
+  return { success: true, ...result }
+}
+
+/**
+ * Aprueba todas las solicitudes pendientes que coinciden con los filtros
+ * (no solo las de la página visible). Resuelve las ids en el servidor con
+ * los mismos filtros de la lista -- el cliente nunca manda ids -- y las
+ * procesa en lotes de BULK_REVIEW_MAX, las más antiguas primero, hasta
+ * APPROVE_ALL_MAX por operación. Si hay más, devuelve cuántas quedan.
+ */
+export async function approveAllEnrollmentRequests(
+  rawFilters: { q?: string; career?: string; subjectId?: string } = {}
+): Promise<ApproveAllResponse> {
+  const empty = {
+    approved: [],
+    failures: [],
+    total: 0,
+    remaining: 0,
+    skipped: 0,
+    truncated: false,
+  }
+  const { supabase, user } = await getReviewer()
+  if (!user) return { success: false, error: 'No autenticado.', ...empty }
+
+  const isAdmin = await checkAdmin(supabase, user.id)
+  // El filtro por carrera es solo de coordinación (ver fetchPendingRequests).
+  const filters = sanitizeRequestFilters(rawFilters ?? {})
+  // Un profesor solo "ve" sus materias; aunque no lo hiciera, el permiso
+  // se vuelve a comprobar por solicitud dentro de approveRequests.
+  const scope = isAdmin ? {} : { professorId: user.id }
+
+  const found = await fetchPendingRequests(supabase, { scope, filters })
+  if (found.error) {
+    return { success: false, error: 'No se pudieron cargar las solicitudes.', ...empty }
+  }
+
+  // Se recorre de la más antigua a la más reciente hasta lograr
+  // APPROVE_ALL_MAX aprobaciones o agotar las candidatas. Las que fallan (p.
+  // ej. estudiante sin carrera) siguen pendientes y encabezarían la cola en
+  // cada repetición: si solo se tomaran las 500 más antiguas, esas fallas
+  // permanentes impedirían llegar jamás a las más nuevas. Por eso las
+  // fallidas no cuentan contra el tope.
+  const candidates = found.requests.map((r) => r.id)
+  const approved: string[] = []
+  const failures: ReviewFailure[] = []
+  let examined = 0
+  while (examined < candidates.length && approved.length < APPROVE_ALL_MAX) {
+    const size = Math.min(BULK_REVIEW_MAX, APPROVE_ALL_MAX - approved.length)
+    const batch = candidates.slice(examined, examined + size)
+    examined += batch.length
+    const result = await approveRequests(supabase, user.id, batch)
+    approved.push(...result.approved)
+    failures.push(...result.failures)
+  }
+  if (approved.length > 0) revalidateRequestPages()
+
+  return {
+    success: true,
+    approved,
+    failures,
+    total: found.total,
+    remaining: Math.max(0, found.total - examined),
+    skipped: failures.length,
+    truncated: found.truncated,
+  }
 }
