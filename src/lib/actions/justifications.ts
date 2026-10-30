@@ -212,7 +212,7 @@ export async function submitJustification({
 
   if (existing) {
     // Reenvío tras rechazo: vuelve a PENDING y limpia la revisión anterior.
-    const { error } = await admin
+    const { data: resubmitted, error } = await admin
       .from('absence_justifications')
       .update({
         reason: trimmedReason,
@@ -224,8 +224,18 @@ export async function submitJustification({
       })
       .eq('id', existing.id)
       .eq('status', 'REJECTED')
+      .select('id')
 
     if (error) return { success: false, error: 'No se pudo reenviar la justificación.' }
+    // Coordinación pudo cambiar la decisión (p. ej. REJECTED -> APPROVED)
+    // entre el SELECT y el UPDATE: el claim no encontró fila y no hay que
+    // reportar éxito.
+    if (!resubmitted || resubmitted.length === 0) {
+      return {
+        success: false,
+        error: 'Tu justificación cambió mientras la enviabas. Recarga la página.',
+      }
+    }
   } else {
     const { error } = await admin.from('absence_justifications').insert({
       student_id: user.id,
@@ -383,7 +393,7 @@ export async function changeJustificationDecision({
 
   const { data: justification } = await supabase
     .from('absence_justifications')
-    .select('id, student_id, session_id, subject_id, status, review_note')
+    .select('id, student_id, session_id, subject_id, status, review_note, reviewed_at')
     .eq('id', justificationId)
     .single()
 
@@ -403,7 +413,7 @@ export async function changeJustificationDecision({
   const admin = getSupabaseAdmin()
   // Claim atómico sobre el estado leído: si otra revisión cambió la fila
   // entre el SELECT y el UPDATE, no se pisa su decisión.
-  const { data: claimed, error } = await admin
+  const claim = admin
     .from('absence_justifications')
     .update(
       to === 'PENDING'
@@ -417,7 +427,13 @@ export async function changeJustificationDecision({
     )
     .eq('id', justificationId)
     .eq('status', from)
-    .select('id')
+  // También se reclama sobre reviewed_at: si la fila volvió al mismo estado
+  // por otra vía (ABA: A -> B -> A) la decisión ya no es la que se leyó.
+  const { data: claimed, error } = await (
+    justification.reviewed_at
+      ? claim.eq('reviewed_at', justification.reviewed_at)
+      : claim.is('reviewed_at', null)
+  ).select('id')
 
   if (error) return { success: false, error: 'No se pudo cambiar la decisión.' }
   if (!claimed || claimed.length === 0) {

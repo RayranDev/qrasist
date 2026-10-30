@@ -8,6 +8,7 @@ const mockJustificationSingle = vi.fn()
 const mockAdminSelect = vi.fn()
 const mockAdminUpdate = vi.fn()
 const mockAdminEq = vi.fn()
+const mockAdminIs = vi.fn()
 const mockAdminExisting = vi.fn()
 const mockLogAudit = vi.fn()
 
@@ -43,6 +44,10 @@ vi.mock('@/lib/supabase/adminClient', () => ({
           mockAdminEq(...args)
           return c
         })
+        c.is = vi.fn((...args: unknown[]) => {
+          mockAdminIs(...args)
+          return c
+        })
         c.in = vi.fn(() => c)
         c.select = mockAdminSelect
         return c
@@ -62,6 +67,7 @@ const ROW = {
   subject_id: 'subject-1',
   status: 'APPROVED',
   review_note: 'nota anterior',
+  reviewed_at: '2026-10-01T10:00:00.123456+00:00',
 }
 
 function asAdmin() {
@@ -78,6 +84,7 @@ describe('changeJustificationDecision', () => {
       mockAdminSelect,
       mockAdminUpdate,
       mockAdminEq,
+      mockAdminIs,
       mockAdminExisting,
       mockLogAudit,
     ]) {
@@ -227,6 +234,33 @@ describe('changeJustificationDecision', () => {
 
     expect(result.success).toBe(false)
     expect(mockAdminUpdate).not.toHaveBeenCalled()
+  })
+
+  it('also claims on the previously read reviewed_at (ABA guard)', async () => {
+    asAdmin()
+
+    await changeJustificationDecision({
+      justificationId: 'just-1',
+      to: 'REJECTED',
+      reason: 'motivo válido',
+    })
+
+    expect(mockAdminEq).toHaveBeenCalledWith('reviewed_at', '2026-10-01T10:00:00.123456+00:00')
+    expect(mockAdminIs).not.toHaveBeenCalled()
+  })
+
+  it('claims on reviewed_at IS NULL when the row had no review date', async () => {
+    asAdmin()
+    mockJustificationSingle.mockResolvedValue({ data: { ...ROW, reviewed_at: null } })
+
+    await changeJustificationDecision({
+      justificationId: 'just-1',
+      to: 'REJECTED',
+      reason: 'motivo válido',
+    })
+
+    expect(mockAdminIs).toHaveBeenCalledWith('reviewed_at', null)
+    expect(mockAdminEq).not.toHaveBeenCalledWith('reviewed_at', expect.anything())
   })
 
   it('rejects an unknown target status', async () => {
