@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { checkAdmin } from './authGuards'
 import { logAudit } from '@/lib/audit/auditLog'
 import { getAppSettings } from '@/lib/settings/appSettings'
+import { MAX_BULK_APPROVE } from '@/lib/justifications/bulk'
 import {
   JUSTIFICATION_BUSINESS_DAYS,
   validateAttachmentMeta,
@@ -323,6 +324,241 @@ export async function reviewJustification({
   revalidatePath('/student/subjects')
   revalidatePath('/student/history')
   return { success: true }
+}
+
+type JustificationStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+const DECISION_TARGETS: readonly JustificationStatus[] = ['PENDING', 'APPROVED', 'REJECTED']
+
+function revalidateJustificationPaths() {
+  revalidatePath('/admin/justifications')
+  revalidatePath('/professor/justifications')
+  revalidatePath('/student/subjects')
+  revalidatePath('/student/history')
+}
+
+/**
+ * Corrige una decisión ya tomada (solo ADMIN): APPROVED <-> REJECTED, o
+ * devolver la justificación a revisión (-> PENDING). La aprobación no tiene
+ * efectos de escritura aparte -- los conteos de inasistencias se calculan al
+ * leer a partir de `status` -- así que cambiar la decisión solo cambia la fila.
+ *
+ * El motivo es obligatorio siempre y queda en la bitácora. En APPROVED/REJECTED
+ * también se guarda como `review_note` (el estudiante lo ve). Al volver a
+ * PENDING la fila se deja como una nunca revisada (mismo reseteo que el
+ * reenvío del estudiante): sin revisor, fecha ni nota, porque una nota de la
+ * decisión anterior sería engañosa; el motivo y la nota previa quedan en la
+ * bitácora.
+ */
+export async function changeJustificationDecision({
+  justificationId,
+  to,
+  reason,
+}: {
+  justificationId: string
+  to: JustificationStatus
+  reason: string
+}): Promise<ActionResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'No estás autenticado.' }
+
+  if (!(await checkAdmin(supabase, user.id))) {
+    return { success: false, error: 'Solo coordinación puede cambiar una decisión.' }
+  }
+
+  if (!DECISION_TARGETS.includes(to)) {
+    return { success: false, error: 'La decisión indicada no es válida.' }
+  }
+
+  const trimmedReason = (reason || '').trim()
+  if (trimmedReason.length < MIN_REVIEW_NOTE_LENGTH) {
+    return {
+      success: false,
+      error: `El motivo del cambio debe tener al menos ${MIN_REVIEW_NOTE_LENGTH} caracteres.`,
+    }
+  }
+
+  const { data: justification } = await supabase
+    .from('absence_justifications')
+    .select('id, student_id, session_id, subject_id, status, review_note')
+    .eq('id', justificationId)
+    .single()
+
+  if (!justification) return { success: false, error: 'Justificación no encontrada.' }
+
+  const from = justification.status as JustificationStatus
+  if (from === 'PENDING') {
+    return {
+      success: false,
+      error: 'Esta justificación está pendiente: usa Aprobar o Rechazar.',
+    }
+  }
+  if (from === to) {
+    return { success: false, error: 'La justificación ya tiene esa decisión.' }
+  }
+
+  const admin = getSupabaseAdmin()
+  // Claim atómico sobre el estado leído: si otra revisión cambió la fila
+  // entre el SELECT y el UPDATE, no se pisa su decisión.
+  const { data: claimed, error } = await admin
+    .from('absence_justifications')
+    .update(
+      to === 'PENDING'
+        ? { status: 'PENDING', reviewed_by: null, reviewed_at: null, review_note: null }
+        : {
+            status: to,
+            reviewed_by: user.id,
+            reviewed_at: new Date().toISOString(),
+            review_note: trimmedReason,
+          }
+    )
+    .eq('id', justificationId)
+    .eq('status', from)
+    .select('id')
+
+  if (error) return { success: false, error: 'No se pudo cambiar la decisión.' }
+  if (!claimed || claimed.length === 0) {
+    return {
+      success: false,
+      error: 'La justificación cambió mientras la revisabas. Recarga la página.',
+    }
+  }
+
+  await logAudit({
+    actorId: user.id,
+    action: 'justification.change_decision',
+    entityType: 'absence_justification',
+    entityId: justificationId,
+    subjectId: justification.subject_id,
+    details: {
+      student_id: justification.student_id,
+      session_id: justification.session_id,
+      from,
+      to,
+      reason: trimmedReason,
+      previous_note: justification.review_note ?? null,
+    },
+  })
+
+  revalidateJustificationPaths()
+  return { success: true }
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export interface BulkApproveResult extends ActionResult {
+  approved: string[]
+  failures: { id: string; message: string }[]
+}
+
+/**
+ * Aprueba varias justificaciones PENDING de una vez (solo ADMIN). Un único
+ * UPDATE con claim atómico `status = PENDING` decide cuáles se aprueban; las
+ * demás se reportan como fallas con su causa (ya revisada / no existe) para
+ * que la UI muestre un resultado parcial en vez de todo-o-nada. Cada
+ * aprobación genera su propia entrada `justification.approve` (con
+ * `bulk: true`), igual que la aprobación individual.
+ */
+export async function bulkApproveJustifications(ids: string[]): Promise<BulkApproveResult> {
+  const empty = { approved: [], failures: [] }
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'No estás autenticado.', ...empty }
+
+  if (!(await checkAdmin(supabase, user.id))) {
+    return { success: false, error: 'Solo coordinación puede revisar justificaciones.', ...empty }
+  }
+
+  const unique = Array.from(new Set(Array.isArray(ids) ? ids : []))
+  if (unique.length === 0) {
+    return { success: false, error: 'Selecciona al menos una justificación.', ...empty }
+  }
+  if (unique.length > MAX_BULK_APPROVE) {
+    return {
+      success: false,
+      error: `Puedes aprobar máximo ${MAX_BULK_APPROVE} justificaciones a la vez.`,
+      ...empty,
+    }
+  }
+
+  const failures: { id: string; message: string }[] = []
+  const validIds: string[] = []
+  for (const id of unique) {
+    if (typeof id === 'string' && UUID_PATTERN.test(id)) validIds.push(id)
+    else failures.push({ id: String(id), message: 'Identificador no válido.' })
+  }
+
+  const admin = getSupabaseAdmin()
+  const { data: claimed, error } =
+    validIds.length > 0
+      ? await admin
+          .from('absence_justifications')
+          .update({
+            status: 'APPROVED',
+            reviewed_by: user.id,
+            reviewed_at: new Date().toISOString(),
+            review_note: null,
+          })
+          .in('id', validIds)
+          .eq('status', 'PENDING')
+          .select('id, student_id, session_id, subject_id')
+      : { data: [], error: null }
+
+  if (error) {
+    return { success: false, error: 'No se pudieron aprobar las justificaciones.', ...empty }
+  }
+
+  const approvedRows = (claimed || []) as {
+    id: string
+    student_id: string
+    session_id: string
+    subject_id: string
+  }[]
+  const approvedIds = new Set(approvedRows.map((r) => r.id))
+  const notApproved = validIds.filter((id) => !approvedIds.has(id))
+
+  if (notApproved.length > 0) {
+    // Distingue "ya la revisó otra persona" de "ya no existe" para el mensaje.
+    const { data: existing } = await admin
+      .from('absence_justifications')
+      .select('id')
+      .in('id', notApproved)
+    const existingIds = new Set((existing || []).map((r: { id: string }) => r.id))
+    for (const id of notApproved) {
+      failures.push({
+        id,
+        message: existingIds.has(id)
+          ? 'Esta justificación ya fue revisada.'
+          : 'Justificación no encontrada.',
+      })
+    }
+  }
+
+  await Promise.all(
+    approvedRows.map((row) =>
+      logAudit({
+        actorId: user.id,
+        action: 'justification.approve',
+        entityType: 'absence_justification',
+        entityId: row.id,
+        subjectId: row.subject_id,
+        details: {
+          student_id: row.student_id,
+          session_id: row.session_id,
+          note: null,
+          bulk: true,
+        },
+      })
+    )
+  )
+
+  if (approvedRows.length > 0) revalidateJustificationPaths()
+  return { success: true, approved: approvedRows.map((r) => r.id), failures }
 }
 
 export interface JustificationAttachmentUrlResult extends ActionResult {

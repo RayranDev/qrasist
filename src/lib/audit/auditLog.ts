@@ -38,6 +38,7 @@ export type AuditAction =
   | 'justification.approve'
   | 'justification.reject'
   | 'justification.register'
+  | 'justification.change_decision'
   | 'auth.password_reset'
 
 interface LogAuditInput {
