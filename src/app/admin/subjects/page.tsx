@@ -16,6 +16,9 @@ import { sanitizeSearchTerm } from '@/lib/utils/searchTerm'
 import { RoleBadge } from '@/components/ui/RoleBadge'
 
 export const dynamic = 'force-dynamic'
+// Esta página hospeda la carga masiva de Excel (Server Action); un archivo
+// de hasta 200 filas tarda más que el valor por defecto.
+export const maxDuration = 60
 
 const PAGE_SIZE = 24
 
