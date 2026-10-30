@@ -706,3 +706,47 @@ describe('bulkImportStudents — hardening', () => {
     })
   })
 })
+
+describe('bulkImportEnrollments — dropdown display values', () => {
+  it('accepts "CODE — Name" values and looks up only the code', async () => {
+    const mockSubjectByCode = vi.fn().mockResolvedValue({ data: { id: 'subject-1' } })
+    const mockStudent = vi.fn().mockResolvedValue({ data: { id: 'st-1', role: 'STUDENT' } })
+    const mockEnrollInsert = vi.fn().mockResolvedValue({ error: null })
+    mockUserFrom.mockImplementation((table: string) => {
+      if (table === 'subjects') {
+        return {
+          select: () => ({
+            eq: (_col: string, value: string) => ({ maybeSingle: () => mockSubjectByCode(value) }),
+          }),
+        }
+      }
+      if (table === 'profiles') {
+        return {
+          select: () => ({
+            eq: (_col: string, value: string) => ({ maybeSingle: () => mockStudent(value) }),
+          }),
+        }
+      }
+      if (table === 'enrollments') return { insert: mockEnrollInsert }
+      throw new Error(`unexpected table: ${table}`)
+    })
+
+    const form = await formWith(
+      [
+        {
+          'Código Materia': 'ALG-201 — Álgebra Lineal',
+          'Código Estudiante': '202500000001 — Ana Torres',
+        },
+        { 'Código Materia': 'ALG-201', 'Código Estudiante': '202500000002' },
+      ],
+      ['Código Materia', 'Código Estudiante'],
+      'Inscripciones'
+    )
+    const result = await bulkImportEnrollments(form)
+
+    expect(result).toMatchObject({ successCount: 2, errors: [] })
+    expect(mockSubjectByCode).toHaveBeenCalledWith('ALG-201')
+    expect(mockStudent).toHaveBeenCalledWith('202500000001')
+    expect(mockStudent).toHaveBeenCalledWith('202500000002')
+  })
+})

@@ -9,7 +9,7 @@ import { foldText } from '@/lib/utils/normalizeText'
 export type ImportType = 'STUDENT' | 'PROFESSOR' | 'SUBJECT' | 'ENROLLMENT'
 
 /** De dónde sale la lista desplegable de una columna (valores activos de la base). */
-export type ImportListSource = 'careers' | 'periods'
+export type ImportListSource = 'careers' | 'periods' | 'professors' | 'subjects' | 'students'
 
 export interface ImportColumn {
   header: string
@@ -86,7 +86,7 @@ export const IMPORT_SCHEMA: Record<ImportType, ImportSchema> = {
       { header: 'Código', key: 'codigo', width: 16, required: true, text: true, identity: true },
       { header: 'Carrera', key: 'carrera', width: 30, list: 'careers' },
       { header: 'Semestre', key: 'semestre', width: 10 },
-      { header: 'Correo Profesor', key: 'correoProfesor', width: 32 },
+      { header: 'Correo Profesor', key: 'correoProfesor', width: 32, list: 'professors' },
       { header: 'Período', key: 'periodo', width: 14, list: 'periods' },
     ],
     exampleRow: {
@@ -104,18 +104,20 @@ export const IMPORT_SCHEMA: Record<ImportType, ImportSchema> = {
       {
         header: 'Código Materia',
         key: 'codigoMateria',
-        width: 18,
+        width: 40,
         required: true,
         text: true,
         identity: true,
+        list: 'subjects',
       },
       {
         header: 'Código Estudiante',
         key: 'codigoEstudiante',
-        width: 20,
+        width: 40,
         required: true,
         text: true,
         identity: true,
+        list: 'students',
       },
     ],
     exampleRow: {
@@ -144,4 +146,15 @@ export function isExampleRow(type: ImportType, row: Record<string, string>): boo
   const { columns, exampleRow } = IMPORT_SCHEMA[type]
   const identity = columns.filter((c) => c.identity)
   return identity.every((c) => foldText(row[c.header] ?? '') === foldText(exampleRow[c.key] ?? ''))
+}
+
+/**
+ * Las listas de materias y estudiantes muestran "CÓDIGO — Nombre" para que
+ * el admin elija por nombre; al importar solo importa el código. Acepta el
+ * valor mostrado o el código a secas: toma lo anterior al primer separador
+ * (raya larga, media o guion) rodeado de espacios. Un guion sin espacios
+ * -- "CALC-101" -- es parte del código y no separa nada.
+ */
+export function codeFromListValue(value: string): string {
+  return value.split(/\s+[\u2014\u2013-]\s+/)[0].trim()
 }

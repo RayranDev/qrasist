@@ -3,12 +3,15 @@ import { createClient } from '@/lib/supabase/server'
 import { checkAdmin } from '@/lib/actions/authGuards'
 import { IMPORT_SCHEMA, isImportType } from '@/lib/excel/importSchemas'
 import { buildImportTemplate } from '@/lib/excel/importTemplate'
+import { loadImportLists } from '@/lib/excel/importLists'
 
 export const runtime = 'nodejs'
+// Las listas de estudiantes pueden ser de miles de filas y se leen por páginas.
+export const maxDuration = 60
 
 /**
- * Plantilla de carga masiva con las carreras (y períodos) ACTIVOS de la
- * base como listas desplegables:
+ * Plantilla de carga masiva con los datos ACTIVOS del sistema (carreras,
+ * períodos, profesores, materias, estudiantes) como listas desplegables:
  *   GET /admin/import-template?type=STUDENT|PROFESSOR|SUBJECT|ENROLLMENT
  * Se genera al descargar para que la lista nunca quede desactualizada.
  * Solo ADMIN activo.
@@ -30,34 +33,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'No autorizado.' }, { status: 403 })
   }
 
-  const columns = IMPORT_SCHEMA[type].columns
-  const needs = (source: 'careers' | 'periods') => columns.some((c) => c.list === source)
+  const sources = Array.from(
+    new Set(IMPORT_SCHEMA[type].columns.flatMap((c) => (c.list ? [c.list] : [])))
+  )
 
-  const [careers, periods] = await Promise.all([
-    needs('careers')
-      ? supabase.from('careers').select('name').eq('is_active', true).order('name')
-      : null,
-    needs('periods')
-      ? supabase
-          .from('periods')
-          .select('name')
-          .eq('is_active', true)
-          .order('name', { ascending: false })
-      : null,
-  ])
-  if (careers?.error || periods?.error) {
-    console.error(
-      '[import-template] No se pudieron cargar las listas',
-      careers?.error,
-      periods?.error
-    )
+  let lists
+  try {
+    lists = await loadImportLists(supabase, sources)
+  } catch (error) {
+    console.error('[import-template] No se pudieron cargar las listas', error)
     return NextResponse.json({ error: 'No se pudo generar la plantilla.' }, { status: 500 })
   }
 
-  const workbook = await buildImportTemplate(type, {
-    careers: (careers?.data || []).map((c) => c.name),
-    periods: (periods?.data || []).map((p) => p.name),
-  })
+  const workbook = await buildImportTemplate(type, lists)
   const buffer = await workbook.xlsx.writeBuffer()
   return new NextResponse(buffer as unknown as BodyInit, {
     status: 200,

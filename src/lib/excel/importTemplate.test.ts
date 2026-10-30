@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import ExcelJS from 'exceljs'
 import { buildImportTemplate, LISTS_SHEET_NAME } from './importTemplate'
-import { MAX_IMPORT_ROWS } from './importSchemas'
+import { isExampleRow, MAX_IMPORT_ROWS } from './importSchemas'
 import { parseWorkbookRows } from './parseWorkbook'
 
 const LISTS = {
@@ -73,10 +73,69 @@ describe('buildImportTemplate', () => {
     expect(loaded.getWorksheet('Estudiantes')!.getCell('F2').value).toBe('Derecho')
   })
 
-  it('has no lists sheet nor dropdowns when the template needs none', async () => {
-    const { loaded } = await roundTrip('ENROLLMENT')
-    expect(loaded.getWorksheet(LISTS_SHEET_NAME)).toBeUndefined()
-    expect(loaded.getWorksheet('Inscripciones')!.getCell('A2').dataValidation?.type).toBeUndefined()
+  it('points each enrollment column at its own Listas column', async () => {
+    const workbook = await buildImportTemplate('ENROLLMENT', {
+      subjects: ['ALG-201 — Álgebra Lineal', 'FIS-101 — Física I'],
+      students: ['202500000001 — Ana Torres'],
+    })
+    const loaded = new ExcelJS.Workbook()
+    await loaded.xlsx.load(await workbook.xlsx.writeBuffer())
+    const sheet = loaded.getWorksheet('Inscripciones')!
+    const lists = loaded.getWorksheet(LISTS_SHEET_NAME)!
+
+    expect(sheet.getCell('A2').dataValidation.formulae).toEqual([`${LISTS_SHEET_NAME}!$A$2:$A$3`])
+    expect(sheet.getCell('B2').dataValidation.formulae).toEqual([`${LISTS_SHEET_NAME}!$B$2:$B$2`])
+    expect(sheet.getCell(`B${MAX_IMPORT_ROWS + 1}`).dataValidation.type).toBe('list')
+    expect(lists.getCell('A1').value).toBe('Materias')
+    expect(lists.getCell('B1').value).toBe('Estudiantes')
+    expect(lists.getCell('A2').value).toBe('ALG-201 — Álgebra Lineal')
+    expect(lists.state).toBe('hidden')
+  })
+
+  it('points the professor email column of the subject template at the professors list', async () => {
+    const workbook = await buildImportTemplate('SUBJECT', {
+      ...LISTS,
+      professors: ['a@urepublicana.edu.co', 'b@urepublicana.edu.co', 'c@urepublicana.edu.co'],
+    })
+    const loaded = new ExcelJS.Workbook()
+    await loaded.xlsx.load(await workbook.xlsx.writeBuffer())
+    const sheet = loaded.getWorksheet('Materias')!
+
+    // Columnas de Listas: A carreras, B períodos, C profesores.
+    expect(sheet.getCell('E2').dataValidation.formulae).toEqual([`${LISTS_SHEET_NAME}!$C$2:$C$4`])
+    expect(loaded.getWorksheet(LISTS_SHEET_NAME)!.getCell('C1').value).toBe('Profesores')
+  })
+
+  it('skips the validation of a column whose list is empty, keeping the others', async () => {
+    const workbook = await buildImportTemplate('SUBJECT', { ...LISTS, professors: [] })
+    const loaded = new ExcelJS.Workbook()
+    await loaded.xlsx.load(await workbook.xlsx.writeBuffer())
+    const sheet = loaded.getWorksheet('Materias')!
+
+    expect(sheet.getCell('E2').dataValidation).toBeUndefined()
+    expect(sheet.getCell('C2').dataValidation.type).toBe('list')
+  })
+
+  it('keeps the enrollment example row on fixed placeholders that isExampleRow detects', async () => {
+    const workbook = await buildImportTemplate('ENROLLMENT', {
+      subjects: ['ALG-201 — Álgebra Lineal'],
+      students: ['202500000001 — Ana Torres'],
+    })
+    const sheet = workbook.getWorksheet('Inscripciones')!
+    const row = {
+      'Código Materia': String(sheet.getCell('A2').value),
+      'Código Estudiante': String(sheet.getCell('B2').value),
+    }
+
+    expect(row).toEqual({ 'Código Materia': 'CALC-101', 'Código Estudiante': '202512345678' })
+    expect(isExampleRow('ENROLLMENT', row)).toBe(true)
+    // Una fila real elegida de las listas nunca se confunde con la de ejemplo.
+    expect(
+      isExampleRow('ENROLLMENT', {
+        'Código Materia': 'ALG-201 — Álgebra Lineal',
+        'Código Estudiante': '202500000001 — Ana Torres',
+      })
+    ).toBe(false)
   })
 
   it('skips the dropdown when there are no active careers, but not when there are', async () => {

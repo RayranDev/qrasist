@@ -9,6 +9,7 @@ import { parseWorkbookRows } from '@/lib/excel/parseWorkbook'
 import { runBulkImport, type ImportResult } from '@/lib/excel/bulkImport'
 import { buildNameLookup } from '@/lib/excel/nameLookup'
 import {
+  codeFromListValue,
   headersOf,
   isExampleRow,
   MAX_IMPORT_FILE_BYTES,
@@ -476,8 +477,9 @@ export async function bulkImportEnrollments(formData: FormData): Promise<ActionR
   const result = await runBulkImport<EnrollmentImportRow>(
     parsed.rows,
     (row) => {
-      const subjectCode = (row['Código Materia'] || '').trim()
-      const studentCode = (row['Código Estudiante'] || '').trim()
+      // Las listas desplegables muestran "CÓDIGO — Nombre"; vale eso o el código a secas.
+      const subjectCode = codeFromListValue(row['Código Materia'] || '')
+      const studentCode = codeFromListValue(row['Código Estudiante'] || '')
       if (isExampleRow('ENROLLMENT', row)) return { error: EXAMPLE_ROW_ERROR }
       if (!subjectCode || !studentCode) {
         return { error: 'Código Materia y Código Estudiante son obligatorios.' }

@@ -155,7 +155,7 @@ export default function BulkImportButton({ types }: { types: ImportType[] }) {
           </p>
           <p className="text-sm text-gray-500 mb-5">
             Máximo {MAX_IMPORT_ROWS} filas por archivo. Descarga la plantilla para usar las listas
-            de carreras y períodos activos.
+            desplegables con los datos activos del sistema.
           </p>
 
           <div className="flex flex-wrap gap-3 items-center mb-6">

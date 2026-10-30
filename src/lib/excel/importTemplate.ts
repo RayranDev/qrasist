@@ -10,14 +10,25 @@ import {
 /** Hoja oculta con los valores activos que alimentan las listas desplegables. */
 export const LISTS_SHEET_NAME = 'Listas'
 
-export type ImportTemplateLists = Record<ImportListSource, string[]>
+/** Valores por fuente; una fuente ausente o vacía no genera lista desplegable. */
+export type ImportTemplateLists = Partial<Record<ImportListSource, string[]>>
 
 const LIST_HEADERS: Record<ImportListSource, string> = {
   careers: 'Carreras',
   periods: 'Períodos',
+  professors: 'Profesores',
+  subjects: 'Materias',
+  students: 'Estudiantes',
 }
 
-const LIST_SOURCES: ImportListSource[] = ['careers', 'periods']
+// Orden de las columnas de la hoja oculta: cada lista en la suya.
+const LIST_SOURCES: ImportListSource[] = [
+  'careers',
+  'periods',
+  'professors',
+  'subjects',
+  'students',
+]
 
 function columnLetter(index: number) {
   return String.fromCharCode(65 + index) // A-F alcanzan: ninguna plantilla pasa de 6 columnas
@@ -25,9 +36,10 @@ function columnLetter(index: number) {
 
 /**
  * Arma la plantilla .xlsx de una carga masiva en el momento de la
- * descarga, con los valores ACTIVOS de la base: las columnas de carrera
- * (y período) llevan una lista desplegable cuyo origen es una hoja
- * oculta. Se usa un rango de celdas y no una lista escrita en la regla
+ * descarga, con los valores ACTIVOS de la base: toda columna que
+ * referencia datos ya existentes (carrera, período, profesor, materia,
+ * estudiante) lleva una lista desplegable cuyo origen es una hoja oculta,
+ * una columna por lista. Se usa un rango de celdas y no una lista escrita en la regla
  * porque Excel limita esas últimas a 255 caracteres, que unas pocas
  * carreras ya superan.
  */
@@ -36,23 +48,28 @@ export async function buildImportTemplate(
   lists: ImportTemplateLists
 ): Promise<ExcelJS.Workbook> {
   const schema = IMPORT_SCHEMA[type]
+  const valuesOf = (source: ImportListSource) => lists[source] ?? []
   const listColumns = schema.columns.filter((c) => c.list)
   const sources = LIST_SOURCES.filter((s) => listColumns.some((c) => c.list === s))
 
-  // La fila de ejemplo usa un valor real de la lista para no sugerir una carrera que no existe.
+  // La fila de ejemplo usa un valor real de la lista para no sugerir una carrera que no
+  // existe. Las columnas `identity` conservan su valor fijo: así `isExampleRow` sigue
+  // reconociendo la fila de ejemplo y nunca confunde una fila con datos reales con ella.
   const exampleRow = { ...schema.exampleRow }
-  for (const column of listColumns) exampleRow[column.key] = lists[column.list!][0] ?? ''
+  for (const column of listColumns) {
+    if (!column.identity) exampleRow[column.key] = valuesOf(column.list!)[0] ?? ''
+  }
 
   const sheets: ExportSheet[] = [
     { name: schema.label, columns: schema.columns, rows: [exampleRow] },
   ]
   if (sources.length > 0) {
-    const length = Math.max(...sources.map((s) => lists[s].length))
+    const length = Math.max(...sources.map((s) => valuesOf(s).length))
     sheets.push({
       name: LISTS_SHEET_NAME,
       columns: sources.map((s) => ({ header: LIST_HEADERS[s], key: s, width: 30 })),
       rows: Array.from({ length }, (_, i) =>
-        Object.fromEntries(sources.map((s) => [s, lists[s][i] ?? '']))
+        Object.fromEntries(sources.map((s) => [s, valuesOf(s)[i] ?? '']))
       ),
     })
   }
@@ -76,7 +93,7 @@ export async function buildImportTemplate(
     if (column.text) {
       for (let row = 2; row <= lastRow; row++) sheet.getCell(`${letter}${row}`).numFmt = '@'
     }
-    const values = column.list ? lists[column.list] : []
+    const values = column.list ? valuesOf(column.list) : []
     if (values.length > 0) {
       const listLetter = columnLetter(sources.indexOf(column.list!))
       validations.add(`${letter}2:${letter}${lastRow}`, {
