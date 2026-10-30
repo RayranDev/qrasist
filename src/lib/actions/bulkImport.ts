@@ -9,7 +9,7 @@ import { parseWorkbookRows } from '@/lib/excel/parseWorkbook'
 import { runBulkImport, type ImportResult } from '@/lib/excel/bulkImport'
 import { buildNameLookup } from '@/lib/excel/nameLookup'
 import {
-  codeFromListValue,
+  codeCandidates,
   headersOf,
   isExampleRow,
   MAX_IMPORT_FILE_BYTES,
@@ -462,8 +462,10 @@ export async function bulkImportSubjects(formData: FormData): Promise<ActionResu
 // ------------------------------------------------------------
 
 interface EnrollmentImportRow {
-  subjectCode: string
-  studentCode: string
+  // Códigos a probar, en orden: el valor completo y, si es distinto, el código
+  // extraído de "CÓDIGO — Nombre" (ver codeCandidates).
+  subjectCodes: string[]
+  studentCodes: string[]
 }
 
 export async function bulkImportEnrollments(formData: FormData): Promise<ActionResult> {
@@ -478,32 +480,51 @@ export async function bulkImportEnrollments(formData: FormData): Promise<ActionR
     parsed.rows,
     (row) => {
       // Las listas desplegables muestran "CÓDIGO — Nombre"; vale eso o el código a secas.
-      const subjectCode = codeFromListValue(row['Código Materia'] || '')
-      const studentCode = codeFromListValue(row['Código Estudiante'] || '')
+      const subjectCodes = codeCandidates(row['Código Materia'] || '')
+      const studentCodes = codeCandidates(row['Código Estudiante'] || '')
       if (isExampleRow('ENROLLMENT', row)) return { error: EXAMPLE_ROW_ERROR }
-      if (!subjectCode || !studentCode) {
+      if (!subjectCodes[0] || !studentCodes[0]) {
         return { error: 'Código Materia y Código Estudiante son obligatorios.' }
       }
-      return { data: { subjectCode, studentCode } }
+      return { data: { subjectCodes, studentCodes } }
     },
     async (data) => {
-      const { data: subject } = await supabase
-        .from('subjects')
-        .select('id')
-        .eq('code', data.subjectCode)
-        .maybeSingle()
+      // Se prueba primero el valor completo: un código como "CALC - 101" es válido y
+      // cortarlo en el guion lo inscribiría en otra materia ("CALC").
+      let subject: { id: string } | null = null
+      for (const code of data.subjectCodes) {
+        const { data: found } = await supabase
+          .from('subjects')
+          .select('id')
+          .eq('code', code)
+          .maybeSingle()
+        if (found) {
+          subject = found
+          break
+        }
+      }
+      const subjectLabel = data.subjectCodes[data.subjectCodes.length - 1]
       if (!subject)
-        return { success: false, error: `No existe la materia con código ${data.subjectCode}.` }
+        return { success: false, error: `No existe la materia con código ${subjectLabel}.` }
 
-      const { data: student } = await supabase
-        .from('profiles')
-        .select('id, role')
-        .eq('student_code', data.studentCode)
-        .maybeSingle()
-      if (!student)
-        return { success: false, error: `No existe el estudiante con código ${data.studentCode}.` }
+      let student: { id: string; role: string } | null = null
+      for (const code of data.studentCodes) {
+        const { data: found } = await supabase
+          .from('profiles')
+          .select('id, role')
+          .eq('student_code', code)
+          .maybeSingle()
+        if (found) {
+          student = found
+          break
+        }
+      }
+      const studentLabel = data.studentCodes[data.studentCodes.length - 1]
+      if (!student) {
+        return { success: false, error: `No existe el estudiante con código ${studentLabel}.` }
+      }
       if (student.role !== 'STUDENT') {
-        return { success: false, error: `${data.studentCode} no corresponde a un estudiante.` }
+        return { success: false, error: `${studentLabel} no corresponde a un estudiante.` }
       }
 
       const check = await checkStudentEnrollable(supabase, subject.id, student.id)

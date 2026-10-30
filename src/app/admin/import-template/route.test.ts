@@ -8,6 +8,7 @@ interface Query {
   table: string
   select: string
   eqs: Record<string, unknown>
+  notNulls: string[]
   orders: string[]
   range?: [number, number]
 }
@@ -19,10 +20,11 @@ const mockCheckAdmin = vi.fn()
 // pruebas verifican qué filas llegan (activas, con el rol correcto, todas las páginas).
 let tables: Record<string, Row[]> = {}
 let failingTable: string | null = null
+let serverMaxRows = 1000 // db-max-rows de PostgREST
 let queries: Query[] = []
 
 function builder(table: string) {
-  const query: Query = { table, select: '', eqs: {}, orders: [] }
+  const query: Query = { table, select: '', eqs: {}, notNulls: [], orders: [] }
   const c: Record<string, unknown> = {}
   c.select = (columns: string) => {
     query.select = columns
@@ -32,7 +34,12 @@ function builder(table: string) {
     query.eqs[column] = value
     return c
   }
-  c.not = () => c
+  c.not = (column: string, operator: string, value: unknown) => {
+    // Solo se usa `.not(col, 'is', null)` (IS NOT NULL); cualquier otra forma sería un cambio a revisar.
+    if (operator !== 'is' || value !== null) throw new Error(`unsupported .not(${operator})`)
+    query.notNulls.push(column)
+    return c
+  }
   c.order = (column: string) => {
     query.orders.push(column)
     return c
@@ -41,10 +48,12 @@ function builder(table: string) {
     query.range = [from, to]
     queries.push({ ...query })
     if (table === failingTable) return { data: null, error: { message: 'db down' } }
-    const rows = (tables[table] ?? []).filter((r) =>
-      Object.entries(query.eqs).every(([k, v]) => r[k] === v)
+    const rows = (tables[table] ?? []).filter(
+      (r) =>
+        Object.entries(query.eqs).every(([k, v]) => r[k] === v) &&
+        query.notNulls.every((k) => r[k] !== null && r[k] !== undefined)
     )
-    return { data: rows.slice(from, to + 1), error: null }
+    return { data: rows.slice(from, Math.min(to + 1, from + serverMaxRows)), error: null }
   }
   return c
 }
@@ -85,6 +94,7 @@ beforeEach(() => {
   mockGetUser.mockResolvedValue({ data: { user: { id: 'admin-1' } } })
   mockCheckAdmin.mockResolvedValue(true)
   failingTable = null
+  serverMaxRows = 1000
   queries = []
   tables = {
     careers: [
@@ -101,6 +111,8 @@ beforeEach(() => {
       { id: 'p1', role: 'PROFESSOR', is_active: true, email: 'maria@urepublicana.edu.co' },
       { id: 'p2', role: 'PROFESSOR', is_active: false, email: 'baja@urepublicana.edu.co' },
       { id: 'p3', role: 'ADMIN', is_active: true, email: 'admin@urepublicana.edu.co' },
+      { id: 'p4', role: 'PROFESSOR', is_active: true, email: null },
+      { id: 's3', role: 'STUDENT', is_active: true, student_code: null, name: 'Sin Código' },
       {
         id: 's1',
         role: 'STUDENT',
@@ -180,6 +192,7 @@ describe('GET /admin/import-template — generated lists', () => {
 
     const professors = queries.find((q) => q.table === 'profiles')!
     expect(professors.eqs).toEqual({ role: 'PROFESSOR', is_active: true })
+    expect(professors.notNulls).toEqual(['email']) // el docente sin correo no aparece
   })
 
   it('lists ACTIVE subjects and students as "CODE — Name" for the enrollment template', async () => {
@@ -192,6 +205,7 @@ describe('GET /admin/import-template — generated lists', () => {
 
     const students = queries.find((q) => q.table === 'profiles')!
     expect(students.eqs).toEqual({ role: 'STUDENT', is_active: true })
+    expect(students.notNulls).toEqual(['student_code']) // el estudiante sin código no aparece
     expect(students.orders).toEqual(['student_code', 'id']) // determinista para paginar
     expect(queries.find((q) => q.table === 'subjects')!.orders).toEqual(['code', 'id'])
   })
@@ -215,11 +229,29 @@ describe('GET /admin/import-template — generated lists', () => {
       [0, 999],
       [1000, 1999],
       [2000, 2999],
+      [2500, 3499], // página vacía que confirma el final
     ])
 
     // La validación abarca TODA la lista, no solo la primera página.
     const validation = workbook.getWorksheet('Inscripciones')!.getCell('B2').dataValidation
     expect(validation.formulae).toEqual(['Listas!$B$2:$B$2501'])
+  })
+
+  it('still returns every student when the server caps pages below 1000 rows', async () => {
+    serverMaxRows = 500
+    tables.profiles = Array.from({ length: 1800 }, (_, i) => ({
+      id: `s${i}`,
+      role: 'STUDENT',
+      is_active: true,
+      student_code: String(202500000000 + i),
+      name: `Estudiante ${i}`,
+    }))
+
+    const workbook = await load(await GET(request('ENROLLMENT')))
+
+    const students = column(workbook, 2)
+    expect(students).toHaveLength(1801) // encabezado + 1800, sin truncar a 500
+    expect(students[1800]).toBe('202500001799 — Estudiante 1799')
   })
 
   it('fails instead of returning a partial template when any list errors', async () => {

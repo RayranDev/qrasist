@@ -708,10 +708,19 @@ describe('bulkImportStudents — hardening', () => {
 })
 
 describe('bulkImportEnrollments — dropdown display values', () => {
-  it('accepts "CODE — Name" values and looks up only the code', async () => {
-    const mockSubjectByCode = vi.fn().mockResolvedValue({ data: { id: 'subject-1' } })
-    const mockStudent = vi.fn().mockResolvedValue({ data: { id: 'st-1', role: 'STUDENT' } })
-    const mockEnrollInsert = vi.fn().mockResolvedValue({ error: null })
+  const mockSubjectByCode = vi.fn()
+  const mockStudent = vi.fn()
+  const mockEnrollInsert = vi.fn()
+
+  /** Materias y estudiantes que "existen" en la base simulada. */
+  function setup(subjects: Record<string, string>, students: Record<string, string>) {
+    mockSubjectByCode.mockReset().mockImplementation(async (code: string) => ({
+      data: subjects[code] ? { id: subjects[code] } : null,
+    }))
+    mockStudent.mockReset().mockImplementation(async (code: string) => ({
+      data: students[code] ? { id: students[code], role: 'STUDENT' } : null,
+    }))
+    mockEnrollInsert.mockReset().mockResolvedValue({ error: null })
     mockUserFrom.mockImplementation((table: string) => {
       if (table === 'subjects') {
         return {
@@ -730,23 +739,63 @@ describe('bulkImportEnrollments — dropdown display values', () => {
       if (table === 'enrollments') return { insert: mockEnrollInsert }
       throw new Error(`unexpected table: ${table}`)
     })
+  }
 
-    const form = await formWith(
-      [
-        {
-          'Código Materia': 'ALG-201 — Álgebra Lineal',
-          'Código Estudiante': '202500000001 — Ana Torres',
-        },
-        { 'Código Materia': 'ALG-201', 'Código Estudiante': '202500000002' },
-      ],
-      ['Código Materia', 'Código Estudiante'],
-      'Inscripciones'
+  async function enroll(rows: Record<string, string>[]) {
+    return bulkImportEnrollments(
+      await formWith(rows, ['Código Materia', 'Código Estudiante'], 'Inscripciones')
     )
-    const result = await bulkImportEnrollments(form)
+  }
+
+  it('accepts "CODE — Name" values and plain codes', async () => {
+    setup({ 'ALG-201': 'subject-1' }, { '202500000001': 'st-1', '202500000002': 'st-2' })
+
+    const result = await enroll([
+      {
+        'Código Materia': 'ALG-201 — Álgebra Lineal',
+        'Código Estudiante': '202500000001 — Ana Torres',
+      },
+      { 'Código Materia': 'ALG-201', 'Código Estudiante': '202500000002' },
+    ])
 
     expect(result).toMatchObject({ successCount: 2, errors: [] })
-    expect(mockSubjectByCode).toHaveBeenCalledWith('ALG-201')
-    expect(mockStudent).toHaveBeenCalledWith('202500000001')
-    expect(mockStudent).toHaveBeenCalledWith('202500000002')
+    expect(mockEnrollInsert).toHaveBeenCalledWith({ subject_id: 'subject-1', student_id: 'st-1' })
+    expect(mockEnrollInsert).toHaveBeenCalledWith({ subject_id: 'subject-1', student_id: 'st-2' })
+  })
+
+  it('resolves a plain code with a spaced dash to that exact subject even if the prefix exists', async () => {
+    setup({ CALC: 'subject-calc', 'CALC - 101': 'subject-101' }, { '202500000001': 'st-1' })
+
+    const result = await enroll([
+      { 'Código Materia': 'CALC - 101', 'Código Estudiante': '202500000001' },
+    ])
+
+    expect(result).toMatchObject({ successCount: 1, errors: [] })
+    expect(mockEnrollInsert).toHaveBeenCalledWith({ subject_id: 'subject-101', student_id: 'st-1' })
+    expect(mockSubjectByCode).not.toHaveBeenCalledWith('CALC')
+  })
+
+  it('resolves the display value of a code with a spaced dash to the full code', async () => {
+    setup({ CALC: 'subject-calc', 'CALC - 101': 'subject-101' }, { '202500000001': 'st-1' })
+
+    const result = await enroll([
+      { 'Código Materia': 'CALC - 101 — Cálculo', 'Código Estudiante': '202500000001' },
+    ])
+
+    expect(result).toMatchObject({ successCount: 1, errors: [] })
+    expect(mockEnrollInsert).toHaveBeenCalledWith({ subject_id: 'subject-101', student_id: 'st-1' })
+  })
+
+  it('reports the extracted code when nothing matches', async () => {
+    setup({}, { '202500000001': 'st-1' })
+
+    const result = await enroll([
+      { 'Código Materia': 'ZZZ-9 — Inexistente', 'Código Estudiante': '202500000001' },
+    ])
+
+    expect(result).toMatchObject({
+      successCount: 0,
+      errors: [{ row: 2, message: 'No existe la materia con código ZZZ-9.' }],
+    })
   })
 })

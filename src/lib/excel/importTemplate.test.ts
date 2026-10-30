@@ -85,6 +85,12 @@ describe('buildImportTemplate', () => {
 
     expect(sheet.getCell('A2').dataValidation.formulae).toEqual([`${LISTS_SHEET_NAME}!$A$2:$A$3`])
     expect(sheet.getCell('B2').dataValidation.formulae).toEqual([`${LISTS_SHEET_NAME}!$B$2:$B$2`])
+    // Se puede escribir el código a secas: aviso, no bloqueo.
+    expect(sheet.getCell('A2').dataValidation).toMatchObject({
+      errorStyle: 'warning',
+      error: 'Elige un valor de la lista o escribe el código exacto.',
+    })
+    expect(sheet.getCell('B2').dataValidation.errorStyle).toBe('warning')
     expect(sheet.getCell(`B${MAX_IMPORT_ROWS + 1}`).dataValidation.type).toBe('list')
     expect(lists.getCell('A1').value).toBe('Materias')
     expect(lists.getCell('B1').value).toBe('Estudiantes')
@@ -103,6 +109,10 @@ describe('buildImportTemplate', () => {
 
     // Columnas de Listas: A carreras, B períodos, C profesores.
     expect(sheet.getCell('E2').dataValidation.formulae).toEqual([`${LISTS_SHEET_NAME}!$C$2:$C$4`])
+    // Carreras, períodos y profesores siguen bloqueando valores fuera de la lista.
+    for (const address of ['C2', 'E2', 'F2']) {
+      expect(sheet.getCell(address).dataValidation.errorStyle).toBe('stop')
+    }
     expect(loaded.getWorksheet(LISTS_SHEET_NAME)!.getCell('C1').value).toBe('Profesores')
   })
 

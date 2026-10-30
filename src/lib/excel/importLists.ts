@@ -92,7 +92,10 @@ export async function loadImportLists(
 ): Promise<ImportTemplateLists> {
   const entries = await Promise.all(
     sources.map(async (source) => {
-      const rows = unwrapRows(await fetchAllRows(pageFor(supabase, source)), `la lista ${source}`)
+      // untilEmpty: una lista truncada por un `db-max-rows` menor a 1000 daría una plantilla
+      // incompleta sin avisar (faltarían estudiantes en el desplegable).
+      const result = await fetchAllRows(pageFor(supabase, source), 1000, { untilEmpty: true })
+      const rows = unwrapRows(result, `la lista ${source}`)
       return [source, rows.map((row) => labelOf(source, row))] as const
     })
   )

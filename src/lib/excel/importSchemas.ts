@@ -148,13 +148,25 @@ export function isExampleRow(type: ImportType, row: Record<string, string>): boo
   return identity.every((c) => foldText(row[c.header] ?? '') === foldText(exampleRow[c.key] ?? ''))
 }
 
+/** Separador canónico de las listas desplegables: "CÓDIGO — Nombre". */
+export const LIST_LABEL_SEPARATOR = ' \u2014 '
+
 /**
- * Las listas de materias y estudiantes muestran "CÓDIGO — Nombre" para que
- * el admin elija por nombre; al importar solo importa el código. Acepta el
- * valor mostrado o el código a secas: toma lo anterior al primer separador
- * (raya larga, media o guion) rodeado de espacios. Un guion sin espacios
- * -- "CALC-101" -- es parte del código y no separa nada.
+ * Códigos posibles de una celda de código de una lista desplegable, en el
+ * orden en que hay que probarlos. Un código puede llevar guion con espacios
+ * ("CALC - 101") y el nombre también, así que NUNCA se corta a ciegas:
+ *   1. el valor completo, tal cual (lo que escribe quien teclea el código);
+ *   2. lo anterior al primer " — " canónico (el valor mostrado por la lista);
+ *   3. solo si no hay " — ": lo anterior a una raya media o guion con espacios,
+ *      por si el valor se retocó a mano.
+ * El llamador consulta en ese orden y se queda con el primero que existe.
  */
-export function codeFromListValue(value: string): string {
-  return value.split(/\s+[\u2014\u2013-]\s+/)[0].trim()
+export function codeCandidates(value: string): string[] {
+  const full = value.trim()
+  const split = full.includes(LIST_LABEL_SEPARATOR)
+    ? full.split(LIST_LABEL_SEPARATOR)[0]
+    : full.split(/\s+[\u2013-]\s+/)[0]
+  const candidates = [full]
+  if (split.trim() && split.trim() !== full) candidates.push(split.trim())
+  return candidates
 }

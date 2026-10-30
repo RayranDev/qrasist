@@ -96,13 +96,18 @@ export async function buildImportTemplate(
     const values = column.list ? valuesOf(column.list) : []
     if (values.length > 0) {
       const listLetter = columnLetter(sources.indexOf(column.list!))
+      // Carreras, períodos y profesores solo admiten valores de la lista. Materias y
+      // estudiantes avisan pero dejan escribir el código a secas, que el importador acepta.
+      const lenient = column.list === 'subjects' || column.list === 'students'
       validations.add(`${letter}2:${letter}${lastRow}`, {
         type: 'list',
         allowBlank: true,
         showErrorMessage: true,
-        errorStyle: 'stop',
+        errorStyle: lenient ? 'warning' : 'stop',
         errorTitle: 'Valor no válido',
-        error: 'Elige un valor de la lista desplegable.',
+        error: lenient
+          ? 'Elige un valor de la lista o escribe el código exacto.'
+          : 'Elige un valor de la lista desplegable.',
         formulae: [`${LISTS_SHEET_NAME}!$${listLetter}$2:$${listLetter}$${values.length + 1}`],
       })
     }

@@ -14,6 +14,16 @@
  * genéricos -- el caller arma la query completa (select/eq/in/etc.) y
  * solo le aplica el `.range(from, to)` que le llega por parámetro.
  *
+ * Por defecto el final se detecta con una página corta (< `pageSize`), lo
+ * que supone que el `db-max-rows` del servidor es >= `pageSize`. Si el
+ * servidor tuviera un tope menor (500, por ejemplo), una página parcial no
+ * significa que se acabaron las filas y el resultado quedaría truncado en
+ * silencio. `{ untilEmpty: true }` no se fía de eso: pide hasta recibir una
+ * página VACÍA y cada pedido arranca donde terminó realmente el anterior
+ * (`from += filas recibidas`), a costa de una consulta extra al final. Es
+ * opt-in porque varias suites de tests simulan el query builder con datos
+ * fijos que ignoran `.range()`: con este modo nunca verían una página vacía.
+ *
  * El callback devuelve `PromiseLike<FetchAllPage<T>>` (no `Promise`)
  * porque el query builder de supabase-js es "thenable" pero no un
  * `Promise` de verdad (le faltan `.catch`/`.finally`) -- `PromiseLike`
@@ -34,9 +44,15 @@ export interface FetchAllResult<T> {
 
 const DEFAULT_PAGE_SIZE = 1000
 
+export interface FetchAllOptions {
+  /** Corta solo con una página vacía (robusto ante un `db-max-rows` < pageSize). */
+  untilEmpty?: boolean
+}
+
 export async function fetchAllRows<T>(
   runPage: (from: number, to: number) => PromiseLike<FetchAllPage<T>>,
-  pageSize: number = DEFAULT_PAGE_SIZE
+  pageSize: number = DEFAULT_PAGE_SIZE,
+  options: FetchAllOptions = {}
 ): Promise<FetchAllResult<T>> {
   const allRows: T[] = []
   let from = 0
@@ -52,8 +68,13 @@ export async function fetchAllRows<T>(
     const rows = data || []
     allRows.push(...rows)
 
-    if (rows.length < pageSize) break
-    from += pageSize
+    if (options.untilEmpty) {
+      if (rows.length === 0) break
+      from += rows.length
+    } else {
+      if (rows.length < pageSize) break
+      from += pageSize
+    }
   }
 
   return { data: allRows, error: null }

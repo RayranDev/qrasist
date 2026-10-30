@@ -81,4 +81,41 @@ describe('fetchAllRows', () => {
     expect(runPage).toHaveBeenNthCalledWith(2, 100, 199)
     expect(runPage).toHaveBeenNthCalledWith(3, 200, 299)
   })
+
+  describe('with untilEmpty', () => {
+    it('returns exactly 1000 rows and stops on the following empty page', async () => {
+      const { runPage } = makeFakeTable(1000, 1000)
+      const { data, error } = await fetchAllRows(runPage, 1000, { untilEmpty: true })
+
+      expect(error).toBeNull()
+      expect(data).toHaveLength(1000)
+      expect(runPage).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not stop on a short page: pages through 2500 rows with one extra empty query', async () => {
+      const { runPage } = makeFakeTable(2500, 1000)
+      const { data } = await fetchAllRows(runPage, 1000, { untilEmpty: true })
+
+      expect(data).toHaveLength(2500)
+      expect(runPage).toHaveBeenCalledTimes(4)
+    })
+
+    it('still returns every row when the server caps responses below the page size', async () => {
+      // db-max-rows = 500 con pageSize 1000: una página corta NO significa que se acabó.
+      const { runPage } = makeFakeTable(1800, 500)
+      const { data, error } = await fetchAllRows(runPage, 1000, { untilEmpty: true })
+
+      expect(error).toBeNull()
+      expect(data.map((r) => r.id)).toEqual(Array.from({ length: 1800 }, (_, i) => i))
+      // Cada pedido arranca donde terminó el anterior: sin saltos ni repetidos.
+      expect(runPage.mock.calls.map(([from]) => from)).toEqual([0, 500, 1000, 1500, 1800])
+    })
+
+    it('truncates when the server cap is below the page size in the default mode (why the option exists)', async () => {
+      const { runPage } = makeFakeTable(1800, 500)
+      const { data } = await fetchAllRows(runPage, 1000)
+
+      expect(data).toHaveLength(500)
+    })
+  })
 })

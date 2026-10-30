@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { codeFromListValue, IMPORT_SCHEMA, isExampleRow, type ImportType } from './importSchemas'
+import { codeCandidates, IMPORT_SCHEMA, isExampleRow, type ImportType } from './importSchemas'
 
 /** La fila de ejemplo tal como la leería el parser: encabezado -> valor. */
 function exampleAsParsed(type: ImportType) {
@@ -26,21 +26,39 @@ describe('isExampleRow', () => {
   })
 })
 
-describe('codeFromListValue', () => {
-  it('takes the text before the " — " separator of a dropdown value', () => {
-    expect(codeFromListValue('ALG-201 — Álgebra Lineal')).toBe('ALG-201')
-    expect(codeFromListValue('202500000001 — Ana Torres')).toBe('202500000001')
+describe('codeCandidates', () => {
+  it('offers the full value first, then the code before the canonical " — " separator', () => {
+    expect(codeCandidates('ALG-201 — Álgebra Lineal')).toEqual([
+      'ALG-201 — Álgebra Lineal',
+      'ALG-201',
+    ])
+    expect(codeCandidates('202500000001 — Ana Torres')).toEqual([
+      '202500000001 — Ana Torres',
+      '202500000001',
+    ])
   })
 
-  it('tolerates en dash and hyphen variants surrounded by spaces', () => {
-    expect(codeFromListValue('ALG-201 – Álgebra')).toBe('ALG-201')
-    expect(codeFromListValue('ALG-201 - Álgebra')).toBe('ALG-201')
-    expect(codeFromListValue('  ALG-201   —   Álgebra - Lineal ')).toBe('ALG-201')
+  it('keeps a spaced dash that belongs to the code when the value has the canonical separator', () => {
+    expect(codeCandidates('CALC - 101 — Cálculo')).toEqual(['CALC - 101 — Cálculo', 'CALC - 101'])
   })
 
-  it('leaves a plain code untouched, including hyphens inside the code', () => {
-    expect(codeFromListValue('CALC-101')).toBe('CALC-101')
-    expect(codeFromListValue(' 202500000001 ')).toBe('202500000001')
-    expect(codeFromListValue('')).toBe('')
+  it('does not cut names that contain dashes after the canonical separator', () => {
+    expect(codeCandidates('ALG-201 — Álgebra - Lineal — II')[1]).toBe('ALG-201')
+  })
+
+  it('offers a plain code once, even if it contains a spaced dash', () => {
+    expect(codeCandidates(' 202500000001 ')).toEqual(['202500000001'])
+    expect(codeCandidates('CALC-101')).toEqual(['CALC-101'])
+    // La división tolerante existe, pero siempre DESPUÉS del valor completo.
+    expect(codeCandidates('CALC - 101')).toEqual(['CALC - 101', 'CALC'])
+  })
+
+  it('tolerates en dash and hyphen separators only as a fallback candidate', () => {
+    expect(codeCandidates('ALG-201 – Álgebra')).toEqual(['ALG-201 – Álgebra', 'ALG-201'])
+    expect(codeCandidates('ALG-201 - Álgebra')).toEqual(['ALG-201 - Álgebra', 'ALG-201'])
+  })
+
+  it('returns an empty first candidate for an empty value', () => {
+    expect(codeCandidates('')).toEqual([''])
   })
 })
