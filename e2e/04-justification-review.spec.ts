@@ -108,6 +108,8 @@ test.describe('justification review', () => {
 
       await studentPage.reload()
       await expect(studentPage.getByText('1 justificada')).toHaveCount(0)
+      // Positive state: the missed session now shows the rejected chip.
+      await expect(studentPage.getByText('Rechazada', { exact: true }).first()).toBeVisible()
 
       await studentContext.close()
     } finally {

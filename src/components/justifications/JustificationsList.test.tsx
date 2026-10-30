@@ -14,7 +14,12 @@ vi.mock('@/lib/actions/justifications', () => ({
   getJustificationAttachmentUrl: vi.fn(),
 }))
 
-function row(id: string, status: JustificationRow['status'], name = `Estudiante ${id}`) {
+function row(
+  id: string,
+  status: JustificationRow['status'],
+  name = `Estudiante ${id}`,
+  sessionDate = '2026-09-28T10:00:00Z'
+) {
   return {
     id,
     reason: 'Cita médica en la EPS',
@@ -24,7 +29,7 @@ function row(id: string, status: JustificationRow['status'], name = `Estudiante 
     reviewed_at: null,
     created_at: '2026-10-01T10:00:00Z',
     subject: { id: 's1', name: 'Cálculo', code: 'MAT101' },
-    session: { id: `ses-${id}`, date: '2026-09-28T10:00:00Z' },
+    session: { id: `ses-${id}`, date: sessionDate },
     student: { name, student_code: '2020' },
   } satisfies JustificationRow
 }
@@ -107,6 +112,34 @@ describe('JustificationsList: change decision', () => {
     expect(await screen.findByRole('button', { name: 'Aprobar' })).toBeTruthy()
   })
 
+  it('tells the admin the student sees the reason, or that it stays in the audit for PENDING', () => {
+    renderList([row('a', 'APPROVED')])
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar decisión' }))
+    const dialog = screen.getByRole('dialog')
+
+    expect(within(dialog).getByText(/El estudiante verá este motivo/)).toBeTruthy()
+    fireEvent.click(within(dialog).getByLabelText(/Pendiente/))
+    expect(within(dialog).getByText(/solo queda en la auditoría/)).toBeTruthy()
+    expect(within(dialog).queryByText(/El estudiante verá este motivo/)).toBeNull()
+  })
+
+  it('warns that resubmitting is closed when rejecting a session outside the window', () => {
+    renderList([row('a', 'APPROVED')]) // session from 2026-09-28: window long gone
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar decisión' }))
+    const dialog = screen.getByRole('dialog')
+
+    expect(within(dialog).getByText(/El plazo para reenviar ya venció/)).toBeTruthy()
+    // Not relevant when sending it back to review.
+    fireEvent.click(within(dialog).getByLabelText(/Pendiente/))
+    expect(within(dialog).queryByText(/El plazo para reenviar ya venció/)).toBeNull()
+  })
+
+  it('does not warn about the window when the session is still inside it', () => {
+    renderList([row('a', 'APPROVED', 'Ana', new Date().toISOString())])
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar decisión' }))
+    expect(screen.queryByText(/El plazo para reenviar ya venció/)).toBeNull()
+  })
+
   it('keeps the row and shows the error when the server refuses the change', async () => {
     mockChange.mockResolvedValue({ success: false, error: 'La justificación cambió.' })
     renderList([row('a', 'APPROVED')])
@@ -181,12 +214,40 @@ describe('JustificationsList: bulk approve', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Aprobar seleccionadas (2)' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Aprobar' }))
 
-    expect(await screen.findByText('1 justificación aprobada.')).toBeTruthy()
     expect(
-      screen.getByText(/1 justificación no se pudo aprobar: Esta justificación ya fue revisada\./)
+      await screen.findByText(
+        'Se aprobaron 1; 1 justificación no se pudo aprobar: Esta justificación ya fue revisada.'
+      )
     ).toBeTruthy()
     expect(screen.getAllByText('Aprobada')).toHaveLength(1)
     expect(screen.getAllByText('Pendiente')).toHaveLength(1)
+  })
+
+  it('drops a row from the selection once it is decided, so it is not re-checked after going back to PENDING', async () => {
+    mockReview.mockResolvedValue({ success: true })
+    mockChange.mockResolvedValue({ success: true })
+    renderList(pendings())
+
+    fireEvent.click(screen.getByLabelText('Seleccionar justificación de Ana'))
+    expect(screen.getByText('1 seleccionada')).toBeTruthy()
+
+    // Approve Ana individually (the first "Aprobar" row button is Ana's).
+    fireEvent.click(screen.getAllByRole('button', { name: 'Aprobar' })[0])
+    await waitFor(() => expect(mockReview).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getAllByText('Aprobada')).toHaveLength(1))
+
+    // Send her back to review.
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar decisión' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(within(dialog).getByLabelText(/Pendiente/))
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'Revisar de nuevo' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirmar cambio' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+
+    const box = screen.getByLabelText('Seleccionar justificación de Ana') as HTMLInputElement
+    expect(box.checked).toBe(false)
+    expect(screen.queryByText(/seleccionada/)).toBeNull()
+    expect(screen.queryByRole('button', { name: /Aprobar seleccionadas/ })).toBeNull()
   })
 
   it('shows the server error and keeps the rows pending when the whole call fails', async () => {

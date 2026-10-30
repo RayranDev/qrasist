@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { isWithinJustificationWindow } from '@/lib/justifications/eligibility'
 import type { JustificationStatus } from './rowStyle'
 
 export type DecisionTarget = JustificationStatus
@@ -24,6 +25,8 @@ interface ChangeDecisionModalProps {
   /** Estado actual (APPROVED o REJECTED). */
   current: Exclude<DecisionTarget, 'PENDING'>
   description?: string
+  /** Fecha de la sesión: para avisar si el estudiante aún puede reenviar tras un rechazo. */
+  sessionDate?: string | null
   loading?: boolean
   onCancel: () => void
   onConfirm: (to: DecisionTarget, reason: string) => void
@@ -37,6 +40,7 @@ interface ChangeDecisionModalProps {
 export default function ChangeDecisionModal({
   current,
   description,
+  sessionDate,
   loading = false,
   onCancel,
   onConfirm,
@@ -45,6 +49,11 @@ export default function ChangeDecisionModal({
   const [to, setTo] = useState<DecisionTarget>(targets[0])
   const [reason, setReason] = useState('')
   const isValid = reason.trim().length >= MIN_REASON_LENGTH
+  // Rechazada fuera de plazo: el estudiante no podrá reenviar (submitJustification
+  // valida la ventana de nuevo).
+  const resubmitClosed =
+    to === 'REJECTED' && !!sessionDate && !isWithinJustificationWindow(sessionDate)
+  const reasonIsVisible = to !== 'PENDING'
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -106,12 +115,23 @@ export default function ChangeDecisionModal({
           </p>
         )}
 
+        {resubmitClosed && (
+          <p className="text-xs text-sky-800 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2 mb-4">
+            El plazo para reenviar ya venció: el estudiante no podrá enviar una nueva justificación.
+          </p>
+        )}
+
         <label
           htmlFor="change-decision-textarea"
           className="block text-xs font-semibold text-gray-700 mb-1.5"
         >
           Motivo (obligatorio, mín. {MIN_REASON_LENGTH} caracteres)
         </label>
+        <p className="text-xs text-gray-500 mb-1.5">
+          {reasonIsVisible
+            ? 'El estudiante verá este motivo como nota de revisión.'
+            : 'Este motivo solo queda en la auditoría; el estudiante no lo verá.'}
+        </p>
         <textarea
           id="change-decision-textarea"
           value={reason}

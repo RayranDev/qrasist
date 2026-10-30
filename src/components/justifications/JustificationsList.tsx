@@ -94,6 +94,16 @@ export default function JustificationsList({
     })
   }
 
+  // Una fila que cambia de estado deja de ser seleccionable: se saca de la
+  // selección para que, si vuelve a PENDING, no reaparezca marcada.
+  const dropFromSelection = (ids: string[]) =>
+    setSelected((prev) => {
+      if (!ids.some((id) => prev.has(id))) return prev
+      const next = new Set(prev)
+      ids.forEach((id) => next.delete(id))
+      return next
+    })
+
   const toggleSelectAll = () => {
     if (allSelected) {
       setSelected(new Set())
@@ -122,6 +132,7 @@ export default function JustificationsList({
       decision: 'APPROVED',
     })
     if (result.success) {
+      dropFromSelection([justification.id])
       setItems((prev) =>
         prev.map((j) => (j.id === justification.id ? { ...j, status: 'APPROVED' } : j))
       )
@@ -144,6 +155,7 @@ export default function JustificationsList({
       note,
     })
     if (result.success) {
+      dropFromSelection([rejectTarget.id])
       setItems((prev) =>
         prev.map((j) =>
           j.id === rejectTarget.id ? { ...j, status: 'REJECTED', review_note: note } : j
@@ -169,6 +181,7 @@ export default function JustificationsList({
       reason,
     })
     if (result.success) {
+      dropFromSelection([changeTarget.id])
       // Mismo efecto que el servidor: PENDING deja la fila como no revisada.
       setItems((prev) =>
         prev.map((j) =>
@@ -204,16 +217,22 @@ export default function JustificationsList({
     const approved = new Set(result.approved)
     if (approved.size > 0) {
       setItems((prev) => prev.map((j) => (approved.has(j.id) ? { ...j, status: 'APPROVED' } : j)))
-      showToast(
-        `${countOf(approved.size, 'justificación aprobada', 'justificaciones aprobadas')}.`,
-        'success'
-      )
     }
-    if (result.failures.length > 0) {
-      showToast(
-        `${countOf(result.failures.length, 'justificación no se pudo aprobar', 'justificaciones no se pudieron aprobar')}: ${result.failures[0].message}`,
-        'error'
+    const approvedText = countOf(
+      approved.size,
+      'justificación aprobada',
+      'justificaciones aprobadas'
+    )
+    if (result.failures.length === 0) {
+      showToast(`${approvedText}.`, 'success')
+    } else {
+      const failedText = countOf(
+        result.failures.length,
+        'justificación no se pudo aprobar',
+        'justificaciones no se pudieron aprobar'
       )
+      const prefix = approved.size > 0 ? `Se aprobaron ${approved.size}; ` : ''
+      showToast(`${prefix}${failedText}: ${result.failures[0].message}`, 'error')
     }
     // Se limpia toda la selección: lo aprobado ya no está pendiente y lo
     // fallido suele estar desactualizado (otra persona lo revisó).
@@ -447,6 +466,7 @@ export default function JustificationsList({
         <ChangeDecisionModal
           current={changeTarget.status}
           description={`${changeTarget.student?.name || 'Estudiante'} · ${changeTarget.subject?.name || ''}`}
+          sessionDate={changeTarget.session?.date}
           loading={busyId === changeTarget.id}
           onCancel={() => setChangeTarget(null)}
           onConfirm={handleChangeDecision}
