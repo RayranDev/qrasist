@@ -118,30 +118,15 @@ export default async function AdminDashboardPage({
     }))
     .sort((a, b) => b.studentCount - a.studentCount)
 
-  // Solicitudes de inscripción pendientes (institución completa) --
-  // se agrupan por materia para poder llevar al admin directo a la
-  // que más solicitudes acumula.
-  const { data: pendingRequests } = await supabase
+  // Solicitudes de inscripción pendientes (institución completa). Solo el
+  // total: el detalle (por materia o por estudiante) vive en
+  // /admin/enrollment-requests. Conteo en la base, no filas: un select sin
+  // rango se corta en 1000 y subestimaría el total.
+  const { count: pendingEnrollmentRequestsCount } = await supabase
     .from('enrollment_requests')
-    .select('subject_id')
+    .select('*', { count: 'exact', head: true })
     .eq('status', 'pending')
-
-  const pendingRequestsBySubject = new Map<string, number>()
-  for (const r of pendingRequests || []) {
-    pendingRequestsBySubject.set(
-      r.subject_id,
-      (pendingRequestsBySubject.get(r.subject_id) || 0) + 1
-    )
-  }
-  let topRequestSubjectId: string | null = null
-  let topRequestCount = 0
-  for (const [subjectId, count] of pendingRequestsBySubject) {
-    if (count > topRequestCount) {
-      topRequestCount = count
-      topRequestSubjectId = subjectId
-    }
-  }
-  const pendingEnrollmentRequestsTotal = pendingRequests?.length ?? 0
+  const pendingEnrollmentRequestsTotal = pendingEnrollmentRequestsCount ?? 0
 
   // Docentes activos con materias
   const { data: professors } = await supabase
@@ -343,9 +328,7 @@ export default async function AdminDashboardPage({
       activeSessionsNow: openSessionsNow ?? 0,
     },
     {
-      enrollmentRequestsHref: topRequestSubjectId
-        ? `/professor/subjects/${topRequestSubjectId}/requests`
-        : null,
+      enrollmentRequestsHref: '/admin/enrollment-requests',
       justificationsHref: '/admin/justifications?status=PENDING',
       unregisteredClassesHref: '/admin/omissions?status=unjustified',
       recentSuspensionsHref: '/admin/omissions?status=suspended',

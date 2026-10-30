@@ -155,6 +155,17 @@ export default async function ProfessorSubjectsPage() {
     defaultClassMinutes
   )
 
+  // Total de solicitudes de inscripción pendientes en todas sus materias
+  // (alimenta el acceso "Solicitudes" del encabezado).
+  const pendingRequestsTotal = (subjects || []).reduce(
+    (sum, sub) =>
+      sum +
+      ((sub.enrollment_requests as { id: string; status: string }[] | null)?.filter(
+        (r) => r.status === 'pending'
+      ).length ?? 0),
+    0
+  )
+
   const atRiskCountBySubject = new Map<string, number>()
   for (const sub of subjects || []) {
     const enrolled = (sub.enrollments as { student_id: string }[] | null) || []
@@ -204,6 +215,17 @@ export default async function ProfessorSubjectsPage() {
                   currentFirstName={profile?.first_name || ''}
                   currentLastName={profile?.last_name || ''}
                 />
+                <Link
+                  href="/professor/requests"
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-navy-700 bg-navy-50 rounded-xl hover:bg-navy-100 transition"
+                >
+                  Solicitudes
+                  {pendingRequestsTotal > 0 && (
+                    <span className="text-xs rounded-full px-1.5 py-0.5 font-black bg-amber-100 text-amber-700">
+                      {pendingRequestsTotal}
+                    </span>
+                  )}
+                </Link>
                 <Link
                   href="/professor/justifications"
                   className="px-4 py-2 text-sm font-bold text-navy-700 bg-navy-50 rounded-xl hover:bg-navy-100 transition"
