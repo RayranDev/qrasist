@@ -528,13 +528,17 @@ describe('bulkImportSubjects — career and period lookup', () => {
 
 describe('bulkImportEnrollments — numeric codes', () => {
   it('reads a numeric student code from the sheet and looks it up as text', async () => {
-    const mockStudent = vi.fn().mockResolvedValue({ data: { id: 'st-1', role: 'STUDENT' } })
+    const mockStudent = vi
+      .fn()
+      .mockResolvedValue({ data: { id: 'st-1', role: 'STUDENT', is_active: true } })
     const mockEnrollInsert = vi.fn().mockResolvedValue({ error: null })
     mockUserFrom.mockImplementation((table: string) => {
       if (table === 'subjects') {
         return {
           select: () => ({
-            eq: () => ({ maybeSingle: async () => ({ data: { id: 'subject-1' } }) }),
+            eq: () => ({
+              maybeSingle: async () => ({ data: { id: 'subject-1', is_active: true } }),
+            }),
           }),
         }
       }
@@ -712,13 +716,21 @@ describe('bulkImportEnrollments — dropdown display values', () => {
   const mockStudent = vi.fn()
   const mockEnrollInsert = vi.fn()
 
-  /** Materias y estudiantes que "existen" en la base simulada. */
-  function setup(subjects: Record<string, string>, students: Record<string, string>) {
+  /** Materias y estudiantes que "existen" en la base simulada; `inactive` lista los ids inactivos. */
+  function setup(
+    subjects: Record<string, string>,
+    students: Record<string, string>,
+    inactive: string[] = []
+  ) {
     mockSubjectByCode.mockReset().mockImplementation(async (code: string) => ({
-      data: subjects[code] ? { id: subjects[code] } : null,
+      data: subjects[code]
+        ? { id: subjects[code], is_active: !inactive.includes(subjects[code]) }
+        : null,
     }))
     mockStudent.mockReset().mockImplementation(async (code: string) => ({
-      data: students[code] ? { id: students[code], role: 'STUDENT' } : null,
+      data: students[code]
+        ? { id: students[code], role: 'STUDENT', is_active: !inactive.includes(students[code]) }
+        : null,
     }))
     mockEnrollInsert.mockReset().mockResolvedValue({ error: null })
     mockUserFrom.mockImplementation((table: string) => {
@@ -773,6 +785,28 @@ describe('bulkImportEnrollments — dropdown display values', () => {
     expect(result).toMatchObject({ successCount: 1, errors: [] })
     expect(mockEnrollInsert).toHaveBeenCalledWith({ subject_id: 'subject-101', student_id: 'st-1' })
     expect(mockSubjectByCode).not.toHaveBeenCalledWith('CALC')
+  })
+
+  it('rejects an inactive subject or student typed by hand', async () => {
+    setup(
+      { 'ALG-201': 'subject-1', 'OLD-100': 'subject-old' },
+      { '202500000001': 'st-1', '202500000009': 'st-old' },
+      ['subject-old', 'st-old']
+    )
+
+    const result = await enroll([
+      { 'Código Materia': 'OLD-100', 'Código Estudiante': '202500000001' },
+      { 'Código Materia': 'ALG-201', 'Código Estudiante': '202500000009' },
+    ])
+
+    expect(result).toMatchObject({
+      successCount: 0,
+      errors: [
+        expect.objectContaining({ message: 'La materia OLD-100 está inactiva.' }),
+        expect.objectContaining({ message: 'El estudiante 202500000009 está inactivo.' }),
+      ],
+    })
+    expect(mockEnrollInsert).not.toHaveBeenCalled()
   })
 
   it('resolves the display value of a code with a spaced dash to the full code', async () => {

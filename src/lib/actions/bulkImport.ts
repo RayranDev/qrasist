@@ -491,11 +491,11 @@ export async function bulkImportEnrollments(formData: FormData): Promise<ActionR
     async (data) => {
       // Se prueba primero el valor completo: un código como "CALC - 101" es válido y
       // cortarlo en el guion lo inscribiría en otra materia ("CALC").
-      let subject: { id: string } | null = null
+      let subject: { id: string; is_active: boolean } | null = null
       for (const code of data.subjectCodes) {
         const { data: found } = await supabase
           .from('subjects')
-          .select('id')
+          .select('id, is_active')
           .eq('code', code)
           .maybeSingle()
         if (found) {
@@ -506,12 +506,16 @@ export async function bulkImportEnrollments(formData: FormData): Promise<ActionR
       const subjectLabel = data.subjectCodes[data.subjectCodes.length - 1]
       if (!subject)
         return { success: false, error: `No existe la materia con código ${subjectLabel}.` }
+      // La lista desplegable solo ofrece materias activas, pero el código escrito a mano
+      // no pasa por ella: se valida aquí también.
+      if (!subject.is_active)
+        return { success: false, error: `La materia ${subjectLabel} está inactiva.` }
 
-      let student: { id: string; role: string } | null = null
+      let student: { id: string; role: string; is_active: boolean } | null = null
       for (const code of data.studentCodes) {
         const { data: found } = await supabase
           .from('profiles')
-          .select('id, role')
+          .select('id, role, is_active')
           .eq('student_code', code)
           .maybeSingle()
         if (found) {
@@ -525,6 +529,9 @@ export async function bulkImportEnrollments(formData: FormData): Promise<ActionR
       }
       if (student.role !== 'STUDENT') {
         return { success: false, error: `${studentLabel} no corresponde a un estudiante.` }
+      }
+      if (!student.is_active) {
+        return { success: false, error: `El estudiante ${studentLabel} está inactivo.` }
       }
 
       const check = await checkStudentEnrollable(supabase, subject.id, student.id)
