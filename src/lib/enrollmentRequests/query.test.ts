@@ -114,6 +114,54 @@ describe('fetchPendingRequests', () => {
     expect(calls.map((c) => !!c.selectOptions)).toEqual([true, false, false])
   })
 
+  it('keeps paging when the server caps pages below 1000 rows (max_rows)', async () => {
+    const all = Array.from({ length: 1300 }, (_, i) => raw(i))
+    const CAP = 500
+    const { client, calls } = fakeClient((call) => ({
+      // El servidor ignora el rango pedido y devuelve a lo sumo CAP filas.
+      data: all.slice(call.range[0], Math.min(call.range[1] + 1, call.range[0] + CAP)),
+      count: call.selectOptions ? all.length : null,
+    }))
+
+    const result = await fetchPendingRequests(client, { scope: {}, filters: { q: '' } })
+
+    expect(result.requests).toHaveLength(1300)
+    expect(result.total).toBe(1300)
+    expect(result.truncated).toBe(false)
+    expect(calls.map((c) => c.range[0])).toEqual([0, 500, 1000])
+  })
+
+  it('stops on an empty page instead of looping when the count is stale', async () => {
+    const all = Array.from({ length: 10 }, (_, i) => raw(i))
+    const { client, calls } = fakeClient((call) => ({
+      data: all.slice(call.range[0], call.range[1] + 1),
+      count: call.selectOptions ? 25 : null,
+    }))
+
+    const result = await fetchPendingRequests(client, { scope: {}, filters: { q: '' } })
+
+    expect(result.requests).toHaveLength(10)
+    expect(calls).toHaveLength(2)
+  })
+
+  it('drops duplicate rows when the list shifts between pages', async () => {
+    const all = Array.from({ length: 1200 }, (_, i) => raw(i))
+    const { client } = fakeClient((call) => {
+      const rows = all.slice(call.range[0], call.range[1] + 1)
+      // Una aprobación concurrente desplaza la lista: la 2.ª página repite 5 filas.
+      return {
+        data: call.range[0] === 1000 ? [...all.slice(995, 1000), ...rows] : rows,
+        count: call.selectOptions ? all.length : null,
+      }
+    })
+
+    const result = await fetchPendingRequests(client, { scope: {}, filters: { q: '' } })
+
+    const ids = result.requests.map((r) => r.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(ids).toHaveLength(1200)
+  })
+
   it('stops at maxRows and says so instead of truncating silently', async () => {
     const all = Array.from({ length: 2300 }, (_, i) => raw(i))
     const { client, calls } = fakeClient((call) => ({
@@ -133,23 +181,46 @@ describe('fetchPendingRequests', () => {
     expect(calls).toHaveLength(2)
   })
 
-  it('applies the professor scope, subject and career filters', async () => {
+  it('applies the professor scope and the subject filter', async () => {
     const { client, calls } = fakeClient(() => ({ data: [], count: 0 }))
 
     await fetchPendingRequests(client, {
       scope: { professorId: 'prof-1' },
-      filters: { q: '', career: 'career-1', subjectId: 'subj-1' },
+      filters: { q: '', subjectId: 'subj-1' },
     })
 
-    expect(calls[0].select).toContain('subject_careers!inner')
     expect(calls[0].eq).toEqual(
       expect.arrayContaining([
         ['subject_id', 'subj-1'],
         ['subject.professor_id', 'prof-1'],
+      ])
+    )
+  })
+
+  it('applies the career filter for an admin', async () => {
+    const { client, calls } = fakeClient(() => ({ data: [], count: 0 }))
+
+    await fetchPendingRequests(client, { scope: {}, filters: { q: '', career: 'career-1' } })
+
+    expect(calls[0].select).toContain('subject_careers!inner')
+    expect(calls[0].eq).toEqual(
+      expect.arrayContaining([
         ['subject.subject_careers.career_id', 'career-1'],
         ['subject.subject_careers.is_active', true],
       ])
     )
+  })
+
+  it('ignores the career filter for a professor', async () => {
+    const { client, calls } = fakeClient(() => ({ data: [], count: 0 }))
+
+    await fetchPendingRequests(client, {
+      scope: { professorId: 'prof-1' },
+      filters: { q: '', career: 'career-1' },
+    })
+
+    expect(calls[0].select).not.toContain('subject_careers')
+    expect(calls[0].eq.some(([c]) => c.includes('career'))).toBe(false)
   })
 
   it('does not join careers when there is no career filter', async () => {

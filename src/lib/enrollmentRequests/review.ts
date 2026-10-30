@@ -215,7 +215,10 @@ export async function approveRequests(
       .eq('reviewed_by', userId)
     if (revertError) {
       // No hay más que hacer acá: queda aprobada sin inscripción y la falla
-      // se reporta igual. Se deja rastro para repararla a mano.
+      // se reporta igual. Se deja rastro para repararla a mano. El
+      // estudiante también se recupera solo: al volver a solicitar la
+      // materia, createEnrollmentRequest hace upsert y deja la solicitud
+      // otra vez en 'pending'.
       console.error('No se pudo revertir el reclamo de solicitudes:', {
         ids: failed.map((r) => r.id),
         error: revertError,

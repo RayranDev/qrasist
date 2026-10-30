@@ -358,7 +358,13 @@ describe('approveAllEnrollmentRequests', () => {
     const input = mockFetchPending.mock.calls[0][1]
     expect(input.scope).toEqual({})
     expect(input.filters).toEqual({ q: 'anax', career: undefined, subjectId: S1 })
-    expect(result).toMatchObject({ success: true, total: 3, remaining: 0, truncated: false })
+    expect(result).toMatchObject({
+      success: true,
+      total: 3,
+      remaining: 0,
+      skipped: 0,
+      truncated: false,
+    })
     expect(result.approved).toEqual(requests.map((r) => r.id))
     expect(db.state.requests.every((r) => r.status === 'approved')).toBe(true)
   })
@@ -413,6 +419,50 @@ describe('approveAllEnrollmentRequests', () => {
     )
   })
 
+  it('does not starve newer requests behind ones that can never be approved', async () => {
+    // 300 solicitudes antiguas de estudiantes sin carrera (nunca se aprueban,
+    // siguen pendientes) y detrás 900 aprobables.
+    const requests = Array.from({ length: 1200 }, (_, i) => request(i + 1))
+    seed(requests)
+    asUser(ME)
+    db.state.studentCareers = db.state.studentCareers.slice(300)
+    mockFetchPending.mockResolvedValue({
+      requests: requests.map(pending),
+      total: 1200,
+      truncated: false,
+      error: false,
+    })
+
+    const result = await approveAllEnrollmentRequests({})
+
+    // Las 300 fallidas no cuentan contra el tope: se aprueban las 500 siguientes.
+    expect(result.approved).toHaveLength(APPROVE_ALL_MAX)
+    expect(result.approved[0]).toBe(requests[300].id)
+    expect(result.skipped).toBe(300)
+    expect(result.failures).toHaveLength(300)
+    expect(result.remaining).toBe(1200 - 300 - APPROVE_ALL_MAX)
+    // Repetir llega a las más nuevas aunque las fallidas sigan al frente.
+    const pendingAfter = db.state.requests.filter((r) => r.status === 'pending')
+    expect(pendingAfter).toHaveLength(700)
+  })
+
+  it('stops at the batch where the approval limit is reached (no overshoot)', async () => {
+    const requests = Array.from({ length: 650 }, (_, i) => request(i + 1))
+    seed(requests)
+    asUser(ME)
+    mockFetchPending.mockResolvedValue({
+      requests: requests.map(pending),
+      total: 650,
+      truncated: false,
+      error: false,
+    })
+
+    const result = await approveAllEnrollmentRequests({})
+
+    expect(result.approved).toHaveLength(APPROVE_ALL_MAX)
+    expect(result.skipped).toBe(0)
+  })
+
   it('passes along that the scan was truncated so the count is a lower bound', async () => {
     const requests = [request(1)]
     seed(requests)
@@ -428,6 +478,7 @@ describe('approveAllEnrollmentRequests', () => {
 
     expect(result.truncated).toBe(true)
     expect(result.remaining).toBe(4999)
+    expect(result.skipped).toBe(0)
   })
 
   it('reports per-id failures across batches', async () => {
@@ -445,6 +496,7 @@ describe('approveAllEnrollmentRequests', () => {
     const result = await approveAllEnrollmentRequests({})
 
     expect(result.approved).toHaveLength(2)
+    expect(result.skipped).toBe(1)
     expect(result.failures).toEqual([
       { id: uid(3), message: 'El estudiante no tiene ninguna carrera asignada.' },
     ])

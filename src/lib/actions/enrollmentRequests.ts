@@ -8,7 +8,6 @@ import { approveRequests, dedupeIds, rejectRequests } from '@/lib/enrollmentRequ
 import { fetchPendingRequests } from '@/lib/enrollmentRequests/query'
 import { sanitizeRequestFilters } from '@/lib/enrollmentRequests/filters'
 import type { ReviewFailure } from '@/lib/enrollmentRequests/messages'
-import { chunk } from '@/lib/enrollmentRequests/selection'
 import { APPROVE_ALL_MAX, BULK_REVIEW_MAX } from '@/lib/enrollmentRequests/constants'
 
 // Alfabeto sin caracteres ambiguos (0/O, 1/I/L) para que el
@@ -233,8 +232,10 @@ export interface BulkRejectResponse {
 export interface ApproveAllResponse extends BulkApproveResponse {
   /** Solicitudes que coincidían con los filtros al empezar. */
   total: number
-  /** Solicitudes que quedaron sin procesar por el tope de la operación. */
+  /** Solicitudes que ni se intentaron por el tope de la operación (siguen pendientes). */
   remaining: number
+  /** Solicitudes revisadas que no se pudieron aprobar (p. ej. estudiante sin carrera); siguen pendientes. */
+  skipped: number
   /** Había más de SCAN_MAX coincidencias: `total` y `remaining` son cotas inferiores. */
   truncated: boolean
 }
@@ -293,24 +294,43 @@ export async function rejectEnrollmentRequests(ids: string[]): Promise<BulkRejec
 export async function approveAllEnrollmentRequests(
   rawFilters: { q?: string; career?: string; subjectId?: string } = {}
 ): Promise<ApproveAllResponse> {
-  const empty = { approved: [], failures: [], total: 0, remaining: 0, truncated: false }
+  const empty = {
+    approved: [],
+    failures: [],
+    total: 0,
+    remaining: 0,
+    skipped: 0,
+    truncated: false,
+  }
   const { supabase, user } = await getReviewer()
   if (!user) return { success: false, error: 'No autenticado.', ...empty }
 
+  const isAdmin = await checkAdmin(supabase, user.id)
+  // El filtro por carrera es solo de coordinación (ver fetchPendingRequests).
   const filters = sanitizeRequestFilters(rawFilters ?? {})
   // Un profesor solo "ve" sus materias; aunque no lo hiciera, el permiso
   // se vuelve a comprobar por solicitud dentro de approveRequests.
-  const scope = (await checkAdmin(supabase, user.id)) ? {} : { professorId: user.id }
+  const scope = isAdmin ? {} : { professorId: user.id }
 
   const found = await fetchPendingRequests(supabase, { scope, filters })
   if (found.error) {
     return { success: false, error: 'No se pudieron cargar las solicitudes.', ...empty }
   }
 
-  const ids = found.requests.map((r) => r.id).slice(0, APPROVE_ALL_MAX)
+  // Se recorre de la más antigua a la más reciente hasta lograr
+  // APPROVE_ALL_MAX aprobaciones o agotar las candidatas. Las que fallan (p.
+  // ej. estudiante sin carrera) siguen pendientes y encabezarían la cola en
+  // cada repetición: si solo se tomaran las 500 más antiguas, esas fallas
+  // permanentes impedirían llegar jamás a las más nuevas. Por eso las
+  // fallidas no cuentan contra el tope.
+  const candidates = found.requests.map((r) => r.id)
   const approved: string[] = []
   const failures: ReviewFailure[] = []
-  for (const batch of chunk(ids, BULK_REVIEW_MAX)) {
+  let examined = 0
+  while (examined < candidates.length && approved.length < APPROVE_ALL_MAX) {
+    const size = Math.min(BULK_REVIEW_MAX, APPROVE_ALL_MAX - approved.length)
+    const batch = candidates.slice(examined, examined + size)
+    examined += batch.length
     const result = await approveRequests(supabase, user.id, batch)
     approved.push(...result.approved)
     failures.push(...result.failures)
@@ -322,7 +342,8 @@ export async function approveAllEnrollmentRequests(
     approved,
     failures,
     total: found.total,
-    remaining: Math.max(0, found.total - ids.length),
+    remaining: Math.max(0, found.total - examined),
+    skipped: failures.length,
     truncated: found.truncated,
   }
 }

@@ -64,10 +64,15 @@ async function fetchBranch(
   branch: Branch,
   maxRows: number
 ): Promise<{ rows: PendingRequest[]; total: number; truncated: boolean } | null> {
-  const rows: PendingRequest[] = []
+  // Por id: si una solicitud cambia de estado mientras se pagina (otro
+  // revisor aprobando), las filas se desplazan y una podría repetirse.
+  const byId = new Map<string, PendingRequest>()
   let total = 0
 
-  for (let from = 0; ; from += FETCH_PAGE_SIZE) {
+  // El avance es por filas recibidas, no por FETCH_PAGE_SIZE: si el
+  // PostgREST de producción tiene un max_rows menor a 1000, cada página
+  // viene más corta y avanzar de a 1000 saltaría filas en silencio.
+  for (let from = 0; ;) {
     let query = supabase
       .from('enrollment_requests')
       // El conteo exacto solo se pide en la primera página: es el total
@@ -106,12 +111,13 @@ async function fetchBranch(
 
     const page = (data || []) as unknown as RawRequest[]
     if (from === 0) total = count ?? page.length
-    rows.push(...page.map(toPendingRequest))
+    for (const raw of page) byId.set(raw.id, toPendingRequest(raw))
 
-    if (page.length < FETCH_PAGE_SIZE || rows.length >= maxRows) break
+    from += page.length
+    if (page.length === 0 || from >= total || byId.size >= maxRows) break
   }
 
-  return { rows: rows.slice(0, maxRows), total, truncated: total > maxRows }
+  return { rows: [...byId.values()].slice(0, maxRows), total, truncated: total > maxRows }
 }
 
 /**
@@ -129,7 +135,10 @@ export async function fetchPendingRequests(
   supabase: SupabaseClient,
   input: { scope: RequestScope; filters: RequestFilters; maxRows?: number }
 ): Promise<FetchRequestsResult> {
-  const { scope, filters, maxRows = SCAN_MAX } = input
+  const { scope, maxRows = SCAN_MAX } = input
+  // El filtro por carrera es solo de coordinación: un profesor no lo tiene en
+  // la interfaz, así que una URL o un request con `career` se ignora.
+  const filters = scope.professorId ? { ...input.filters, career: undefined } : input.filters
   const branches: Branch[] = filters.q ? ['student', 'subject'] : ['all']
 
   const results = await Promise.all(
