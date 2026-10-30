@@ -28,7 +28,18 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'justification.approve': 'Aprobó una justificación',
   'justification.reject': 'Rechazó una justificación',
   'justification.register': 'Registró una excusa para un estudiante',
+  'justification.change_decision': 'Cambió la decisión de una justificación',
   'auth.password_reset': 'Restableció su contraseña por enlace de correo',
+}
+
+const JUSTIFICATION_STATUS_LABELS: Record<string, string> = {
+  APPROVED: 'Aprobada',
+  REJECTED: 'Rechazada',
+  PENDING: 'Pendiente',
+}
+
+function justificationStatusLabel(status: unknown): string {
+  return typeof status === 'string' ? (JUSTIFICATION_STATUS_LABELS[status] ?? status) : '?'
 }
 
 export function auditActionLabel(action: string): string {
@@ -98,7 +109,13 @@ export function summarizeAuditDetails(action: string, details: Record<string, un
     case 'justification.register':
     case 'justification.reject':
     case 'justification.approve':
+      if (details.bulk === true) parts.push('aprobación en lote')
       if (details.note) parts.push(`nota: ${String(details.note)}`)
+      break
+    case 'justification.change_decision':
+      parts.push(
+        `${justificationStatusLabel(details.from)} → ${justificationStatusLabel(details.to)}`
+      )
       break
     default:
       break

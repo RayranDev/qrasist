@@ -97,6 +97,20 @@ test.describe('justification review', () => {
       await expect(studentPage.getByText(TEST_SUBJECT.name, { exact: true })).toBeVisible()
       await expect(studentPage.getByText('1 justificada')).toBeVisible()
 
+      // The coordinator changes their mind: the decision can be reverted
+      // with a mandatory reason, and the absence stops counting as excused.
+      await page.getByRole('button', { name: 'Cambiar decisión' }).first().click()
+      const dialog = page.getByRole('dialog')
+      await expect(dialog.getByRole('alert')).toContainText('no justificada')
+      await dialog.getByRole('textbox').fill('La constancia no corresponde a la fecha.')
+      await dialog.getByRole('button', { name: 'Confirmar cambio' }).click()
+      await expect(page.getByText('Decisión de').first()).toBeVisible() // toast confirmation
+
+      await studentPage.reload()
+      await expect(studentPage.getByText('1 justificada')).toHaveCount(0)
+      // Positive state: the missed session now shows the rejected chip.
+      await expect(studentPage.getByText('Rechazada', { exact: true }).first()).toBeVisible()
+
       await studentContext.close()
     } finally {
       // ON DELETE CASCADE on absence_justifications.session_id takes

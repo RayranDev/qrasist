@@ -1,15 +1,23 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Paperclip, Clock, CheckCircle2, X, FileCheck2 } from 'lucide-react'
+import { Paperclip, Clock, CheckCircle2, X, FileCheck2, Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { RoleBadge } from '@/components/ui/RoleBadge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useToast } from '@/components/toast/ToastProvider'
 import ReasonModal from '@/components/attendance/ReasonModal'
-import { reviewJustification, getJustificationAttachmentUrl } from '@/lib/actions/justifications'
+import ConfirmModal from '@/components/ConfirmModal'
+import {
+  reviewJustification,
+  changeJustificationDecision,
+  bulkApproveJustifications,
+  getJustificationAttachmentUrl,
+} from '@/lib/actions/justifications'
+import { MAX_BULK_APPROVE } from '@/lib/justifications/bulk'
 import { countOf } from '@/lib/utils/plural'
+import ChangeDecisionModal, { type DecisionTarget } from './ChangeDecisionModal'
 import { justificationRowStyle } from './rowStyle'
 
 export interface JustificationRow {
@@ -23,6 +31,12 @@ export interface JustificationRow {
   subject: { id: string; name: string; code: string } | null
   session: { id: string; date: string } | null
   student: { name: string; student_code: string | null } | null
+}
+
+const DECISION_TOAST: Record<DecisionTarget, string> = {
+  APPROVED: 'aprobada',
+  REJECTED: 'rechazada',
+  PENDING: 'pendiente',
 }
 
 export default function JustificationsList({
@@ -41,6 +55,10 @@ export default function JustificationsList({
   const [subjectFilter, setSubjectFilter] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
   const [rejectTarget, setRejectTarget] = useState<JustificationRow | null>(null)
+  const [changeTarget, setChangeTarget] = useState<JustificationRow | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [confirmingBulk, setConfirmingBulk] = useState(false)
+  const [bulkBusy, setBulkBusy] = useState(false)
   const showToast = useToast()
 
   const filtered = subjectFilter ? items.filter((j) => j.subject?.id === subjectFilter) : items
@@ -55,6 +73,48 @@ export default function JustificationsList({
   }, [filtered])
 
   const pendingCount = items.filter((j) => j.status === 'PENDING').length
+
+  // La selección masiva solo cuenta lo que se ve: filas PENDING del filtro
+  // actual. Así nunca se aprueba algo oculto por el filtro de materia.
+  const selectablePending = canReview ? sorted.filter((j) => j.status === 'PENDING') : []
+  const selectedIds = selectablePending.filter((j) => selected.has(j.id)).map((j) => j.id)
+  const allSelected =
+    selectablePending.length > 0 && selectedIds.length === selectablePending.length
+
+  const toggleSelected = (id: string) => {
+    if (!selected.has(id) && selectedIds.length >= MAX_BULK_APPROVE) {
+      showToast(`Puedes seleccionar máximo ${MAX_BULK_APPROVE} justificaciones a la vez.`, 'error')
+      return
+    }
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  // Una fila que cambia de estado deja de ser seleccionable: se saca de la
+  // selección para que, si vuelve a PENDING, no reaparezca marcada.
+  const dropFromSelection = (ids: string[]) =>
+    setSelected((prev) => {
+      if (!ids.some((id) => prev.has(id))) return prev
+      const next = new Set(prev)
+      ids.forEach((id) => next.delete(id))
+      return next
+    })
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelected(new Set())
+      return
+    }
+    const ids = selectablePending.slice(0, MAX_BULK_APPROVE).map((j) => j.id)
+    setSelected(new Set(ids))
+    if (selectablePending.length > MAX_BULK_APPROVE) {
+      showToast(`Se seleccionaron las primeras ${MAX_BULK_APPROVE}.`, 'info')
+    }
+  }
 
   const handleViewAttachment = async (justificationId: string) => {
     const result = await getJustificationAttachmentUrl(justificationId)
@@ -72,6 +132,7 @@ export default function JustificationsList({
       decision: 'APPROVED',
     })
     if (result.success) {
+      dropFromSelection([justification.id])
       setItems((prev) =>
         prev.map((j) => (j.id === justification.id ? { ...j, status: 'APPROVED' } : j))
       )
@@ -94,6 +155,7 @@ export default function JustificationsList({
       note,
     })
     if (result.success) {
+      dropFromSelection([rejectTarget.id])
       setItems((prev) =>
         prev.map((j) =>
           j.id === rejectTarget.id ? { ...j, status: 'REJECTED', review_note: note } : j
@@ -108,6 +170,73 @@ export default function JustificationsList({
       showToast(result.error || 'No se pudo rechazar la justificación.', 'error')
     }
     setBusyId(null)
+  }
+
+  const handleChangeDecision = async (to: DecisionTarget, reason: string) => {
+    if (!changeTarget) return
+    setBusyId(changeTarget.id)
+    const result = await changeJustificationDecision({
+      justificationId: changeTarget.id,
+      to,
+      reason,
+    })
+    if (result.success) {
+      dropFromSelection([changeTarget.id])
+      // Mismo efecto que el servidor: PENDING deja la fila como no revisada.
+      setItems((prev) =>
+        prev.map((j) =>
+          j.id === changeTarget.id
+            ? to === 'PENDING'
+              ? { ...j, status: to, review_note: null, reviewed_at: null }
+              : { ...j, status: to, review_note: reason, reviewed_at: new Date().toISOString() }
+            : j
+        )
+      )
+      showToast(
+        `Decisión de ${changeTarget.student?.name || 'estudiante'} actualizada a ${DECISION_TOAST[to]}.`,
+        'success'
+      )
+      setChangeTarget(null)
+    } else {
+      showToast(result.error || 'No se pudo cambiar la decisión.', 'error')
+    }
+    setBusyId(null)
+  }
+
+  const handleBulkApprove = async () => {
+    setBulkBusy(true)
+    const result = await bulkApproveJustifications(selectedIds)
+    setConfirmingBulk(false)
+    setBulkBusy(false)
+
+    if (!result.success) {
+      showToast(result.error || 'No se pudieron aprobar las justificaciones.', 'error')
+      return
+    }
+
+    const approved = new Set(result.approved)
+    if (approved.size > 0) {
+      setItems((prev) => prev.map((j) => (approved.has(j.id) ? { ...j, status: 'APPROVED' } : j)))
+    }
+    const approvedText = countOf(
+      approved.size,
+      'justificación aprobada',
+      'justificaciones aprobadas'
+    )
+    if (result.failures.length === 0) {
+      showToast(`${approvedText}.`, 'success')
+    } else {
+      const failedText = countOf(
+        result.failures.length,
+        'justificación no se pudo aprobar',
+        'justificaciones no se pudieron aprobar'
+      )
+      const prefix = approved.size > 0 ? `Se aprobaron ${approved.size}; ` : ''
+      showToast(`${prefix}${failedText}: ${result.failures[0].message}`, 'error')
+    }
+    // Se limpia toda la selección: lo aprobado ya no está pendiente y lo
+    // fallido suele estar desactualizado (otra persona lo revisó).
+    setSelected(new Set())
   }
 
   return (
@@ -152,6 +281,37 @@ export default function JustificationsList({
             : `${countOf(pendingCount, 'justificación', 'justificaciones')} en revisión por coordinación`}
       </p>
 
+      {selectablePending.length > 0 && (
+        <div className="flex items-center justify-between gap-3 flex-wrap bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-2.5">
+          <label className="flex items-center gap-2.5 text-sm font-semibold text-gray-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              disabled={bulkBusy}
+              onChange={toggleSelectAll}
+              className="w-4 h-4 rounded border-neutral-300 text-navy-800 focus:ring-navy-600"
+            />
+            Seleccionar todas
+          </label>
+          {selectedIds.length > 0 && (
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-gray-500 font-medium">
+                {countOf(selectedIds.length, 'seleccionada', 'seleccionadas')}
+              </span>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                disabled={bulkBusy}
+                onClick={() => setConfirmingBulk(true)}
+              >
+                {`Aprobar seleccionadas (${selectedIds.length})`}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       {sorted.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10">
           <EmptyState
@@ -188,25 +348,37 @@ export default function JustificationsList({
               return (
                 <div key={j.id} className={`px-5 py-4 flex flex-col gap-2.5 ${style.row}`}>
                   <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div className="min-w-0">
-                      <p className="flex items-center gap-2 flex-wrap font-bold text-gray-900 text-sm">
-                        <RoleBadge role="STUDENT" variant="compact" />
-                        <span>{j.student?.name || 'Estudiante'}</span>
-                        <span className="text-xs font-mono text-gray-400">
-                          {j.student?.student_code || '---'}
-                        </span>
-                      </p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {j.subject?.name} ({j.subject?.code}) ·{' '}
-                        {j.session?.date
-                          ? new Date(j.session.date).toLocaleDateString('es-CO', {
-                              timeZone: 'America/Bogota',
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                            })
-                          : '—'}
-                      </p>
+                    <div className="flex items-start gap-3 min-w-0">
+                      {canReview && j.status === 'PENDING' && (
+                        <input
+                          type="checkbox"
+                          aria-label={`Seleccionar justificación de ${j.student?.name || 'estudiante'}`}
+                          checked={selected.has(j.id)}
+                          disabled={bulkBusy || busyId === j.id}
+                          onChange={() => toggleSelected(j.id)}
+                          className="w-4 h-4 mt-0.5 rounded border-neutral-300 text-navy-800 focus:ring-navy-600"
+                        />
+                      )}
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-2 flex-wrap font-bold text-gray-900 text-sm">
+                          <RoleBadge role="STUDENT" variant="compact" />
+                          <span>{j.student?.name || 'Estudiante'}</span>
+                          <span className="text-xs font-mono text-gray-400">
+                            {j.student?.student_code || '---'}
+                          </span>
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {j.subject?.name} ({j.subject?.code}) ·{' '}
+                          {j.session?.date
+                            ? new Date(j.session.date).toLocaleDateString('es-CO', {
+                                timeZone: 'America/Bogota',
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                              })
+                            : '—'}
+                        </p>
+                      </div>
                     </div>
                     <StatusBadge status={j.status} canReview={canReview} />
                   </div>
@@ -257,6 +429,19 @@ export default function JustificationsList({
                         </Button>
                       </>
                     )}
+
+                    {canReview && j.status !== 'PENDING' && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        leftIcon={<Pencil className="w-3.5 h-3.5" />}
+                        disabled={busyId === j.id}
+                        onClick={() => setChangeTarget(j)}
+                      >
+                        Cambiar decisión
+                      </Button>
+                    )}
                   </div>
                 </div>
               )
@@ -274,6 +459,29 @@ export default function JustificationsList({
           loading={busyId === rejectTarget.id}
           onCancel={() => setRejectTarget(null)}
           onConfirm={handleReject}
+        />
+      )}
+
+      {changeTarget && changeTarget.status !== 'PENDING' && (
+        <ChangeDecisionModal
+          current={changeTarget.status}
+          description={`${changeTarget.student?.name || 'Estudiante'} · ${changeTarget.subject?.name || ''}`}
+          sessionDate={changeTarget.session?.date}
+          loading={busyId === changeTarget.id}
+          onCancel={() => setChangeTarget(null)}
+          onConfirm={handleChangeDecision}
+        />
+      )}
+
+      {confirmingBulk && (
+        <ConfirmModal
+          title="Aprobar justificaciones"
+          message={`Se aprobarán ${countOf(selectedIds.length, 'justificación', 'justificaciones')}. Cada aprobación queda registrada en la auditoría.`}
+          confirmLabel="Aprobar"
+          loading={bulkBusy}
+          icon={CheckCircle2}
+          onConfirm={handleBulkApprove}
+          onCancel={() => setConfirmingBulk(false)}
         />
       )}
     </div>
