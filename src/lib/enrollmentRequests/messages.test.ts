@@ -69,6 +69,20 @@ describe('describeBulkResult', () => {
     expect(result.message).toContain('Quedan 320 solicitudes pendientes')
   })
 
+  it('reports skipped requests in "approve all" as omitted and still pending', () => {
+    const result = describeBulkResult({
+      action: 'approve',
+      done: 4,
+      failures: [fail('1', 'Sin carrera.'), fail('2', 'Sin carrera.')],
+      omitted: true,
+    })
+
+    expect(result.type).toBe('info')
+    expect(result.message).toBe(
+      '4 solicitudes aprobadas. 2 solicitudes omitidas (siguen pendientes): Sin carrera (2).'
+    )
+  })
+
   it('handles an empty run', () => {
     expect(describeBulkResult({ action: 'approve', done: 0, failures: [] }).message).toMatch(
       /no había solicitudes/i
@@ -83,6 +97,7 @@ describe('describeApproveAll', () => {
     expect(buttonLabel).toBe('Aprobar todas (42)')
     expect(message).toContain('las 42 solicitudes pendientes')
     expect(message).toContain('otras páginas')
+    expect(message).toContain('se omiten')
   })
 
   it('uses the singular for a single request', () => {
@@ -93,7 +108,8 @@ describe('describeApproveAll', () => {
     const { message } = describeApproveAll(820, false)
 
     expect(message).toContain('Hay 820 solicitudes pendientes')
-    expect(message).toContain('500 más antiguas')
+    expect(message).toContain('hasta 500, de las más antiguas')
+    expect(message).toContain('se omiten')
   })
 
   it('marks the count as a lower bound when the scan was truncated', () => {

@@ -8,6 +8,9 @@ export interface ReviewFailure {
 
 type ToastKind = 'success' | 'error' | 'info'
 
+const NOTE =
+  ' Las que no se puedan aprobar (por ejemplo, estudiantes sin carrera) se omiten y se te informará cuántas y por qué.'
+
 const stripPeriod = (text: string) => text.replace(/\.+$/, '')
 
 /** Motivos distintos con su cantidad: "razón A (2); razón B". */
@@ -35,8 +38,10 @@ export function describeBulkResult(input: {
   done: number
   failures: readonly ReviewFailure[]
   remaining?: number
+  /** "Aprobar todas": las fallidas se omiten y siguen pendientes, no es un error por fila. */
+  omitted?: boolean
 }): { message: string; type: ToastKind } {
-  const { action, done, failures, remaining = 0 } = input
+  const { action, done, failures, remaining = 0, omitted = false } = input
   const approve = action === 'approve'
   const parts: string[] = []
 
@@ -47,7 +52,11 @@ export function describeBulkResult(input: {
         : `${countOf(done, 'solicitud rechazada', 'solicitudes rechazadas')}.`
     )
   }
-  if (failures.length > 0) {
+  if (failures.length > 0 && omitted) {
+    parts.push(
+      `${countOf(failures.length, 'solicitud omitida', 'solicitudes omitidas')} (siguen pendientes): ${summarizeFailures(failures)}.`
+    )
+  } else if (failures.length > 0) {
     const verb = approve ? 'aprobar' : 'rechazar'
     const pudo = failures.length === 1 ? 'pudo' : 'pudieron'
     parts.push(
@@ -79,20 +88,19 @@ export function describeApproveAll(
     return {
       buttonLabel,
       title: '¿Aprobar la solicitud?',
-      message:
-        'Se aprobará la única solicitud pendiente que coincide con los filtros actuales. El estudiante quedará inscrito en la materia.',
+      message: `Se aprobará la única solicitud pendiente que coincide con los filtros actuales. El estudiante quedará inscrito en la materia.${NOTE}`,
     }
   }
   if (total <= APPROVE_ALL_MAX && !truncated) {
     return {
       buttonLabel,
       title,
-      message: `Se aprobarán las ${exact} ${noun} que coinciden con los filtros actuales, incluidas las de otras páginas. Los estudiantes quedarán inscritos en cada materia.`,
+      message: `Se aprobarán las ${exact} ${noun} que coinciden con los filtros actuales, incluidas las de otras páginas. Los estudiantes quedarán inscritos en cada materia.${NOTE}`,
     }
   }
   return {
     buttonLabel,
     title,
-    message: `Hay ${exact} ${noun} con los filtros actuales. En esta operación se aprobarán las ${APPROVE_ALL_MAX} más antiguas; después podrás repetir la acción para el resto. Los estudiantes quedarán inscritos en cada materia.`,
+    message: `Hay ${exact} ${noun} con los filtros actuales. En esta operación se aprobarán hasta ${APPROVE_ALL_MAX}, de las más antiguas; después podrás repetir la acción para el resto. Los estudiantes quedarán inscritos en cada materia.${NOTE}`,
   }
 }

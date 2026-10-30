@@ -49,6 +49,15 @@ describe('groupRequests', () => {
     }
   })
 
+  it('records the full size of each group', () => {
+    const groups = groupRequests(requests, 'subject')
+
+    expect(groups.map((g) => [g.totalCount, g.continued])).toEqual([
+      [2, false],
+      [2, false],
+    ])
+  })
+
   it('returns no groups for no requests', () => {
     expect(groupRequests([], 'subject')).toEqual([])
   })
@@ -67,6 +76,8 @@ describe('paginateGroups', () => {
     title: key,
     code: null,
     requests: Array.from({ length: size }, (_, i) => req(`${key}-${i}`, 's', key)),
+    totalCount: size,
+    continued: false,
   })
 
   it('fills a page up to maxGroups groups', () => {
@@ -87,11 +98,35 @@ describe('paginateGroups', () => {
     expect(pages.map((p) => p.map((g) => g.key))).toEqual([['a'], ['b', 'c']])
   })
 
-  it('never splits a group even when it is larger than maxRows', () => {
-    const pages = paginateGroups([group('a', 30), group('b', 1)], { maxGroups: 10, maxRows: 10 })
+  it('splits a group larger than maxRows across pages with continuation parts', () => {
+    const pages = paginateGroups([group('a', 25), group('b', 1)], { maxGroups: 10, maxRows: 10 })
 
-    expect(pages.map((p) => p.map((g) => g.key))).toEqual([['a'], ['b']])
-    expect(pages[0][0].requests).toHaveLength(30)
+    expect(pages.map((p) => p.map((g) => [g.key, g.requests.length, g.continued]))).toEqual([
+      [['a', 10, false]],
+      [['a#1', 10, true]],
+      [
+        ['a#2', 5, true],
+        ['b', 1, false],
+      ],
+    ])
+    // Cada trozo conserva el total real del grupo para el encabezado.
+    expect(pages.flat().every((g) => g.key === 'b' || g.totalCount === 25)).toBe(true)
+  })
+
+  it('keeps every request of a split group exactly once, in order', () => {
+    const big = group('a', 23)
+    const pages = paginateGroups([big], { maxGroups: 10, maxRows: 10 })
+
+    expect(pages.flat().flatMap((g) => g.requests.map((r) => r.id))).toEqual(
+      big.requests.map((r) => r.id)
+    )
+  })
+
+  it('does not split a group that fits in a page', () => {
+    const pages = paginateGroups([group('a', 10)], { maxGroups: 10, maxRows: 10 })
+
+    expect(pages).toHaveLength(1)
+    expect(pages[0][0].continued).toBe(false)
   })
 
   it('returns no pages for no groups', () => {
@@ -106,7 +141,7 @@ describe('paginateGroups', () => {
     for (const page of pages) {
       expect(page.length).toBeLessThanOrEqual(5)
       const rows = page.reduce((sum, g) => sum + g.requests.length, 0)
-      expect(page.length === 1 || rows <= 9).toBe(true)
+      expect(rows).toBeLessThanOrEqual(9)
     }
   })
 })

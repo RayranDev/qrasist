@@ -16,6 +16,10 @@ export interface RequestGroup {
   title: string
   code: string | null
   requests: PendingRequest[]
+  /** Solicitudes del grupo completo (puede ser más que `requests` si se partió en páginas). */
+  totalCount: number
+  /** Es la 2.ª parte o posterior de un grupo partido entre páginas. */
+  continued: boolean
 }
 
 const collator = new Intl.Collator('es', { sensitivity: 'base', numeric: true })
@@ -45,15 +49,32 @@ export function groupRequests(requests: PendingRequest[], view: RequestsView): R
     if (!group) {
       group =
         view === 'subject'
-          ? { key, title: request.subjectName, code: request.subjectCode, requests: [] }
-          : { key, title: request.studentName, code: request.studentCode, requests: [] }
+          ? {
+              key,
+              title: request.subjectName,
+              code: request.subjectCode,
+              requests: [],
+              totalCount: 0,
+              continued: false,
+            }
+          : {
+              key,
+              title: request.studentName,
+              code: request.studentCode,
+              requests: [],
+              totalCount: 0,
+              continued: false,
+            }
       groups.set(key, group)
     }
     group.requests.push(request)
   }
 
   const result = [...groups.values()]
-  for (const group of result) group.requests.sort((a, b) => compareRequests(a, b, view))
+  for (const group of result) {
+    group.requests.sort((a, b) => compareRequests(a, b, view))
+    group.totalCount = group.requests.length
+  }
   return result.sort((a, b) => {
     const byTitle = collator.compare(a.title, b.title)
     return byTitle !== 0 ? byTitle : a.key.localeCompare(b.key)
@@ -61,10 +82,31 @@ export function groupRequests(requests: PendingRequest[], view: RequestsView): R
 }
 
 /**
- * Reparte los grupos en páginas sin partir ninguno: así el conteo del
- * encabezado de cada grupo es siempre el real. Una página se llena hasta
- * `maxGroups` grupos o `maxRows` filas; un grupo más grande que `maxRows`
- * ocupa una página por sí solo.
+ * Parte un grupo de más de `maxRows` solicitudes en trozos de `maxRows`.
+ * Los trozos siguientes al primero van marcados como `continued` y todos
+ * conservan `totalCount`, así el encabezado muestra el total real.
+ * (Se eligió partir y no recortar con "ver más": así ninguna solicitud queda
+ * fuera de la lista ni de la selección por página, y el DOM sigue acotado.)
+ */
+function splitGroup(group: RequestGroup, maxRows: number): RequestGroup[] {
+  if (group.requests.length <= maxRows) return [group]
+  const parts: RequestGroup[] = []
+  for (let i = 0; i < group.requests.length; i += maxRows) {
+    parts.push({
+      ...group,
+      key: i === 0 ? group.key : `${group.key}#${i / maxRows}`,
+      requests: group.requests.slice(i, i + maxRows),
+      continued: i > 0,
+    })
+  }
+  return parts
+}
+
+/**
+ * Reparte los grupos en páginas. Una página se llena hasta `maxGroups`
+ * grupos o `maxRows` filas. Un grupo que cabe en una página no se parte
+ * (su conteo es el real); uno más grande que `maxRows` se parte en trozos
+ * de `maxRows` filas, cada uno con su encabezado de continuación.
  */
 export function paginateGroups(
   groups: RequestGroup[],
@@ -74,7 +116,7 @@ export function paginateGroups(
   let current: RequestGroup[] = []
   let currentRows = 0
 
-  for (const group of groups) {
+  for (const group of groups.flatMap((g) => splitGroup(g, maxRows))) {
     const size = group.requests.length
     const overflows =
       current.length > 0 && (current.length >= maxGroups || currentRows + size > maxRows)

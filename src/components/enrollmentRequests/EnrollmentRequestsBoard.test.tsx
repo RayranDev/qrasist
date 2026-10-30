@@ -275,7 +275,7 @@ describe('EnrollmentRequestsBoard', () => {
     renderBoard([req(1)], { totalMatching: 820 })
 
     fireEvent.click(button(/aprobar todas \(820\)/i))
-    expect(screen.getByRole('dialog').textContent).toContain('500 más antiguas')
+    expect(screen.getByRole('dialog').textContent).toContain('hasta 500, de las más antiguas')
     fireEvent.click(
       within(screen.getByRole('dialog')).getByRole('button', { name: 'Aprobar todas' })
     )
@@ -304,6 +304,49 @@ describe('EnrollmentRequestsBoard', () => {
     await waitFor(() =>
       expect(mockToast).toHaveBeenCalledWith('No se pudieron cargar las solicitudes.', 'error')
     )
+  })
+
+  it('reports requests skipped by approve all as omitted and still pending', async () => {
+    mockApproveAll.mockResolvedValue({
+      success: true,
+      approved: ['r1'],
+      failures: [
+        { id: 'r2', message: 'El estudiante no tiene ninguna carrera asignada.' },
+        { id: 'r3', message: 'El estudiante no tiene ninguna carrera asignada.' },
+      ],
+      total: 3,
+      remaining: 0,
+      skipped: 2,
+      truncated: false,
+    })
+    renderBoard([req(1), req(2), req(3)])
+
+    fireEvent.click(button(/aprobar todas/i))
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Aprobar todas' })
+    )
+
+    await waitFor(() => expect(mockToast).toHaveBeenCalled())
+    expect(mockToast).toHaveBeenCalledWith(
+      '1 solicitud aprobada. 2 solicitudes omitidas (siguen pendientes): El estudiante no tiene ninguna carrera asignada (2).',
+      'info'
+    )
+  })
+
+  it('labels the parts of a group split across pages with the real total', () => {
+    const all = Array.from({ length: 5 }, (_, i) => req(i + 1))
+    const [group] = groupRequests(all, 'subject')
+    const second = { ...group, key: group.key + '#1', requests: all.slice(3), continued: true }
+    const first = { ...group, requests: all.slice(0, 3) }
+
+    const { unmount } = renderBoard([], { groups: [first] })
+    const head = screen.getByRole('region', { name: 'Materia A' })
+    expect(within(head).getByText('3 de 5 pendientes')).toBeTruthy()
+    unmount()
+
+    renderBoard([], { groups: [second] })
+    const cont = screen.getByRole('region', { name: 'Materia A (continuación)' })
+    expect(within(cont).getByText('2 de 5 pendientes')).toBeTruthy()
   })
 
   it('hides approve all when the screen does not offer it', () => {

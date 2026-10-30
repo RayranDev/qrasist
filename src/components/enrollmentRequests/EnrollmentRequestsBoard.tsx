@@ -90,7 +90,16 @@ export default function EnrollmentRequestsBoard({
   const visibleGroups = useMemo(
     () =>
       groups
-        .map((g) => ({ ...g, requests: g.requests.filter((r) => !removed.has(r.id)) }))
+        .map((g) => {
+          const requests = g.requests.filter((r) => !removed.has(r.id))
+          return {
+            ...g,
+            requests,
+            // Lo ya procesado acá se descuenta del total del grupo completo.
+            totalCount: g.totalCount - (g.requests.length - requests.length),
+            split: g.totalCount > g.requests.length,
+          }
+        })
         .filter((g) => g.requests.length > 0),
     [groups, removed]
   )
@@ -175,6 +184,7 @@ export default function EnrollmentRequestsBoard({
             done: result.approved.length,
             failures: result.failures,
             remaining: result.remaining,
+            omitted: true,
           })
           showToast(message, type)
           router.refresh()
@@ -261,28 +271,31 @@ export default function EnrollmentRequestsBoard({
 
       {visibleGroups.map((group) => {
         const ids = group.requests.map((r) => r.id)
+        const title = group.continued ? `${group.title} (continuación)` : group.title
         return (
           <section
             key={group.key}
-            aria-label={group.title}
+            aria-label={title}
             className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
           >
             <header className="flex items-center gap-3 px-4 py-3 bg-gray-50/70 border-b border-gray-100">
               <Checkbox
                 state={selectionState(selected, ids)}
-                label={`Seleccionar todas las solicitudes de ${group.title}`}
+                label={`Seleccionar todas las solicitudes de ${title}`}
                 onChange={(on) => setSelection((prev) => setSelected(prev, ids, on))}
                 disabled={busy}
               />
               <div className="min-w-0 flex-1">
                 <h2 className="flex items-center gap-2 font-bold text-gray-900 text-sm">
                   {view === 'student' && <RoleBadge role="STUDENT" variant="compact" />}
-                  <span className="truncate">{group.title}</span>
+                  <span className="truncate">{title}</span>
                 </h2>
                 {group.code && <p className="text-xs text-gray-400 font-mono">{group.code}</p>}
               </div>
               <Badge variant="warning" size="sm">
-                {countOf(ids.length, 'pendiente', 'pendientes')}
+                {group.split
+                  ? `${ids.length} de ${countOf(group.totalCount, 'pendiente', 'pendientes')}`
+                  : countOf(ids.length, 'pendiente', 'pendientes')}
               </Badge>
             </header>
             <ul className="divide-y divide-gray-50">
