@@ -86,9 +86,16 @@ export async function downloadWorkbook(filename: string, sheets: ExportSheet[]) 
   const workbook = await buildWorkbook(sheets)
 
   const buffer = await workbook.xlsx.writeBuffer()
-  const blob = new Blob([buffer], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  })
+  downloadBlob(
+    filename,
+    new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+  )
+}
+
+/** Dispara en el navegador la descarga de un Blob ya armado (local o traído del servidor). */
+export function downloadBlob(filename: string, blob: Blob) {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url

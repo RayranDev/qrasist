@@ -5,6 +5,9 @@ import AdminHeader from '@/components/admin/AdminHeader'
 import { sanitizeSearchTerm } from '@/lib/utils/searchTerm'
 
 export const dynamic = 'force-dynamic'
+// Esta página hospeda la carga masiva de Excel (Server Action); un archivo
+// de hasta 200 filas tarda más que el valor por defecto.
+export const maxDuration = 60
 
 const PAGE_SIZE = 20
 

@@ -5,11 +5,13 @@ import Modal from '@/components/Modal'
 import { useToast } from '@/components/toast/ToastProvider'
 import { IMPORT_CONFIG, type ImportType, type ImportResult } from '@/lib/excel/importConfig'
 import { countOf } from '@/lib/utils/plural'
+import { MAX_IMPORT_FILE_BYTES, MAX_IMPORT_ROWS } from '@/lib/excel/importSchemas'
 
 export default function BulkImportButton({ types }: { types: ImportType[] }) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState<ImportType>(types[0])
   const [loading, setLoading] = useState(false)
+  const [downloading, setDownloading] = useState(false)
   const [result, setResult] = useState<ImportResult | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const showToast = useToast()
@@ -21,42 +23,83 @@ export default function BulkImportButton({ types }: { types: ImportType[] }) {
     setResult(null)
   }
 
+  // La plantilla se genera en el servidor al descargar, con las carreras
+  // (y períodos) activos de la base como listas desplegables.
   const handleDownloadTemplate = async () => {
-    const { downloadWorkbook } = await import('@/lib/excel/exportWorkbook')
-    await downloadWorkbook(`plantilla_${config.label.toLowerCase()}`, [
-      { name: config.label, columns: config.columns, rows: [config.exampleRow] },
-    ])
+    setDownloading(true)
+    try {
+      const response = await fetch(`/admin/import-template?type=${active}`)
+      if (!response.ok) {
+        const body = await response.json().catch(() => null)
+        throw new Error(body?.error || 'No se pudo descargar la plantilla.')
+      }
+      const { downloadBlob } = await import('@/lib/excel/exportWorkbook')
+      downloadBlob(`plantilla_${config.label.toLowerCase()}`, await response.blob())
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : 'No se pudo descargar la plantilla.',
+        'error'
+      )
+    } finally {
+      setDownloading(false)
+    }
   }
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    setLoading(true)
-    setResult(null)
-    const formData = new FormData()
-    formData.append('file', file)
-
-    const response = await config.action(formData)
-    if (response.success) {
-      setResult(response)
-      if (response.errors.length === 0) {
-        showToast(
-          `${countOf(response.successCount, 'registro importado', 'registros importados')} correctamente.`,
-          'success'
-        )
-      } else {
-        showToast(
-          `${countOf(response.successCount, 'importado')}, ${countOf(response.errors.length, 'error', 'errores')}.`,
-          response.successCount > 0 ? 'success' : 'error'
-        )
-      }
-    } else {
-      showToast(response.error, 'error')
+    const resetInput = () => {
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+    if (!file.name.toLowerCase().endsWith('.xlsx')) {
+      showToast('El archivo debe ser un .xlsx (Excel).', 'error')
+      resetInput()
+      return
+    }
+    if (file.size > MAX_IMPORT_FILE_BYTES) {
+      showToast(
+        `El archivo supera los ${Math.round(MAX_IMPORT_FILE_BYTES / 1024)} KB. Divídelo en archivos de máximo ${MAX_IMPORT_ROWS} filas.`,
+        'error'
+      )
+      resetInput()
+      return
     }
 
-    setLoading(false)
-    if (fileInputRef.current) fileInputRef.current.value = ''
+    setLoading(true)
+    setResult(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await config.action(formData)
+      if (response.success) {
+        setResult(response)
+        if (response.errors.length === 0) {
+          showToast(
+            `${countOf(response.successCount, 'registro importado', 'registros importados')} correctamente.`,
+            'success'
+          )
+        } else {
+          showToast(
+            `${countOf(response.successCount, 'importado')}, ${countOf(response.errors.length, 'error', 'errores')}.`,
+            response.successCount > 0 ? 'success' : 'error'
+          )
+        }
+      } else {
+        showToast(response.error, 'error')
+      }
+    } catch {
+      // Tiempo agotado, caída de red o error del servidor: la acción no
+      // devolvió un resultado, así que parte del archivo pudo procesarse.
+      showToast(
+        'No se pudo completar la importación. Revisa los registros ya creados antes de volver a subir el archivo.',
+        'error'
+      )
+    } finally {
+      setLoading(false)
+      resetInput()
+    }
   }
 
   return (
@@ -95,16 +138,25 @@ export default function BulkImportButton({ types }: { types: ImportType[] }) {
             </div>
           )}
 
+          <p className="text-sm text-gray-500 mb-2">
+            Columnas esperadas:{' '}
+            {config.columns
+              .map((c) => (c.required ? c.header : `${c.header} (opcional)`))
+              .join(', ')}
+            .
+          </p>
           <p className="text-sm text-gray-500 mb-5">
-            Columnas esperadas: {config.columns.map((c) => c.header).join(', ')}.
+            Máximo {MAX_IMPORT_ROWS} filas por archivo. Descarga la plantilla para usar las listas
+            de carreras y períodos activos.
           </p>
 
           <div className="flex flex-wrap gap-3 items-center mb-6">
             <button
               onClick={handleDownloadTemplate}
+              disabled={downloading}
               className="px-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-100 transition"
             >
-              Descargar plantilla
+              {downloading ? 'Generando...' : 'Descargar plantilla'}
             </button>
 
             <label className="px-4 py-2.5 bg-navy-800 text-white rounded-xl text-sm font-bold hover:bg-navy-900 transition cursor-pointer">
