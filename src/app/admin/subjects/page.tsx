@@ -4,14 +4,13 @@ import {
   CreateSubjectForm,
   SubjectActionButtons,
   SubjectCareerAssignment,
+  SubjectsEmptyState,
 } from './SubjectComponents'
 import ExportSubjectsButton from './ExportSubjectsButton'
 import MobileWarningBanner from '@/components/MobileWarningBanner'
 import AdminHeader from '@/components/admin/AdminHeader'
 import BulkImportButton from '@/components/admin/BulkImportButton'
 import SubjectFilters from './SubjectFilters'
-import { EmptyState } from '@/components/ui/EmptyState'
-import { BookMarked } from 'lucide-react'
 import { sanitizeSearchTerm } from '@/lib/utils/searchTerm'
 import { RoleBadge } from '@/components/ui/RoleBadge'
 
@@ -163,9 +162,12 @@ export default async function AdminSubjectsPage({
             activeHref="/admin/subjects"
           />
 
-          <div id="crear-materia">
-            <CreateSubjectForm periods={periods || []} />
-          </div>
+          <CreateSubjectForm
+            periods={periods || []}
+            resetKey={[statusFilter, searchQuery, careerFilter, levelFilter, professorFilter].join(
+              '|'
+            )}
+          />
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
@@ -263,19 +265,7 @@ export default async function AdminSubjectsPage({
               })}
               {subjects?.length === 0 && (
                 <div className="col-span-full">
-                  <EmptyState
-                    icon={<BookMarked className="w-5 h-5" />}
-                    title="Ninguna materia coincide con tu búsqueda"
-                    description="Prueba ajustando la búsqueda o los filtros, o crea una materia nueva."
-                    action={
-                      <a
-                        href="#crear-materia"
-                        className="text-sm font-bold text-navy-700 hover:text-navy-900 underline underline-offset-2"
-                      >
-                        Crear materia
-                      </a>
-                    }
-                  />
+                  <SubjectsEmptyState archived={statusFilter === 'inactive'} />
                 </div>
               )}
             </div>
