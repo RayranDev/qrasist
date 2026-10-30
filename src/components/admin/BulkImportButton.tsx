@@ -7,6 +7,8 @@ import { IMPORT_CONFIG, type ImportType, type ImportResult } from '@/lib/excel/i
 import { countOf } from '@/lib/utils/plural'
 import { MAX_IMPORT_FILE_BYTES, MAX_IMPORT_ROWS } from '@/lib/excel/importSchemas'
 
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
 export default function BulkImportButton({ types }: { types: ImportType[] }) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState<ImportType>(types[0])
@@ -32,6 +34,11 @@ export default function BulkImportButton({ types }: { types: ImportType[] }) {
       if (!response.ok) {
         const body = await response.json().catch(() => null)
         throw new Error(body?.error || 'No se pudo descargar la plantilla.')
+      }
+      // Con la sesión vencida el proxy redirige a /login y fetch recibe un HTML con 200:
+      // guardarlo como .xlsx entregaría un archivo corrupto.
+      if (response.redirected || !response.headers.get('content-type')?.includes(XLSX_MIME)) {
+        throw new Error('Tu sesión expiró. Inicia sesión de nuevo.')
       }
       const { downloadBlob } = await import('@/lib/excel/exportWorkbook')
       downloadBlob(`plantilla_${config.label.toLowerCase()}`, await response.blob())
@@ -122,6 +129,7 @@ export default function BulkImportButton({ types }: { types: ImportType[] }) {
               {types.map((type) => (
                 <button
                   key={type}
+                  disabled={loading}
                   onClick={() => {
                     setActive(type)
                     setResult(null)

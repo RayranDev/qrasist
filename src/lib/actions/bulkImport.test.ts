@@ -14,6 +14,7 @@ const mockCheckAdmin = vi.fn()
 const mockCareersSelect = vi.fn()
 const mockProfileByCode = vi.fn()
 const mockProfileUpdate = vi.fn()
+const mockProfileByEmailAndCode = vi.fn()
 const mockCareerInsert = vi.fn()
 const mockCreateUser = vi.fn()
 const mockDeleteUser = vi.fn()
@@ -44,10 +45,16 @@ vi.mock('@/lib/supabase/adminClient', () => ({
       if (table === 'profiles') {
         return {
           select: () => ({
-            eq: (_col: string, value: string) => ({ maybeSingle: () => mockProfileByCode(value) }),
+            eq: (col: string, value: string) => ({
+              maybeSingle: () => mockProfileByCode(value),
+              // búsqueda de huérfano tras un createUser que lanzó: .eq('email').eq('student_code')
+              eq: (_col2: string, value2: string) => ({
+                maybeSingle: () => mockProfileByEmailAndCode(col, value, value2),
+              }),
+            }),
           }),
           update: (values: unknown) => ({
-            eq: (_col: string, id: string) => mockProfileUpdate(values, id),
+            eq: (_col: string, id: string) => ({ select: () => mockProfileUpdate(values, id) }),
           }),
         }
       }
@@ -72,9 +79,9 @@ function userRow(overrides: Record<string, ExcelJS.CellValue> = {}) {
   return {
     Nombres: 'Juan',
     Apellidos: 'Pérez',
-    Correo: 'juan.perez@urepublicana.edu.co',
+    Correo: 'ana.torres@urepublicana.edu.co',
     Contraseña: 'Clave1234',
-    Código: '202512345678',
+    Código: '202500000001',
     Carrera: null,
     ...overrides,
   }
@@ -98,7 +105,8 @@ beforeEach(() => {
   mockCheckAdmin.mockResolvedValue(true)
   mockCareersSelect.mockResolvedValue({ data: CAREERS, error: null })
   mockProfileByCode.mockResolvedValue({ data: null })
-  mockProfileUpdate.mockResolvedValue({ error: null })
+  mockProfileUpdate.mockResolvedValue({ data: [{ id: 'user-1' }], error: null })
+  mockProfileByEmailAndCode.mockResolvedValue({ data: null })
   mockCareerInsert.mockResolvedValue({ error: null })
   mockDeleteUser.mockResolvedValue({ error: null })
   let n = 0
@@ -160,8 +168,8 @@ describe('bulkImportStudents — values from real Excel cells', () => {
     const file = await xlsxFile((wb) => {
       const sheet = addTable(wb, 'Estudiantes', USER_HEADERS, [userRow()])
       sheet.getCell('C2').value = {
-        text: ' Juan.Perez@UREPUBLICANA.edu.co ',
-        hyperlink: 'mailto:Juan.Perez@UREPUBLICANA.edu.co',
+        text: ' Ana.Torres@UREPUBLICANA.edu.co ',
+        hyperlink: 'mailto:Ana.Torres@UREPUBLICANA.edu.co',
       }
     })
     const form = new FormData()
@@ -171,10 +179,10 @@ describe('bulkImportStudents — values from real Excel cells', () => {
 
     expect(result).toMatchObject({ success: true, successCount: 1, errors: [] })
     expect(mockCreateUser).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'juan.perez@urepublicana.edu.co' })
+      expect.objectContaining({ email: 'ana.torres@urepublicana.edu.co' })
     )
     expect(mockProfileUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'juan.perez@urepublicana.edu.co', role: 'STUDENT' }),
+      expect.objectContaining({ email: 'ana.torres@urepublicana.edu.co', role: 'STUDENT' }),
       'user-1'
     )
   })
@@ -367,11 +375,13 @@ describe('bulkImportSubjects — career and period lookup', () => {
   const SUBJECT_HEADERS = ['Nombre', 'Código', 'Carrera', 'Semestre', 'Correo Profesor', 'Período']
   const mockSubjectInsert = vi.fn()
   const mockSubjectCareerInsert = vi.fn()
+  const mockSubjectDelete = vi.fn()
   const mockEmailIlike = vi.fn()
 
   beforeEach(() => {
     mockSubjectInsert.mockReset().mockResolvedValue({ data: { id: 'subject-1' }, error: null })
     mockSubjectCareerInsert.mockReset().mockResolvedValue({ error: null })
+    mockSubjectDelete.mockReset().mockResolvedValue({ error: null })
     mockEmailIlike.mockReset().mockResolvedValue({
       data: { id: 'prof-1', role: 'PROFESSOR' },
     })
@@ -407,6 +417,7 @@ describe('bulkImportSubjects — career and period lookup', () => {
           insert: (values: unknown) => ({
             select: () => ({ single: () => mockSubjectInsert(values) }),
           }),
+          delete: () => ({ eq: (_col: string, id: string) => mockSubjectDelete(id) }),
         }
       }
       if (table === 'subject_careers') {
@@ -418,7 +429,7 @@ describe('bulkImportSubjects — career and period lookup', () => {
 
   async function subjectForm(row: Record<string, ExcelJS.CellValue>) {
     return formWith(
-      [{ Nombre: 'Cálculo I', Código: 'CALC-101', ...row }],
+      [{ Nombre: 'Álgebra Lineal', Código: 'ALG-201', ...row }],
       SUBJECT_HEADERS,
       'Materias'
     )
@@ -471,6 +482,48 @@ describe('bulkImportSubjects — career and period lookup', () => {
     })
     expect(mockSubjectInsert).not.toHaveBeenCalled()
   })
+
+  it('deletes the created subject when linking it to the career fails, so a retry works', async () => {
+    mockSubjectCareerInsert.mockResolvedValue({ error: { message: 'fk' } })
+
+    const result = await bulkImportSubjects(
+      await subjectForm({ Carrera: 'Ingeniería de Sistemas' })
+    )
+
+    expect(mockSubjectDelete).toHaveBeenCalledWith('subject-1')
+    expect(result).toMatchObject({
+      successCount: 0,
+      errors: [{ row: 2, message: expect.stringContaining('No se creó la materia') }],
+    })
+  })
+
+  it('tells the admin to review the subject when the cleanup delete also fails', async () => {
+    mockSubjectCareerInsert.mockResolvedValue({ error: { message: 'fk' } })
+    mockSubjectDelete.mockResolvedValue({ error: { message: 'nope' } })
+
+    const result = await bulkImportSubjects(
+      await subjectForm({ Carrera: 'Ingeniería de Sistemas' })
+    )
+
+    expect(result).toMatchObject({
+      errors: [{ row: 2, message: expect.stringContaining('revisa la materia ALG-201') }],
+    })
+  })
+
+  it('rejects the untouched template example row', async () => {
+    const result = await bulkImportSubjects(
+      await formWith(
+        [{ Nombre: 'Cálculo I', Código: 'CALC-101', Semestre: 1 }],
+        SUBJECT_HEADERS,
+        'Materias'
+      )
+    )
+    expect(result).toMatchObject({
+      successCount: 0,
+      errors: [{ row: 2, message: expect.stringContaining('fila de ejemplo') }],
+    })
+    expect(mockSubjectInsert).not.toHaveBeenCalled()
+  })
 })
 
 describe('bulkImportEnrollments — numeric codes', () => {
@@ -497,7 +550,7 @@ describe('bulkImportEnrollments — numeric codes', () => {
     })
 
     const form = await formWith(
-      [{ 'Código Materia': 'CALC-101', 'Código Estudiante': 202512345678 }],
+      [{ 'Código Materia': 'ALG-201', 'Código Estudiante': 202512345678 }],
       ['Código Materia', 'Código Estudiante'],
       'Inscripciones'
     )
@@ -506,5 +559,150 @@ describe('bulkImportEnrollments — numeric codes', () => {
     expect(result).toMatchObject({ successCount: 1, errors: [] })
     expect(mockStudent).toHaveBeenCalledWith('202512345678')
     expect(mockEnrollInsert).toHaveBeenCalledWith({ subject_id: 'subject-1', student_id: 'st-1' })
+  })
+})
+
+describe('bulkImportStudents — hardening', () => {
+  it('treats a profile update that touches no rows as a failure and rolls back', async () => {
+    mockProfileUpdate.mockResolvedValue({ data: [], error: null })
+
+    const result = await bulkImportStudents(await formWith([userRow()]))
+
+    expect(mockDeleteUser).toHaveBeenCalledWith('user-1')
+    expect(result).toMatchObject({
+      successCount: 0,
+      errors: [{ row: 2, message: expect.stringContaining('No se encontró el perfil') }],
+    })
+  })
+
+  it('names the email when deleteUser throws, without a second rollback', async () => {
+    mockProfileUpdate.mockResolvedValue({ error: { message: 'boom' } })
+    mockDeleteUser.mockRejectedValue(new Error('network'))
+
+    const result = await bulkImportStudents(await formWith([userRow()]))
+
+    expect(mockDeleteUser).toHaveBeenCalledTimes(1)
+    expect(result).toMatchObject({
+      errors: [
+        {
+          row: 2,
+          message: expect.stringContaining('revísala en Usuarios (ana.torres@urepublicana.edu.co)'),
+        },
+      ],
+    })
+  })
+
+  it('deletes the account that createUser may have created before throwing', async () => {
+    mockCreateUser.mockRejectedValue(new Error('timeout'))
+    mockProfileByEmailAndCode.mockResolvedValue({ data: { id: 'ghost-1' } })
+
+    const result = await bulkImportStudents(await formWith([userRow()]))
+
+    // Se busca por correo Y código, no solo por correo, para no borrar a un usuario previo.
+    expect(mockProfileByEmailAndCode).toHaveBeenCalledWith(
+      'email',
+      'ana.torres@urepublicana.edu.co',
+      '202500000001'
+    )
+    expect(mockDeleteUser).toHaveBeenCalledWith('ghost-1')
+    expect(result).toMatchObject({
+      successCount: 0,
+      errors: [{ row: 2, message: expect.stringContaining('Error inesperado al crear la cuenta') }],
+    })
+  })
+
+  it('reports a plain failure when createUser threw and no account exists', async () => {
+    mockCreateUser.mockRejectedValue(new Error('timeout'))
+
+    const result = await bulkImportStudents(await formWith([userRow()]))
+
+    expect(mockDeleteUser).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      errors: [{ row: 2, message: expect.stringContaining('timeout') }],
+    })
+  })
+
+  it('names the email when it cannot check whether the account was created', async () => {
+    mockCreateUser.mockRejectedValue(new Error('timeout'))
+    mockProfileByEmailAndCode.mockRejectedValue(new Error('db down'))
+
+    const result = await bulkImportStudents(await formWith([userRow()]))
+
+    expect(result).toMatchObject({
+      errors: [
+        {
+          row: 2,
+          message: expect.stringContaining('revísala en Usuarios (ana.torres@urepublicana.edu.co)'),
+        },
+      ],
+    })
+  })
+
+  it('rejects the untouched template example row for students and professors', async () => {
+    const student = await bulkImportStudents(
+      await formWith([
+        userRow({ Correo: 'juan.perez@urepublicana.edu.co', Código: '202512345678' }),
+      ])
+    )
+    expect(student).toMatchObject({
+      successCount: 0,
+      errors: [{ row: 2, message: expect.stringContaining('fila de ejemplo') }],
+    })
+
+    const professor = await bulkImportProfessors(
+      await formWith(
+        [userRow({ Correo: 'maria.gomez@urepublicana.edu.co', Código: '1122334455' })],
+        USER_HEADERS,
+        'Docentes'
+      )
+    )
+    expect(professor).toMatchObject({
+      errors: [{ row: 2, message: expect.stringContaining('fila de ejemplo') }],
+    })
+    expect(mockCreateUser).not.toHaveBeenCalled()
+  })
+
+  it('imports a real user that shares the example email but not its code', async () => {
+    const result = await bulkImportStudents(
+      await formWith([userRow({ Correo: 'juan.perez@urepublicana.edu.co' })])
+    )
+    expect(result).toMatchObject({ successCount: 1, errors: [] })
+  })
+
+  it('fails the row when several active careers share the name, unless it is typed exactly', async () => {
+    mockCareersSelect.mockResolvedValue({
+      data: [
+        { id: 'a', name: 'Ingeniería de Sistemas', is_active: true },
+        { id: 'b', name: 'Ingenieria de Sistemas', is_active: true },
+      ],
+      error: null,
+    })
+
+    const ambiguous = await bulkImportStudents(
+      await formWith([userRow({ Carrera: 'ingenieria de sistemas' })])
+    )
+    expect(ambiguous).toMatchObject({
+      successCount: 0,
+      errors: [{ row: 2, message: expect.stringContaining('Hay varias carreras activas') }],
+    })
+    expect(mockCreateUser).not.toHaveBeenCalled()
+
+    const exact = await bulkImportStudents(
+      await formWith([userRow({ Carrera: 'Ingeniería de Sistemas' })])
+    )
+    expect(exact).toMatchObject({ successCount: 1 })
+    expect(mockCareerInsert).toHaveBeenCalledWith(
+      'student_careers',
+      expect.objectContaining({ career_id: 'a' })
+    )
+  })
+
+  it('words an in-file duplicate without implying the other row succeeded', async () => {
+    const result = await bulkImportStudents(
+      await formWith([userRow(), userRow({ Correo: 'otro@urepublicana.edu.co' })])
+    )
+    expect(result).toMatchObject({
+      errors: [{ row: 3, message: expect.stringContaining('también aparece en la fila 2') }],
+    })
   })
 })

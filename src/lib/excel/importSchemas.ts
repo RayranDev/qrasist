@@ -1,3 +1,5 @@
+import { foldText } from '@/lib/utils/normalizeText'
+
 /**
  * Definición pura (sin Server Actions) de las plantillas de carga masiva.
  * Vive aparte de `importConfig.ts` para que tanto el servidor (parseo y
@@ -18,6 +20,8 @@ export interface ImportColumn {
   /** Se formatea como texto en la plantilla para no perder ceros a la izquierda. */
   text?: boolean
   list?: ImportListSource
+  /** Con las demás columnas `identity`, delata la fila de ejemplo de la plantilla. */
+  identity?: boolean
 }
 
 export interface ImportSchema {
@@ -44,9 +48,9 @@ export const MAX_IMPORT_FILE_BYTES = 900 * 1024
 const USER_COLUMNS: ImportColumn[] = [
   { header: 'Nombres', key: 'nombres', width: 20, required: true },
   { header: 'Apellidos', key: 'apellidos', width: 20, required: true },
-  { header: 'Correo', key: 'correo', width: 32, required: true },
+  { header: 'Correo', key: 'correo', width: 32, required: true, identity: true },
   { header: 'Contraseña', key: 'password', width: 16, required: true, text: true },
-  { header: 'Código', key: 'codigo', width: 16, required: true, text: true },
+  { header: 'Código', key: 'codigo', width: 16, required: true, text: true, identity: true },
   { header: 'Carrera', key: 'carrera', width: 30, list: 'careers' },
 ]
 
@@ -78,8 +82,8 @@ export const IMPORT_SCHEMA: Record<ImportType, ImportSchema> = {
   SUBJECT: {
     label: 'Materias',
     columns: [
-      { header: 'Nombre', key: 'nombre', width: 28, required: true },
-      { header: 'Código', key: 'codigo', width: 16, required: true, text: true },
+      { header: 'Nombre', key: 'nombre', width: 28, required: true, identity: true },
+      { header: 'Código', key: 'codigo', width: 16, required: true, text: true, identity: true },
       { header: 'Carrera', key: 'carrera', width: 30, list: 'careers' },
       { header: 'Semestre', key: 'semestre', width: 10 },
       { header: 'Correo Profesor', key: 'correoProfesor', width: 32 },
@@ -97,13 +101,21 @@ export const IMPORT_SCHEMA: Record<ImportType, ImportSchema> = {
   ENROLLMENT: {
     label: 'Inscripciones',
     columns: [
-      { header: 'Código Materia', key: 'codigoMateria', width: 18, required: true, text: true },
+      {
+        header: 'Código Materia',
+        key: 'codigoMateria',
+        width: 18,
+        required: true,
+        text: true,
+        identity: true,
+      },
       {
         header: 'Código Estudiante',
         key: 'codigoEstudiante',
         width: 20,
         required: true,
         text: true,
+        identity: true,
       },
     ],
     exampleRow: {
@@ -121,4 +133,15 @@ export function headersOf(type: ImportType, kind: 'required' | 'optional'): stri
   return IMPORT_SCHEMA[type].columns
     .filter((c) => Boolean(c.required) === (kind === 'required'))
     .map((c) => c.header)
+}
+
+/**
+ * ¿La fila es la de ejemplo de la plantilla sin tocar? Subirla tal cual
+ * crearía una cuenta real con una contraseña conocida, así que el servidor
+ * la rechaza. Se compara solo el conjunto de columnas `identity`.
+ */
+export function isExampleRow(type: ImportType, row: Record<string, string>): boolean {
+  const { columns, exampleRow } = IMPORT_SCHEMA[type]
+  const identity = columns.filter((c) => c.identity)
+  return identity.every((c) => foldText(row[c.header] ?? '') === foldText(exampleRow[c.key] ?? ''))
 }

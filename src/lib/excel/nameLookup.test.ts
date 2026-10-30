@@ -25,4 +25,20 @@ describe('buildNameLookup', () => {
   it('prefers the active record when names collide', () => {
     expect(find('contaduria')).toEqual({ ok: true, item: careers[3] })
   })
+
+  it('is ambiguous when several active records collapse to the same folded name', () => {
+    const lookup = buildNameLookup([
+      { id: 'a', name: 'Ingeniería Civil', is_active: true },
+      { id: 'b', name: 'Ingenieria civil', is_active: true },
+    ])
+    expect(lookup('ingenieria CIVIL')).toEqual({ ok: false, reason: 'ambiguous' })
+  })
+
+  it('resolves an ambiguous name when exactly one active record matches letter by letter', () => {
+    const lookup = buildNameLookup([
+      { id: 'a', name: 'Ingeniería Civil', is_active: true },
+      { id: 'b', name: 'Ingenieria civil', is_active: true },
+    ])
+    expect(lookup(' Ingeniería Civil ')).toMatchObject({ ok: true, item: { id: 'a' } })
+  })
 })

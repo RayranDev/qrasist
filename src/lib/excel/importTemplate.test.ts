@@ -79,9 +79,22 @@ describe('buildImportTemplate', () => {
     expect(loaded.getWorksheet('Inscripciones')!.getCell('A2').dataValidation?.type).toBeUndefined()
   })
 
-  it('skips the dropdown when there are no active careers', async () => {
-    const workbook = await buildImportTemplate('STUDENT', { careers: [], periods: [] })
-    expect(workbook.getWorksheet('Estudiantes')!.getCell('F2').dataValidation?.type).toBeUndefined()
+  it('skips the dropdown when there are no active careers, but not when there are', async () => {
+    const roundTripWith = async (careers: string[]) => {
+      const workbook = await buildImportTemplate('STUDENT', { careers, periods: [] })
+      const loaded = new ExcelJS.Workbook()
+      await loaded.xlsx.load(await workbook.xlsx.writeBuffer())
+      return loaded
+    }
+
+    const empty = await roundTripWith([])
+    expect(empty.getWorksheet('Estudiantes')!.getCell('F2').dataValidation).toBeUndefined()
+
+    const filled = await roundTripWith(['Derecho'])
+    const validation = filled.getWorksheet('Estudiantes')!.getCell('F2').dataValidation
+    expect(validation.type).toBe('list')
+    expect(validation.formulae).toEqual([`${LISTS_SHEET_NAME}!$A$2:$A$2`])
+    expect(filled.getWorksheet(LISTS_SHEET_NAME)!.state).toBe('hidden')
   })
 
   it('produces a file the importer accepts, ignoring the hidden lists sheet', async () => {

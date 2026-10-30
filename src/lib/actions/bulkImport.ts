@@ -10,6 +10,7 @@ import { runBulkImport, type ImportResult } from '@/lib/excel/bulkImport'
 import { buildNameLookup } from '@/lib/excel/nameLookup'
 import {
   headersOf,
+  isExampleRow,
   MAX_IMPORT_FILE_BYTES,
   MAX_IMPORT_ROWS,
   type ImportType,
@@ -63,6 +64,24 @@ async function readFileRows(
     }
   }
   return { rows: parsed.rows, rowNumbers: parsed.rowNumbers }
+}
+
+const EXAMPLE_ROW_ERROR = 'Es la fila de ejemplo de la plantilla: bórrala antes de importar.'
+
+function careerLookupError(name: string, reason: 'unknown' | 'inactive' | 'ambiguous') {
+  if (reason === 'inactive') return `La carrera "${name}" está inactiva.`
+  if (reason === 'ambiguous') {
+    return `Hay varias carreras activas con el nombre "${name}"; corrige el catálogo o usa el nombre exacto.`
+  }
+  return `No existe la carrera "${name}".`
+}
+
+function periodLookupError(name: string, reason: 'unknown' | 'inactive' | 'ambiguous') {
+  if (reason === 'inactive') return `El período "${name}" está inactivo.`
+  if (reason === 'ambiguous') {
+    return `Hay varios períodos activos con el nombre "${name}"; corrige el catálogo o usa el nombre exacto.`
+  }
+  return `No existe el período "${name}".`
 }
 
 /** Escapa los comodines de LIKE para comparar un correo literal con ilike. */
@@ -125,6 +144,7 @@ async function bulkImportUsers(
       const code = (row['Código'] || '').trim()
       const careerName = (row['Carrera'] || '').trim()
 
+      if (isExampleRow(role, row)) return { error: EXAMPLE_ROW_ERROR }
       if (!firstName || !lastName || !email || !password || !code) {
         return { error: 'Faltan datos (Nombres, Apellidos, Correo, Contraseña, Código).' }
       }
@@ -141,21 +161,22 @@ async function bulkImportUsers(
       let careerId: string | null = null
       if (careerName) {
         const match = findCareer(careerName)
-        if (!match.ok) {
-          return {
-            error:
-              match.reason === 'inactive'
-                ? `La carrera "${careerName}" está inactiva.`
-                : `No existe la carrera "${careerName}".`,
-          }
-        }
+        if (!match.ok) return { error: careerLookupError(careerName, match.reason) }
         careerId = match.item.id
       }
 
       const codeRow = seenCodes.get(code)
-      if (codeRow) return { error: `El código está repetido en el archivo (fila ${codeRow}).` }
+      if (codeRow) {
+        return {
+          error: `El código está repetido en el archivo (también aparece en la fila ${codeRow}).`,
+        }
+      }
       const emailRow = seenEmails.get(email)
-      if (emailRow) return { error: `El correo está repetido en el archivo (fila ${emailRow}).` }
+      if (emailRow) {
+        return {
+          error: `El correo está repetido en el archivo (también aparece en la fila ${emailRow}).`,
+        }
+      }
       seenCodes.set(code, rowNumber)
       seenEmails.set(email, rowNumber)
 
@@ -169,46 +190,79 @@ async function bulkImportUsers(
         .maybeSingle()
       if (existingCode) return { success: false, error: 'Ese código ya está registrado.' }
 
-      const { data: created, error: createError } = await admin.auth.admin.createUser({
-        email: data.email,
-        password: data.password,
-        email_confirm: true,
-        user_metadata: {
-          first_name: data.firstName,
-          last_name: data.lastName,
-          student_code: data.code,
-        },
-      })
-      if (createError) {
-        const taken =
-          createError.code === 'email_exists' || /already.*registered/i.test(createError.message)
-        return {
-          success: false,
-          error: taken ? 'Ya existe un usuario con ese correo.' : createError.message,
-        }
-      }
-      const userId = created.user.id
-
       // Si algo falla después de crear la cuenta de acceso se borra, para no
       // dejar un usuario huérfano que bloquee el correo y el código al reintentar.
-      const rollback = async (reason: string) => {
-        const { error: deleteError } = await admin.auth.admin.deleteUser(userId)
-        if (deleteError) {
+      const rollback = async (userId: string, reason: string) => {
+        try {
+          const { error: deleteError } = await admin.auth.admin.deleteUser(userId)
+          if (!deleteError) return { success: false, error: `${reason} No se creó el usuario.` }
           return {
             success: false,
-            error: `${reason} Además no se pudo eliminar la cuenta creada (${deleteError.message}); revísala en Usuarios.`,
+            error: `${reason} Además no se pudo eliminar la cuenta creada (${deleteError.message}); revísala en Usuarios (${data.email}).`,
+          }
+        } catch {
+          return {
+            success: false,
+            error: `${reason} Además no se pudo eliminar la cuenta creada; revísala en Usuarios (${data.email}).`,
           }
         }
-        return { success: false, error: `${reason} No se creó el usuario.` }
+      }
+
+      let userId: string
+      try {
+        const { data: created, error: createError } = await admin.auth.admin.createUser({
+          email: data.email,
+          password: data.password,
+          email_confirm: true,
+          user_metadata: {
+            first_name: data.firstName,
+            last_name: data.lastName,
+            student_code: data.code,
+          },
+        })
+        if (createError) {
+          const taken =
+            createError.code === 'email_exists' || /already.*registered/i.test(createError.message)
+          return {
+            success: false,
+            error: taken ? 'Ya existe un usuario con ese correo.' : createError.message,
+          }
+        }
+        userId = created.user.id
+      } catch (err) {
+        // createUser pudo crear la cuenta antes de fallar (p. ej. tiempo de espera).
+        // Se busca por correo Y código -- el código se verificó libre arriba, así que
+        // un perfil con ambos es el nuestro y nunca un usuario previo con ese correo.
+        const reason = `Error inesperado al crear la cuenta: ${err instanceof Error ? err.message : 'error desconocido'}.`
+        try {
+          const { data: orphan } = await admin
+            .from('profiles')
+            .select('id')
+            .eq('email', data.email)
+            .eq('student_code', data.code)
+            .maybeSingle()
+          return orphan ? await rollback(orphan.id, reason) : { success: false, error: reason }
+        } catch {
+          return {
+            success: false,
+            error: `${reason} No se pudo comprobar si la cuenta quedó creada; revísala en Usuarios (${data.email}).`,
+          }
+        }
       }
 
       try {
-        const { error: updateError } = await admin
+        // select('id'): un update que no toca ninguna fila no devuelve error y
+        // dejaría un usuario sin rol ni código.
+        const { data: updated, error: updateError } = await admin
           .from('profiles')
           .update({ role, student_code: data.code, email: data.email })
           .eq('id', userId)
+          .select('id')
         if (updateError) {
-          return await rollback(`No se pudo completar el perfil: ${updateError.message}.`)
+          return await rollback(userId, `No se pudo completar el perfil: ${updateError.message}.`)
+        }
+        if (!updated || updated.length === 0) {
+          return await rollback(userId, 'No se encontró el perfil del usuario creado.')
         }
 
         if (data.careerId) {
@@ -216,12 +270,12 @@ async function bulkImportUsers(
             .from(careerTable)
             .insert({ [ownerColumn]: userId, career_id: data.careerId, is_active: true })
           if (careerError) {
-            return await rollback(`No se pudo asignar la carrera: ${careerError.message}.`)
+            return await rollback(userId, `No se pudo asignar la carrera: ${careerError.message}.`)
           }
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'error desconocido'
-        return await rollback(`Error inesperado al completar el usuario: ${message}.`)
+        return await rollback(userId, `Error inesperado al completar el usuario: ${message}.`)
       }
 
       return { success: true }
@@ -284,6 +338,7 @@ export async function bulkImportSubjects(formData: FormData): Promise<ActionResu
       const careerName = (row['Carrera'] || '').trim()
       const levelRaw = (row['Semestre'] || '').trim()
 
+      if (isExampleRow('SUBJECT', row)) return { error: EXAMPLE_ROW_ERROR }
       if (!name || !code) return { error: 'Nombre y Código son obligatorios.' }
       // Regla A: una materia solo admite profesor si ya pertenece
       // a una carrera -- en la misma fila, para poder crear ambos
@@ -306,13 +361,7 @@ export async function bulkImportSubjects(formData: FormData): Promise<ActionResu
       if (data.careerName) {
         const match = findCareer(data.careerName)
         if (!match.ok) {
-          return {
-            success: false,
-            error:
-              match.reason === 'inactive'
-                ? `La carrera "${data.careerName}" está inactiva.`
-                : `No existe la carrera "${data.careerName}".`,
-          }
+          return { success: false, error: careerLookupError(data.careerName, match.reason) }
         }
         careerId = match.item.id
       }
@@ -353,13 +402,7 @@ export async function bulkImportSubjects(formData: FormData): Promise<ActionResu
       if (data.periodName) {
         const match = findPeriod(data.periodName)
         if (!match.ok) {
-          return {
-            success: false,
-            error:
-              match.reason === 'inactive'
-                ? `El período "${data.periodName}" está inactivo.`
-                : `No existe el período "${data.periodName}".`,
-          }
+          return { success: false, error: periodLookupError(data.periodName, match.reason) }
         }
         periodId = match.item.id
       }
@@ -389,7 +432,18 @@ export async function bulkImportSubjects(formData: FormData): Promise<ActionResu
           is_active: true,
         })
         if (scError) {
-          return { success: false, error: 'Materia creada, pero no se pudo vincular a la carrera.' }
+          // Se borra la materia recién creada: si quedara, el reintento chocaría con
+          // "Ya existe una materia con este código".
+          const { error: deleteError } = await supabase
+            .from('subjects')
+            .delete()
+            .eq('id', subject.id)
+          return {
+            success: false,
+            error: deleteError
+              ? `No se pudo vincular la materia a la carrera y tampoco eliminarla; revisa la materia ${data.code}.`
+              : 'No se pudo vincular la materia a la carrera. No se creó la materia.',
+          }
         }
       }
 
@@ -424,6 +478,7 @@ export async function bulkImportEnrollments(formData: FormData): Promise<ActionR
     (row) => {
       const subjectCode = (row['Código Materia'] || '').trim()
       const studentCode = (row['Código Estudiante'] || '').trim()
+      if (isExampleRow('ENROLLMENT', row)) return { error: EXAMPLE_ROW_ERROR }
       if (!subjectCode || !studentCode) {
         return { error: 'Código Materia y Código Estudiante son obligatorios.' }
       }
