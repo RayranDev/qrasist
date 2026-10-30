@@ -50,6 +50,32 @@ interface LogAuditInput {
 }
 
 /**
+ * Igual que logAudit pero con un solo INSERT para varias entradas (las
+ * operaciones masivas no pueden hacer una escritura por solicitud).
+ */
+export async function logAuditMany(inputs: LogAuditInput[]): Promise<void> {
+  if (inputs.length === 0) return
+  try {
+    const admin = getSupabaseAdmin()
+    const { error } = await admin.from('audit_log').insert(
+      inputs.map((input) => ({
+        actor_id: input.actorId,
+        action: input.action,
+        entity_type: input.entityType,
+        entity_id: input.entityId ?? null,
+        subject_id: input.subjectId ?? null,
+        details: input.details ?? {},
+      }))
+    )
+    if (error) {
+      console.error('[audit] failed to insert audit_log rows', { count: inputs.length, error })
+    }
+  } catch (err) {
+    console.error('[audit] unexpected error logging actions', { count: inputs.length, err })
+  }
+}
+
+/**
  * Inserta una entrada en audit_log usando el cliente service-role
  * (la tabla no tiene policies de INSERT para authenticated/anon, ver
  * migración 023). Nunca lanza: una falla de auditoría no debe tumbar

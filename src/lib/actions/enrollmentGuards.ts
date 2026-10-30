@@ -62,6 +62,25 @@ export async function checkProfessorAssignable(
 }
 
 /**
+ * Gates A+C+D sobre carreras ya cargadas: la materia debe pertenecer a
+ * >=1 carrera, el estudiante debe tener >=1 carrera, y deben coincidir.
+ * Es la parte pura de checkStudentEnrollable, para validar muchas
+ * solicitudes con dos consultas en vez de dos por solicitud.
+ */
+export function evaluateStudentEnrollable(subjectCareers: string[], studentCareers: string[]) {
+  if (subjectCareers.length === 0) {
+    return { ok: false, error: 'Esta materia no pertenece a ninguna carrera todavía.' }
+  }
+  if (studentCareers.length === 0) {
+    return { ok: false, error: 'El estudiante no tiene ninguna carrera asignada.' }
+  }
+  if (!hasOverlap(subjectCareers, studentCareers)) {
+    return { ok: false, error: 'El estudiante no pertenece a la carrera de esta materia.' }
+  }
+  return { ok: true as const }
+}
+
+/**
  * Gates A+C+D: la materia debe pertenecer a >=1 carrera, el
  * estudiante debe tener >=1 carrera, y deben coincidir.
  */
@@ -71,15 +90,8 @@ export async function checkStudentEnrollable(
   studentId: string
 ) {
   const subjectCareers = await getSubjectCareerIds(supabase, subjectId)
-  if (subjectCareers.length === 0) {
-    return { ok: false, error: 'Esta materia no pertenece a ninguna carrera todavía.' }
-  }
+  // Con la materia sin carreras no hace falta consultar las del estudiante.
+  if (subjectCareers.length === 0) return evaluateStudentEnrollable([], [])
   const studentCareers = await getStudentCareerIds(supabase, studentId)
-  if (studentCareers.length === 0) {
-    return { ok: false, error: 'El estudiante no tiene ninguna carrera asignada.' }
-  }
-  if (!hasOverlap(subjectCareers, studentCareers)) {
-    return { ok: false, error: 'El estudiante no pertenece a la carrera de esta materia.' }
-  }
-  return { ok: true as const }
+  return evaluateStudentEnrollable(subjectCareers, studentCareers)
 }
