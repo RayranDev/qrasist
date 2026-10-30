@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   createSubject,
   deleteSubject,
@@ -15,7 +15,8 @@ import { assignSubjectToCareer, removeSubjectFromCareer } from '@/lib/actions/ac
 import { useToast } from '@/components/toast/ToastProvider'
 import ConfirmModal from '@/components/ConfirmModal'
 import CreateFormToggle from '@/components/CreateFormToggle'
-import { Plus, Pencil, Trash2, Calendar } from 'lucide-react'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { Plus, Pencil, Trash2, Calendar, BookMarked } from 'lucide-react'
 import { computePlannedSessions } from '@/lib/utils/plannedSessions'
 
 const DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
@@ -63,10 +64,69 @@ interface Subject {
   lates_per_absence?: number | null
 }
 
-export function CreateSubjectForm({ periods }: { periods: Period[] }) {
+// Evento que usa el estado vacío (otro componente cliente) para pedirle al
+// formulario que se abra: evita subir el estado a un provider por una sola acción.
+const OPEN_CREATE_SUBJECT_EVENT = 'qrasist:open-create-subject'
+
+function scrollToForm(form: HTMLElement) {
+  const reduceMotion =
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  form.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+}
+
+// `resetKey` identifica la vista del listado (ver buildSubjectsViewKey: estado,
+// búsqueda y filtros, sin la página). Al cambiar, el formulario se cierra: filtrar o cambiar de pestaña
+// solo modifica los searchParams, así que sin esto la instancia sobrevive y el
+// formulario quedaría abierto mientras el admin navega por otras materias.
+// Paginar no cambia la key, para no perder lo escrito al revisar otra página.
+export function CreateSubjectForm({
+  periods,
+  resetKey = '',
+}: {
+  periods: Period[]
+  resetKey?: string
+}) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const formRef = useRef<HTMLFormElement>(null)
+  const scrollOnOpen = useRef(false)
   const showToast = useToast()
+
+  const [prevResetKey, setPrevResetKey] = useState(resetKey)
+  if (resetKey !== prevResetKey) {
+    setPrevResetKey(resetKey)
+    setOpen(false)
+  }
+
+  useEffect(() => {
+    const handleOpen = () => {
+      if (formRef.current) {
+        // Ya estaba abierto: solo se trae a la vista.
+        scrollToForm(formRef.current)
+        return
+      }
+      scrollOnOpen.current = true
+      setOpen(true)
+    }
+    window.addEventListener(OPEN_CREATE_SUBJECT_EVENT, handleOpen)
+    return () => window.removeEventListener(OPEN_CREATE_SUBJECT_EVENT, handleOpen)
+  }, [])
+
+  // Al abrirse, el foco pasa al primer campo (el botón que lo abrió se
+  // desmonta y el foco caería en <body>). Si se abrió desde el estado vacío, el
+  // formulario puede quedar fuera de pantalla (el listado está más abajo): se
+  // trae a la vista una vez montado.
+  useEffect(() => {
+    if (!open || !formRef.current) return
+    formRef.current.querySelector<HTMLInputElement>('input[name="name"]')?.focus({
+      preventScroll: true,
+    })
+    if (scrollOnOpen.current) {
+      scrollOnOpen.current = false
+      scrollToForm(formRef.current)
+    }
+  }, [open])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -90,6 +150,7 @@ export function CreateSubjectForm({ periods }: { periods: Period[] }) {
 
   return (
     <form
+      ref={formRef}
       onSubmit={handleSubmit}
       className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100 mb-6"
     >
@@ -258,6 +319,33 @@ export function CreateSubjectForm({ periods }: { periods: Period[] }) {
         </button>
       </div>
     </form>
+  )
+}
+
+// Estado vacío del listado. En la vista de archivadas no se ofrece crear: las
+// materias nuevas siempre nacen activas, así que la acción no tendría efecto.
+export function SubjectsEmptyState({ archived }: { archived: boolean }) {
+  return (
+    <EmptyState
+      icon={<BookMarked className="w-5 h-5" />}
+      title="Ninguna materia coincide con tu búsqueda"
+      description={
+        archived
+          ? 'Prueba ajustando la búsqueda o los filtros.'
+          : 'Prueba ajustando la búsqueda o los filtros, o crea una materia nueva.'
+      }
+      action={
+        archived ? undefined : (
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event(OPEN_CREATE_SUBJECT_EVENT))}
+            className="text-sm font-bold text-navy-700 hover:text-navy-900 underline underline-offset-2 cursor-pointer"
+          >
+            Crear materia
+          </button>
+        )
+      }
+    />
   )
 }
 
