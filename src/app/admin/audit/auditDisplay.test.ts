@@ -25,3 +25,20 @@ describe('justification audit display', () => {
     expect(summarizeAuditDetails('justification.approve', { note: null })).toBe('—')
   })
 })
+
+describe('capture data export audit display', () => {
+  it('labels the action in Spanish', () => {
+    expect(auditActionLabel('report.export_capture_data')).toBe(
+      'Descargó un reporte con IP y ubicación de los estudiantes'
+    )
+  })
+
+  it('summarizes which report and how many rows', () => {
+    expect(
+      summarizeAuditDetails('report.export_capture_data', {
+        report: 'attendance-range',
+        rows: 120,
+      })
+    ).toBe('asistencia por rango · 120 filas')
+  })
+})

@@ -117,6 +117,46 @@ describe('generateRangeReport', () => {
     expect(new Set(ends)).toEqual(new Set(['2026-10-10T05:00:00.000Z']))
   })
 
+  it('only queries IP and coordinates when asked for them', async () => {
+    const tables = {
+      sessions: {
+        data: [
+          {
+            id: 'x',
+            subject_id: 's1',
+            date: '2026-10-05T13:00:00Z',
+            class_ends_at: null,
+            is_active: true,
+            suspended_at: null,
+            suspension_reason: null,
+            modality: 'PRESENCIAL',
+            is_makeup: false,
+            makeup_reason: null,
+          },
+        ],
+      },
+      subjects: { data: [subjectRow] },
+      enrollments: {
+        data: [{ subject_id: 's1', student_id: 'a', student: { name: 'Ana', student_code: '1' } }],
+      },
+    }
+    const selected = (calls: Call[]) =>
+      calls
+        .filter((c) => c.method === 'select' && ['sessions', 'attendances'].includes(c.table))
+        .map((c) => String(c.args[0]))
+        .join(' ')
+
+    const plain = fakeClient(tables)
+    const off = await generateRangeReport(plain.client, query)
+    expect(selected(plain.calls)).not.toMatch(/ip_address|latitude|longitude/)
+    expect(off.ok && off.report.includesCapture).toBe(false)
+
+    const withCapture = fakeClient(tables)
+    const on = await generateRangeReport(withCapture.client, { ...query, includeCapture: true })
+    expect(selected(withCapture.calls)).toMatch(/ip_address/)
+    expect(on.ok && on.report.includesCapture).toBe(true)
+  })
+
   it('throws (so the route answers 500) when a query fails', async () => {
     const { client } = fakeClient({ sessions: { data: null, error: { message: 'timeout' } } })
     await expect(generateRangeReport(client, query)).rejects.toThrow()

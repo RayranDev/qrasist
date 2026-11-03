@@ -7,7 +7,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { buildStudentHistory, type StudentSubjectHistory } from './attendanceReport'
 import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
-import { loadReportData } from './attendanceReportData'
+import { loadReportData, loadSessionGroupIps } from './attendanceReportData'
 
 export interface StudentReport {
   studentName: string
@@ -22,7 +22,11 @@ export async function generateStudentReport(
   supabase: SupabaseClient,
   studentId: string,
   /** Rango opcional de días civiles de Bogotá; el estado sigue siendo semestral. */
-  options: { range?: { from: string | null; to: string | null } } = {}
+  options: {
+    range?: { from: string | null; to: string | null }
+    /** IP y ubicación en cada entrada (solo el reporte que pide coordinación). */
+    includeCapture?: boolean
+  } = {}
 ): Promise<StudentReportResult> {
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
@@ -43,7 +47,12 @@ export async function generateStudentReport(
   }
   const subjectIds = [...new Set((enrollments || []).map((e) => e.subject_id as string))]
 
-  const data = await loadReportData(supabase, { subjectIds, studentId, activeOnly: true })
+  const data = await loadReportData(supabase, {
+    subjectIds,
+    studentId,
+    activeOnly: true,
+    includeCapture: options.includeCapture,
+  })
   // El estudiante no puede leer el perfil de sus docentes (RLS de profiles),
   // así que el nombre del docente de SUS materias se resuelve en el servidor
   // con el cliente de servicio, solo para los ids que salen de esas materias.
@@ -64,6 +73,15 @@ export async function generateStudentReport(
     }
   }
 
+  const capture = options.includeCapture
+    ? {
+        groupIpBySession: await loadSessionGroupIps(
+          supabase,
+          data.attendances.map((a) => a.sessionId)
+        ),
+      }
+    : undefined
+
   const history = buildStudentHistory({
     studentId,
     subjects: data.subjects,
@@ -72,6 +90,7 @@ export async function generateStudentReport(
     justifications: data.justifications,
     held: data.held,
     range: options.range,
+    capture,
   })
 
   return {

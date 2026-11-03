@@ -40,6 +40,7 @@ export type AuditAction =
   | 'justification.register'
   | 'justification.change_decision'
   | 'auth.password_reset'
+  | 'report.export_capture_data'
 
 interface LogAuditInput {
   actorId: string | null

@@ -10,6 +10,7 @@ import { formatBogotaTime } from '@/lib/utils/bogotaDay'
 import { RANGE_STATUS_LABELS, type RangeReport, type RangeStatus } from './attendanceRangeReport'
 import { collectCutColumns, cutLabel, findCut, generalHeader } from './cutColumns'
 import { formatDateEs, formatGeneratedAt } from './pdf/format'
+import { CAPTURE_EXCEL_COLUMNS, CAPTURE_NOTE, captureRowValues } from './captureColumns'
 
 export interface RangeWorkbookMeta {
   scopeLabel: string
@@ -52,6 +53,8 @@ export async function buildRangeWorkbook(
       { header: 'Estudiante', key: 'studentName', width: 30 },
       { header: 'Estado', key: 'status', width: 18 },
       { header: 'Hora de Registro', key: 'scannedAt', width: 16 },
+      // Solo con "Incluir IP y ubicación": sin la opción el detalle no cambia.
+      ...(report.includesCapture ? CAPTURE_EXCEL_COLUMNS : []),
     ],
     rows: report.detail.map((r) => ({
       date: formatDateEs(r.date),
@@ -64,6 +67,7 @@ export async function buildRangeWorkbook(
       studentName: r.studentName,
       status: r.statusLabel,
       scannedAt: r.scannedAt ? formatBogotaTime(r.scannedAt) : '',
+      ...(report.includesCapture ? captureRowValues(r.capture) : {}),
     })),
   }
 
@@ -119,6 +123,7 @@ export async function buildRangeWorkbook(
         value:
           'Las ausencias se derivan de las inscripciones en las clases dictadas. Las clases suspendidas no generan ausencias y las clases en curso solo muestran a quien ya registró asistencia. El % de asistencia es asistencias / (asistencias + justificadas + ausencias).',
       },
+      ...(report.includesCapture ? [{ field: 'IP y ubicación', value: CAPTURE_NOTE }] : []),
       ...(hasCuts
         ? [
             {

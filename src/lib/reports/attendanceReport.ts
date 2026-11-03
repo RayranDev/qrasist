@@ -20,6 +20,7 @@
  *  - Un corte es un rango de fechas civiles de Bogotá, ambos extremos
  *    inclusivos.
  */
+import { EMPTY_CAPTURE_CELLS, captureCellsFor, type CaptureReportCells } from './captureColumns'
 import {
   computeAttendanceSummary,
   type AbsencePolicyConfig,
@@ -73,6 +74,9 @@ export interface ReportSessionInput {
   modality?: 'PRESENCIAL' | 'VIRTUAL' | null
   isMakeup?: boolean
   makeupReason?: string | null
+  /** Ubicación del profesor al abrir la clase. Solo se carga con includeCapture. */
+  latitude?: number | null
+  longitude?: number | null
 }
 
 /** Contexto para decidir si una clase ya terminó (DEF-QA-05). */
@@ -101,6 +105,10 @@ export interface ReportAttendanceInput {
   manualReason: string | null
   /** Momento en que se registró la asistencia (timestamptz ISO). */
   scannedAt?: string | null
+  /** IP y ubicación capturadas. Solo se cargan con includeCapture (reportes de coordinación). */
+  ip?: string | null
+  latitude?: number | null
+  longitude?: number | null
 }
 
 export interface ReportJustificationInput {
@@ -754,6 +762,8 @@ export interface StudentHistoryEntry {
   manual: boolean
   /** Motivo de la marca manual, de la excusa o de la suspensión. */
   note: string
+  /** IP y ubicación (solo con `capture`; vacías si no hay asistencia real). */
+  capture?: CaptureReportCells
 }
 
 export interface StudentSubjectHistory {
@@ -790,6 +800,12 @@ export function buildStudentHistory(input: {
    * siendo semestrales.
    */
   range?: Pick<ReportRange, 'from' | 'to'>
+  /**
+   * Agrega IP y ubicación a cada entrada con asistencia real (reporte del
+   * estudiante pedido por coordinación). `groupIpBySession` es la IP más
+   * repetida de cada clase, calculada con las asistencias de TODO el grupo.
+   */
+  capture?: { groupIpBySession: Map<string, string | null> }
 }): StudentSubjectHistory[] {
   const sessionsBySubject = groupBy(input.sessions, (s) => s.subjectId)
   const mine = input.attendances.filter((a) => a.studentId === input.studentId)
@@ -863,6 +879,7 @@ export function buildStudentHistory(input: {
             state: 'SUSPENDED',
             manual: false,
             note: s.suspensionReason?.trim() || '',
+            ...(input.capture ? { capture: EMPTY_CAPTURE_CELLS } : {}),
           })
           continue
         }
@@ -875,6 +892,23 @@ export function buildStudentHistory(input: {
             state: a.status,
             manual: !!a.markedBy,
             note: a.markedBy ? a.manualReason?.trim() || '' : '',
+            ...(input.capture
+              ? {
+                  capture: captureCellsFor(
+                    {
+                      modality: s.modality,
+                      latitude: s.latitude ?? null,
+                      longitude: s.longitude ?? null,
+                    },
+                    {
+                      ip: a.ip ?? null,
+                      latitude: a.latitude ?? null,
+                      longitude: a.longitude ?? null,
+                    },
+                    input.capture.groupIpBySession.get(s.id) ?? null
+                  ),
+                }
+              : {}),
           })
         } else if (justifiedIds.has(s.id)) {
           entries.push({
@@ -883,9 +917,17 @@ export function buildStudentHistory(input: {
             state: 'JUSTIFIED',
             manual: false,
             note: approved.get(s.id)?.reason ?? '',
+            ...(input.capture ? { capture: EMPTY_CAPTURE_CELLS } : {}),
           })
         } else {
-          entries.push({ sessionId: s.id, date: s.date, state: 'ABSENT', manual: false, note: '' })
+          entries.push({
+            sessionId: s.id,
+            date: s.date,
+            state: 'ABSENT',
+            manual: false,
+            note: '',
+            ...(input.capture ? { capture: EMPTY_CAPTURE_CELLS } : {}),
+          })
         }
       }
 

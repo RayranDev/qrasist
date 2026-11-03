@@ -11,7 +11,7 @@ describe('parseUserReportParams', () => {
   it('accepts a user alone and defaults the format to xlsx', () => {
     expect(parse(`userId=${UUID}`)).toEqual({
       ok: true,
-      params: { userId: UUID, format: 'xlsx' },
+      params: { userId: UUID, format: 'xlsx', includeCapture: false },
     })
   })
 
@@ -59,5 +59,27 @@ describe('parseUserReportParams', () => {
     expect(parse(`userId=${UUID}&from=0050-05-01&to=0050-05-02`).ok).toBe(false)
     expect(parse(`userId=${UUID}&from=2026-01-01&to=2101-01-01`).ok).toBe(false)
     expect(parse(`userId=${UUID}&from=2100-01-01&to=2100-01-31`).ok).toBe(true)
+  })
+})
+
+describe('parseUserReportParams includeCapture', () => {
+  it('is off by default and turns on only with 1', () => {
+    const off = parse(`userId=${UUID}`)
+    expect(off.ok && off.params.includeCapture).toBe(false)
+    const on = parse(`userId=${UUID}&includeCapture=1`)
+    expect(on.ok && on.params.includeCapture).toBe(true)
+  })
+
+  it('rejects any other value', () => {
+    for (const value of ['true', 'yes', '2']) {
+      expect(parse(`userId=${UUID}&includeCapture=${value}`).ok, value).toBe(false)
+    }
+  })
+
+  it('rejects it for PDF: only the Excel carries IP and location', () => {
+    const result = parse(`userId=${UUID}&format=pdf&includeCapture=1`)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toMatch(/solo se incluyen en el Excel/)
+    expect(parse(`userId=${UUID}&format=pdf`).ok).toBe(true)
   })
 })

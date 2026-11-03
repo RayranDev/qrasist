@@ -26,6 +26,8 @@ export interface RangeReportQuery {
   to: string
   careerId?: string
   subjectId?: string
+  /** Agrega IP y ubicación al detalle (solo coordinación, con registro en la bitácora). */
+  includeCapture?: boolean
 }
 
 export type RangeReportResult =
@@ -164,6 +166,7 @@ export async function generateRangeReport(
     subjectIds,
     activeOnly: true,
     dateRange: window,
+    includeCapture: query.includeCapture,
   })
   if (data.subjects.length === 0) {
     return fail(404, 'No hay clases de materias activas en ese rango.')
@@ -171,7 +174,13 @@ export async function generateRangeReport(
 
   let report: RangeReport
   try {
-    report = buildRangeReport({ ...data, from: query.from, to: query.to, maxDetailRows })
+    report = buildRangeReport({
+      ...data,
+      from: query.from,
+      to: query.to,
+      maxDetailRows,
+      includeCapture: query.includeCapture,
+    })
   } catch (error) {
     if (error instanceof RangeReportTooLargeError) return fail(422, TOO_LARGE_MESSAGE)
     throw error

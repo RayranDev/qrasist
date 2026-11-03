@@ -6,6 +6,7 @@ import { buildRangeReport } from '@/lib/reports/attendanceRangeReport'
 const getUser = vi.fn()
 const checkAdmin = vi.fn()
 const generateRangeReport = vi.fn()
+const logCaptureExport = vi.fn()
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({ auth: { getUser } }),
@@ -15,6 +16,10 @@ vi.mock('@/lib/actions/authGuards', () => ({
 }))
 vi.mock('@/lib/reports/attendanceRangeService', () => ({
   generateRangeReport: (...args: unknown[]) => generateRangeReport(...args),
+}))
+
+vi.mock('@/lib/reports/captureExportAudit', () => ({
+  logCaptureExport: (...args: unknown[]) => logCaptureExport(...args),
 }))
 
 import { GET } from './route'
@@ -111,7 +116,55 @@ describe('GET /admin/reports/attendance-range', () => {
       to: '2026-10-31',
       careerId: UUID,
       subjectId: UUID,
+      includeCapture: false,
     })
+  })
+
+  it('does not write an audit entry for a default download', async () => {
+    const res = await GET(request('from=2026-10-01&to=2026-10-31'))
+    expect(res.status).toBe(200)
+    expect(logCaptureExport).not.toHaveBeenCalled()
+  })
+
+  it('asks for IP and location and audits the export when the option is on', async () => {
+    const res = await GET(
+      request(`from=2026-10-01&to=2026-10-31&subjectId=${UUID}&includeCapture=1`)
+    )
+    expect(res.status).toBe(200)
+    expect(generateRangeReport).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ includeCapture: true })
+    )
+    expect(logCaptureExport).toHaveBeenCalledTimes(1)
+    expect(logCaptureExport).toHaveBeenCalledWith({
+      actorId: 'u1',
+      report: 'attendance-range',
+      filters: { from: '2026-10-01', to: '2026-10-31', careerId: undefined, subjectId: UUID },
+      rows: report.detail.length,
+      subjectId: UUID,
+    })
+  })
+
+  it('rejects the option for non-admins without generating or auditing anything', async () => {
+    checkAdmin.mockResolvedValue(false)
+    const res = await GET(request('from=2026-10-01&to=2026-10-31&includeCapture=1'))
+    expect(res.status).toBe(403)
+    expect(generateRangeReport).not.toHaveBeenCalled()
+    expect(logCaptureExport).not.toHaveBeenCalled()
+  })
+
+  it('rejects a loose value of the option with 400 and audits nothing', async () => {
+    const res = await GET(request('from=2026-10-01&to=2026-10-31&includeCapture=true'))
+    expect(res.status).toBe(400)
+    expect(generateRangeReport).not.toHaveBeenCalled()
+    expect(logCaptureExport).not.toHaveBeenCalled()
+  })
+
+  it('does not audit when the report itself fails', async () => {
+    generateRangeReport.mockResolvedValueOnce({ ok: false, status: 404, error: 'Sin clases.' })
+    const res = await GET(request('from=2026-10-01&to=2026-10-31&includeCapture=1'))
+    expect(res.status).toBe(404)
+    expect(logCaptureExport).not.toHaveBeenCalled()
   })
 
   it('names a one-day file after that day', async () => {

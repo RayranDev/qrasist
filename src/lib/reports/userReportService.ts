@@ -56,7 +56,12 @@ export function describeRange(range: UserReportRange | null): string {
 
 export async function generateUserReport(
   supabase: SupabaseClient,
-  params: { userId: string; range: UserReportRange | null }
+  params: {
+    userId: string
+    range: UserReportRange | null
+    /** IP y ubicación en el detalle; solo existe para estudiantes. */
+    includeCapture?: boolean
+  }
 ): Promise<UserReportResult> {
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
@@ -71,11 +76,16 @@ export async function generateUserReport(
     return fail(400, 'Solo hay reporte de asistencia para estudiantes y docentes.')
   }
 
+  if (params.includeCapture && profile.role !== 'STUDENT') {
+    return fail(400, 'La IP y la ubicación solo se incluyen en el reporte de un estudiante.')
+  }
+
   const scopeLabel = describeRange(params.range)
 
   if (profile.role === 'STUDENT') {
     const result = await generateStudentReport(supabase, profile.id as string, {
       range: params.range ?? undefined,
+      includeCapture: params.includeCapture,
     })
     if (!result.ok) return result
     return {

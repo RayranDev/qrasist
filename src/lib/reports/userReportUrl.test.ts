@@ -27,3 +27,11 @@ describe('userReportUrl', () => {
     ).not.toContain('from=')
   })
 })
+
+describe('userReportUrl includeCapture', () => {
+  it('adds the option only when on', () => {
+    const base = { userId: '3f2b8c1e-0a4d-4c55-9e2a-7d1f6b9a1c10', format: 'xlsx' as const }
+    expect(userReportUrl(base)).not.toContain('includeCapture')
+    expect(userReportUrl({ ...base, includeCapture: true })).toContain('includeCapture=1')
+  })
+})
