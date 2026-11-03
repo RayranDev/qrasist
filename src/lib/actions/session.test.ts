@@ -162,6 +162,34 @@ describe('createSession', () => {
     expect(mockInsert).not.toHaveBeenCalled()
   })
 
+  it('stores the professor coordinates for an in-person class', async () => {
+    await createSession('subject-1', { latitude: 4.6, longitude: -74.1 }, undefined, {
+      modality: 'PRESENCIAL',
+    })
+
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ latitude: 4.6, longitude: -74.1, modality: 'PRESENCIAL' })
+    )
+  })
+
+  it('discards the coordinates of a virtual class even if the client sends them', async () => {
+    await createSession('subject-1', { latitude: 4.6, longitude: -74.1 }, undefined, {
+      modality: 'VIRTUAL',
+    })
+
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ latitude: null, longitude: null, modality: 'VIRTUAL' })
+    )
+  })
+
+  it('ignores invalid coordinates', async () => {
+    await createSession('subject-1', { latitude: 999, longitude: -74.1 }, undefined, {
+      modality: 'PRESENCIAL',
+    })
+
+    expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({ latitude: null }))
+  })
+
   it('still allows a makeup class on a day whose regular class was suspended', async () => {
     mockSuspendedToday.mockResolvedValue({ data: [{ id: 'suspended-1' }] })
 

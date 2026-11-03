@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback, useSyncExternalStore } from 'react'
 import { Html5Qrcode } from 'html5-qrcode'
 import { registerAttendance, AttendanceErrorCode } from '@/lib/actions/attendance'
+import { isLocationCaptureRequired } from '@/lib/actions/attendancePreflight'
 import { getBestEffortLocation } from '@/lib/utils/geolocation'
 import { Check, TriangleAlert, CircleX, WifiOff, RefreshCw, Clock3 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -58,7 +59,11 @@ export default function QRScanner() {
     }
 
     try {
-      const coords = await getBestEffortLocation()
+      // La ubicación solo se pide si la clase la captura. Si la consulta falla,
+      // no se pide: registerAttendance informa el error real y el servidor
+      // descarta las coordenadas de una clase virtual de todos modos.
+      const needsLocation = await isLocationCaptureRequired(decodedText).catch(() => false)
+      const coords = needsLocation ? await getBestEffortLocation() : null
       const result = await registerAttendance(decodedText, coords || undefined)
 
       if (result.ok) {

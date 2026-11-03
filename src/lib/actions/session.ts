@@ -9,6 +9,8 @@ import { getAppSettings } from '@/lib/settings/appSettings'
 import { computeClassEndsAt, type ScheduleBlockTime } from '@/lib/sessions/classWindow'
 import { getBogotaDayRange } from '@/lib/utils/bogotaDay'
 import { logAudit } from '@/lib/audit/auditLog'
+import { sessionCapturesLocation } from '@/lib/attendance/captureScope'
+import { sanitizeCoords } from '@/lib/utils/clientIp'
 
 interface Coords {
   latitude: number
@@ -118,6 +120,10 @@ export async function createSession(
     minimumEnd: expiresAt,
   })
 
+  // La ubicación del profesor es la referencia para medir la distancia de los
+  // estudiantes: en una clase virtual no se guarda, aunque el cliente la envíe.
+  const sessionCoords = sessionCapturesLocation(modality) ? sanitizeCoords(coords) : null
+
   const admin = getSupabaseAdmin()
   const { data: newSession, error } = await admin
     .from('sessions')
@@ -127,8 +133,8 @@ export async function createSession(
       duration_minutes: registrationWindowMinutes,
       expires_at: expiresAt.toISOString(),
       class_ends_at: classEndsAt.toISOString(),
-      latitude: coords?.latitude ?? null,
-      longitude: coords?.longitude ?? null,
+      latitude: sessionCoords?.latitude ?? null,
+      longitude: sessionCoords?.longitude ?? null,
       qr_rotation_seconds: parsed.data.rotationSeconds,
       modality,
       is_makeup: isMakeup,

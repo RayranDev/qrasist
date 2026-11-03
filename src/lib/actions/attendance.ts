@@ -6,6 +6,7 @@ import { headers } from 'next/headers'
 import { getClientIp, sanitizeCoords } from '@/lib/utils/clientIp'
 import { checkRateLimit } from '@/lib/utils/rateLimiter'
 import { formatBogotaTime, getBogotaDayRange } from '@/lib/utils/bogotaDay'
+import { sessionCapturesLocation } from '@/lib/attendance/captureScope'
 
 interface Coords {
   latitude: number
@@ -54,6 +55,14 @@ interface ExistingAttendance {
   status: string
 }
 
+function rateLimited(retryAfterSeconds?: number): RegisterAttendanceResult {
+  return {
+    ok: false,
+    code: 'RATE_LIMITED',
+    message: `Demasiados intentos de escaneo. Espera ${retryAfterSeconds || 15} segundos antes de reintentar.`,
+  }
+}
+
 function buildSuccess(
   subjectName: string,
   subjectCode: string,
@@ -81,10 +90,6 @@ export async function registerAttendance(
   coords?: Coords
 ): Promise<RegisterAttendanceResult> {
   const supabase = await createClient()
-
-  // Capturar la IP real (Next.js headers)
-  const headersList = await headers()
-  const ipAddress = getClientIp(headersList)
 
   // 1. Obtener usuario autenticado
   const {
@@ -118,31 +123,36 @@ export async function registerAttendance(
     }
   }
 
-  // 2. Rate Limiting por usuario (10/min) y por IP (200/min). Cada escaneo es
-  //    UNA llamada; el tope por IP es alto a propósito porque un salón de ~40
-  //    estudiantes comparte la IP del NAT del campus y escanea en la misma
-  //    ventana de registro (5 min), a menudo en el primer minuto. 200/min
-  //    cubre varios salones a la vez; el límite que frena el abuso real de
-  //    una cuenta es el de usuario, y adivinar un UUID v4 no es viable.
-  const userRateKey = `scan:user:${user.id}`
-  const ipRateKey = `scan:ip:${ipAddress}`
-  const [userRate, ipRate] = await Promise.all([
-    checkRateLimit(userRateKey, { maxAttempts: 10, windowMs: 60_000 }),
-    checkRateLimit(ipRateKey, { maxAttempts: 200, windowMs: 60_000 }),
-  ])
+  // 2. Rate Limiting por usuario (10/min). Cada escaneo es UNA llamada; este
+  //    es el límite que frena el abuso real de una cuenta (adivinar un UUID v4
+  //    no es viable).
+  const userRate = await checkRateLimit(`scan:user:${user.id}`, {
+    maxAttempts: 10,
+    windowMs: 60_000,
+  })
+  if (!userRate.allowed) return rateLimited(userRate.retryAfterSeconds)
 
-  if (!userRate.allowed || !ipRate.allowed) {
-    const retrySec = userRate.retryAfterSeconds || ipRate.retryAfterSeconds || 15
-    return {
-      ok: false,
-      code: 'RATE_LIMITED',
-      message: `Demasiados intentos de escaneo. Espera ${retrySec} segundos antes de reintentar.`,
-    }
+  // Límite por IP (200/min). El tope es alto a propósito porque un salón de
+  // ~40 estudiantes comparte la IP del NAT del campus y escanea en la misma
+  // ventana de registro (5 min), a menudo en el primer minuto; 200/min cubre
+  // varios salones a la vez. La clave lleva la IP y queda en rate_limits, así
+  // que NO se consulta en una clase virtual (ahí la IP no se guarda en ningún
+  // lado); sí en todo lo demás, incluidos los tokens que no existen.
+  const headersList = await headers()
+  const ipAddress = getClientIp(headersList)
+  const checkIpRate = async () => {
+    const ipRate = await checkRateLimit(`scan:ip:${ipAddress}`, {
+      maxAttempts: 200,
+      windowMs: 60_000,
+    })
+    return ipRate.allowed ? null : rateLimited(ipRate.retryAfterSeconds)
   }
 
   // 3. Validar formato UUID antes de consultar PostgREST
   const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
   if (!uuidRegex.test(qrToken)) {
+    const limited = await checkIpRate()
+    if (limited) return limited
     return {
       ok: false,
       code: 'INVALID',
@@ -160,6 +170,13 @@ export async function registerAttendance(
     .select('*')
     .or(`qr_token.eq.${qrToken},previous_qr_token.eq.${qrToken}`)
     .single()
+
+  // Solo las clases presenciales (o sin modalidad) capturan IP y ubicación.
+  const capturesLocation = !session || sessionCapturesLocation(session.modality)
+  if (capturesLocation) {
+    const limited = await checkIpRate()
+    if (limited) return limited
+  }
 
   if (sessionError || !session) {
     return {
@@ -277,11 +294,13 @@ export async function registerAttendance(
   //     mismo saltándose el QR, la ventana de registro o la inscripción.
   //     student_id sale del usuario autenticado y session_id de la sesión
   //     validada, nunca de datos del cliente.
-  const safeCoords = sanitizeCoords(coords)
+  //     IP y coordenadas solo se guardan si la clase las captura: en una clase
+  //     virtual se descartan aquí aunque el cliente las envíe.
+  const safeCoords = capturesLocation ? sanitizeCoords(coords) : null
   const { error: insertError } = await admin.from('attendances').insert({
     session_id: session.id,
     student_id: user.id,
-    ip_address: ipAddress,
+    ip_address: capturesLocation ? ipAddress : null,
     latitude: safeCoords?.latitude ?? null,
     longitude: safeCoords?.longitude ?? null,
     status,

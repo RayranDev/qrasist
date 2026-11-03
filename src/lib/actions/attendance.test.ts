@@ -137,6 +137,53 @@ describe('registerAttendance', () => {
     expect(mockUserAttendanceWrite).not.toHaveBeenCalled()
   })
 
+  it('stores IP and coordinates for an in-person class and for a legacy class without modality', async () => {
+    for (const modality of ['PRESENCIAL', null]) {
+      mockAdminInsert.mockClear()
+      mockSessionLookup.mockResolvedValue(openSession({ modality }))
+
+      await registerAttendance(TOKEN, { latitude: 4.6, longitude: -74.1 })
+
+      expect(mockAdminInsert).toHaveBeenCalledWith(
+        expect.objectContaining({ ip_address: '203.0.113.7', latitude: 4.6, longitude: -74.1 })
+      )
+    }
+  })
+
+  it('stores no IP and no coordinates for a virtual class, even if the client sends them', async () => {
+    mockSessionLookup.mockResolvedValue(openSession({ modality: 'VIRTUAL' }))
+
+    const result = await registerAttendance(TOKEN, { latitude: 4.6, longitude: -74.1 })
+
+    expect(result.ok).toBe(true)
+    expect(mockAdminInsert).toHaveBeenCalledWith({
+      session_id: 'session-1',
+      student_id: 'student-1',
+      ip_address: null,
+      latitude: null,
+      longitude: null,
+      status: 'PRESENT',
+    })
+  })
+
+  it('does not persist the IP in the rate limiter for a virtual class', async () => {
+    mockSessionLookup.mockResolvedValue(openSession({ modality: 'VIRTUAL' }))
+
+    await registerAttendance(TOKEN)
+
+    const keys = mockRateLimit.mock.calls.map((call) => call[0] as string)
+    expect(keys).toEqual(['scan:user:student-1'])
+  })
+
+  it('still applies the per-IP limit to tokens that match no session', async () => {
+    mockSessionLookup.mockResolvedValue({ data: null, error: { message: 'no rows' } })
+
+    await registerAttendance(TOKEN)
+
+    const keys = mockRateLimit.mock.calls.map((call) => call[0] as string)
+    expect(keys).toContain('scan:ip:203.0.113.7')
+  })
+
   it('formats the confirmation time in America/Bogota, not UTC', async () => {
     const result = await registerAttendance(TOKEN)
 
