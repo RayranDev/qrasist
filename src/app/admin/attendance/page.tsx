@@ -28,6 +28,7 @@ import AttendanceDayPanel from './AttendanceDayPanel'
 import SubjectPicker from './SubjectPicker'
 import PastClassModal from './PastClassModal'
 import SessionActiveToggle from './SessionActiveToggle'
+import SessionCapturePanel from './SessionCapturePanel'
 import SessionSuspensionControl from './SessionSuspensionControl'
 import SuspendDayModal from './SuspendDayModal'
 
@@ -377,6 +378,10 @@ export default async function AdminAttendancePage({
                       sessionId={calendarSession.id}
                       autoRefresh={false}
                     />
+                    <SessionCapturePanel
+                      key={`capture-${calendarSession.id}`}
+                      sessionId={calendarSession.id}
+                    />
                   </div>
                 )}
               </aside>
@@ -557,6 +562,10 @@ export default async function AdminAttendancePage({
                       key={selectedSession.id}
                       sessionId={selectedSession.id}
                       autoRefresh={false}
+                    />
+                    <SessionCapturePanel
+                      key={`capture-${selectedSession.id}`}
+                      sessionId={selectedSession.id}
                     />
                   </div>
                 ) : (
