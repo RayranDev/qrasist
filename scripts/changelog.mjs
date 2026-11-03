@@ -491,7 +491,24 @@ const formatId = (n) => `CH-${String(n).padStart(3, '0')}`
 // Git
 // ---------------------------------------------------------------------------
 
-function readCommits() {
+// The remote branch is the source of truth: a stale local main would report
+// "everything is recorded" right after a merge. Without network or remote, falls back to local.
+function resolveBranchRef() {
+  const git = (...args) => execFileSync('git', ['-C', ROOT, ...args], { stdio: 'ignore' })
+  try {
+    git('fetch', '--quiet', 'origin', BRANCH)
+  } catch {
+    // Offline: use whatever origin/main was last fetched.
+  }
+  try {
+    git('rev-parse', '--verify', '--quiet', `origin/${BRANCH}`)
+    return `origin/${BRANCH}`
+  } catch {
+    return BRANCH
+  }
+}
+
+function readCommits(ref) {
   let output
   try {
     output = execFileSync(
@@ -500,7 +517,7 @@ function readCommits() {
         '-C',
         ROOT,
         'log',
-        BRANCH,
+        ref,
         '--no-merges',
         '--abbrev=7',
         '--format=%h|%ad|%s',
@@ -509,7 +526,7 @@ function readCommits() {
       { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }
     )
   } catch (err) {
-    fail(`No se pudo leer el historial de git de la rama ${BRANCH}: ${err.message}`)
+    fail(`No se pudo leer el historial de git de la rama ${ref}: ${err.message}`)
   }
   return output
     .split(/\r?\n/)
@@ -520,7 +537,9 @@ function readCommits() {
       const hash = line.slice(0, first)
       const subject = line.slice(second + 1)
       const prMatch = /\(#(\d+)\)\s*$/.exec(subject)
-      const type = /^([a-z]+)(?:\([^)]*\))?!?:/i.exec(subject)?.[1]?.toLowerCase() ?? ''
+      const header = /^([a-z]+)(?:\(([^)]*)\))?!?:/i.exec(subject)
+      // chore(docs): ... is documentation work too, and this log is software-only.
+      const type = header?.[2]?.toLowerCase() === 'docs' ? 'docs' : (header?.[1]?.toLowerCase() ?? '')
       return {
         hash,
         date: line.slice(first + 1, second),
@@ -555,16 +574,17 @@ const isRecorded = (commit, { prs, hashes }) =>
 async function runPending(file) {
   const { ws } = await loadWorkbook(file)
   const recorded = recordedReferences(ws)
-  const missing = readCommits()
+  const ref = resolveBranchRef()
+  const missing = readCommits(ref)
     .filter((c) => !IGNORED_COMMIT_TYPES.has(c.type))
     .filter((c) => !isRecorded(c, recorded))
     .reverse()
 
   if (missing.length === 0) {
-    console.log('Todo está registrado.')
+    console.log(`Todo está registrado (según ${ref}).`)
     return
   }
-  console.log(`Cambios integrados en ${BRANCH} sin registrar (${missing.length}):\n`)
+  console.log(`Cambios integrados en ${ref} sin registrar (${missing.length}):\n`)
   for (const c of missing) console.log(`  ${c.date}  ${c.ref.padEnd(9)}  ${c.subject}`)
   console.log(
     '\nRegístralos con: npm run changelog:add -- --tipo "..." --modulo "..." --desc "..." --ref "..."'

@@ -5,7 +5,7 @@
 
 ## Regla de fondo
 
-Las cuentas de demostración (coordinador, docentes y estudiantes `*.demo`) viven en **producción**. Un agente no escribe contraseñas para iniciar sesión en un sitio real: es un límite fijo del entorno donde corre Claude y no se puede levantar desde el chat. Por eso la verificación no se hace contra producción.
+Un agente no escribe contraseñas para iniciar sesión en un sitio real: es un límite fijo del entorno donde corre Claude y no se puede levantar desde el chat. Por eso la verificación no se hace contra producción; una sesión allí solo la abre el responsable del proyecto.
 
 La salida es un **entorno de pruebas local**: la misma aplicación, apuntando a un Supabase local en Docker, con cuentas semilla que el propio repositorio define. En `localhost` con credenciales de prueba sí se puede iniciar sesión sin intervención, y los datos se pueden crear y borrar sin consecuencias.
 
