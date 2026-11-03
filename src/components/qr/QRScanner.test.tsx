@@ -2,11 +2,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react'
 import { renderToString } from 'react-dom/server'
 import QRScanner from './QRScanner'
+import { getBestEffortLocation } from '@/lib/utils/geolocation'
 
 const TOKEN_A = '3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b'
 const TOKEN_B = '9a8b7c6d-1e2f-4a3b-8c4d-5e6f7a8b9c0d'
 
 const mockRegister = vi.fn()
+const mockNeedsLocation = vi.fn()
 // One entry per Html5Qrcode.start() call: the "decoded a frame" callback.
 const decoders: Array<(text: string) => void> = []
 
@@ -25,6 +27,10 @@ vi.mock('html5-qrcode', () => ({
 
 vi.mock('@/lib/actions/attendance', () => ({
   registerAttendance: (...args: unknown[]) => mockRegister(...args),
+}))
+
+vi.mock('@/lib/actions/attendancePreflight', () => ({
+  isLocationCaptureRequired: (...args: unknown[]) => mockNeedsLocation(...args),
 }))
 
 vi.mock('@/lib/utils/geolocation', () => ({
@@ -52,6 +58,9 @@ describe('QRScanner', () => {
     decoders.length = 0
     mockRegister.mockReset()
     mockRegister.mockResolvedValue(okResult)
+    mockNeedsLocation.mockReset()
+    mockNeedsLocation.mockResolvedValue(true)
+    vi.mocked(getBestEffortLocation).mockClear()
   })
 
   afterEach(() => {
@@ -70,6 +79,49 @@ describe('QRScanner', () => {
     expect(await screen.findByText('¡Asistencia Confirmada!')).toBeInTheDocument()
     expect(mockRegister).toHaveBeenCalledTimes(1)
     expect(mockRegister).toHaveBeenCalledWith(TOKEN_A, undefined)
+  })
+
+  it('never asks for the browser location when the class is virtual', async () => {
+    mockNeedsLocation.mockResolvedValue(false)
+    render(<QRScanner />)
+    await waitForDecoder(1)
+
+    await act(async () => {
+      decoders[0](TOKEN_A)
+    })
+
+    expect(await screen.findByText('¡Asistencia Confirmada!')).toBeInTheDocument()
+    expect(mockNeedsLocation).toHaveBeenCalledWith(TOKEN_A)
+    expect(getBestEffortLocation).not.toHaveBeenCalled()
+    expect(mockRegister).toHaveBeenCalledWith(TOKEN_A, undefined)
+  })
+
+  it('asks for the location and forwards it when the class is in person', async () => {
+    vi.mocked(getBestEffortLocation).mockResolvedValueOnce({ latitude: 4.6, longitude: -74.1 })
+    render(<QRScanner />)
+    await waitForDecoder(1)
+
+    await act(async () => {
+      decoders[0](TOKEN_A)
+    })
+
+    await screen.findByText('¡Asistencia Confirmada!')
+    expect(getBestEffortLocation).toHaveBeenCalledTimes(1)
+    expect(mockRegister).toHaveBeenCalledWith(TOKEN_A, { latitude: 4.6, longitude: -74.1 })
+  })
+
+  it('skips the location and still registers when the preflight fails', async () => {
+    mockNeedsLocation.mockRejectedValue(new Error('network'))
+    render(<QRScanner />)
+    await waitForDecoder(1)
+
+    await act(async () => {
+      decoders[0](TOKEN_A)
+    })
+
+    expect(await screen.findByText('¡Asistencia Confirmada!')).toBeInTheDocument()
+    expect(getBestEffortLocation).not.toHaveBeenCalled()
+    expect(mockRegister).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the first result even if later frames arrive after the response', async () => {

@@ -8,6 +8,7 @@ import { buildWorkbook, type ExportSheet } from '@/lib/excel/exportWorkbook'
 import { INSTITUTION_NAME } from '@/lib/brand'
 import { formatBogotaTime } from '@/lib/utils/bogotaDay'
 import { cutLabel, cutPercentCell } from './cutColumns'
+import { CAPTURE_EXCEL_COLUMNS, CAPTURE_NOTE, captureRowValues } from './captureColumns'
 import type { StudentSubjectHistory } from './attendanceReport'
 import type { ProfessorUserReport } from './professorUserReport'
 import {
@@ -58,6 +59,8 @@ export interface StudentWorkbookMeta {
   scopeLabel: string
   /** El reporte está acotado a un rango de fechas (los cortes siguen siendo semestrales). */
   ranged?: boolean
+  /** La hoja Detalle suma IP y ubicación (las entradas traen `capture`). */
+  includeCapture?: boolean
   generatedAt?: Date
 }
 
@@ -148,6 +151,7 @@ export async function buildStudentUserWorkbook(
       { header: 'Estado', key: 'state', width: 16 },
       { header: 'Registro', key: 'source', width: 12 },
       { header: 'Observación', key: 'note', width: 50 },
+      ...(meta.includeCapture ? CAPTURE_EXCEL_COLUMNS : []),
     ],
     rows: history.flatMap((h) =>
       h.entries.map((e) => ({
@@ -158,6 +162,7 @@ export async function buildStudentUserWorkbook(
         source:
           e.state === 'PRESENT' || e.state === 'LATE' ? (e.manual ? 'Manual' : 'Código QR') : '',
         note: e.note,
+        ...(meta.includeCapture ? captureRowValues(e.capture) : {}),
       }))
     ),
   }
@@ -171,6 +176,7 @@ export async function buildStudentUserWorkbook(
     { field: 'Alcance', value: meta.scopeLabel },
     { field: 'Generado (hora de Bogotá)', value: formatGeneratedAt(meta.generatedAt) },
     { field: 'Faltas contadas', value: COUNTED_ABSENCES_NOTE },
+    ...(meta.includeCapture ? [{ field: 'IP y ubicación', value: CAPTURE_NOTE }] : []),
     {
       field: 'Nota',
       value:

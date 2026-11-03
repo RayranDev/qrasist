@@ -10,6 +10,7 @@ import {
 import { renderStudentReportPdf } from '@/lib/reports/pdf/studentReportPdf'
 import { renderProfessorUserReportPdf } from '@/lib/reports/pdf/professorUserReportPdf'
 import { safeFileName } from '@/lib/reports/pdf/format'
+import { logCaptureExport } from '@/lib/reports/captureExportAudit'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -17,9 +18,12 @@ export const maxDuration = 60
 /**
  * Reporte de asistencia de un estudiante o un docente, pedido por coordinación:
  *   GET /admin/reports/user?userId=...&format=xlsx|pdf[&from=YYYY-MM-DD&to=YYYY-MM-DD]
+ *       [&includeCapture=1]
  *
  * `from` y `to` (días civiles de Bogotá, inclusivos, máximo 366 días) van
  * juntos o ninguno. El usuario debe existir, estar activo y no ser ADMIN.
+ * `includeCapture=1` (solo Excel y solo estudiantes) suma IP y ubicación al
+ * detalle; son datos personales y la descarga queda en la bitácora.
  * Solo ADMIN activo.
  */
 export async function GET(request: NextRequest) {
@@ -38,13 +42,14 @@ export async function GET(request: NextRequest) {
   if (!parsed.ok) {
     return NextResponse.json({ error: parsed.error }, { status: 400 })
   }
-  const { userId, from, to, format } = parsed.params
+  const { userId, from, to, format, includeCapture } = parsed.params
 
   let result
   try {
     result = await generateUserReport(supabase, {
       userId,
       range: from && to ? { from, to } : null,
+      includeCapture,
     })
   } catch (error) {
     console.error('[reports/user] No se pudo generar el reporte', error)
@@ -88,6 +93,7 @@ export async function GET(request: NextRequest) {
           studentCode: result.code,
           scopeLabel: result.scopeLabel,
           ranged: !!(from && to),
+          includeCapture,
         })
       : await buildProfessorUserWorkbook(result.report, {
           professorName: result.name,
@@ -95,6 +101,15 @@ export async function GET(request: NextRequest) {
           ranged: !!(from && to),
         })
   const buffer = await workbook.xlsx.writeBuffer()
+  // La bitácora se escribe cuando el archivo ya está armado (ver attendance-range).
+  if (includeCapture && result.kind === 'student') {
+    await logCaptureExport({
+      actorId: user.id,
+      report: 'user-student',
+      filters: { userId, from, to },
+      rows: result.history.reduce((sum, h) => sum + h.entries.length, 0),
+    })
+  }
   return new NextResponse(buffer as unknown as BodyInit, {
     status: 200,
     headers: {

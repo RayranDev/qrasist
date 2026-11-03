@@ -95,6 +95,29 @@ describe('generateUserReport', () => {
     expect(generateStudentReport).toHaveBeenCalledWith(client, 'u2', { range })
   })
 
+  it('asks the student report for IP and location only when requested', async () => {
+    generateStudentReport.mockResolvedValue({
+      ok: true,
+      report: { studentName: 'Ana', studentCode: '1', history: [] },
+    })
+    const { client } = fakeClient({ profiles: { data: [profile()] } })
+    await generateUserReport(client, { userId: 'u2', range: null, includeCapture: true })
+    expect(generateStudentReport).toHaveBeenCalledWith(client, 'u2', {
+      range: undefined,
+      includeCapture: true,
+    })
+  })
+
+  it('refuses IP and location for professors without loading any report data', async () => {
+    const { client, tablesQueried } = fakeClient({
+      profiles: { data: [profile({ role: 'PROFESSOR' })] },
+    })
+    expect(
+      await generateUserReport(client, { userId: 'u2', range: null, includeCapture: true })
+    ).toMatchObject({ ok: false, status: 400 })
+    expect(tablesQueried).toEqual(['profiles'])
+  })
+
   it('answers 404 for a professor without active subjects', async () => {
     const { client } = fakeClient({
       profiles: { data: [profile({ role: 'PROFESSOR' })] },

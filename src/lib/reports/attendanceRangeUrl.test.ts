@@ -16,3 +16,14 @@ describe('attendanceRangeUrl', () => {
     expect(bare).not.toContain('subjectId')
   })
 })
+
+describe('attendanceRangeUrl includeCapture', () => {
+  it('omits the option unless asked, and builds a URL the route accepts when on', () => {
+    expect(attendanceRangeUrl({ from: '2026-10-05', to: '2026-10-05' })).not.toContain(
+      'includeCapture'
+    )
+    const url = attendanceRangeUrl({ from: '2026-10-05', to: '2026-10-05', includeCapture: true })
+    const parsed = parseRangeReportParams(new URL(url, 'http://localhost').searchParams)
+    expect(parsed.ok && parsed.params.includeCapture).toBe(true)
+  })
+})

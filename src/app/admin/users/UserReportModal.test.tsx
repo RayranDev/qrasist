@@ -40,6 +40,38 @@ describe('UserReportModal', () => {
     expect(url).toBe(`/admin/reports/user?userId=${USER_ID}&format=pdf`)
   })
 
+  it('offers IP and location for students only, off by default', async () => {
+    renderModal('STUDENT')
+    const checkbox = screen.getByRole('checkbox', { name: /Incluir IP y ubicación/ })
+    expect((checkbox as HTMLInputElement).checked).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: /Descargar Excel/ }))
+    await waitFor(() => expect(downloadReport).toHaveBeenCalled())
+    expect(String(downloadReport.mock.calls[0][0])).not.toContain('includeCapture')
+  })
+
+  it('adds the option to the Excel download but never to the PDF', async () => {
+    renderModal('STUDENT')
+    fireEvent.click(screen.getByRole('checkbox', { name: /Incluir IP y ubicación/ }))
+
+    fireEvent.click(screen.getByRole('button', { name: /Descargar Excel/ }))
+    await waitFor(() => expect(downloadReport).toHaveBeenCalledTimes(1))
+    expect(String(downloadReport.mock.calls[0][0])).toContain('includeCapture=1')
+  })
+
+  it('does not send the option with the PDF even when it is checked', async () => {
+    renderModal('STUDENT')
+    fireEvent.click(screen.getByRole('checkbox', { name: /Incluir IP y ubicación/ }))
+
+    fireEvent.click(screen.getByRole('button', { name: /Descargar PDF/ }))
+    await waitFor(() => expect(downloadReport).toHaveBeenCalledTimes(1))
+    expect(String(downloadReport.mock.calls[0][0])).not.toContain('includeCapture')
+  })
+
+  it('does not offer it for professors', () => {
+    renderModal('PROFESSOR')
+    expect(screen.queryByRole('checkbox', { name: /Incluir IP y ubicación/ })).toBeNull()
+  })
+
   it('sends the range when both dates are filled in', async () => {
     renderModal()
     fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-10-01' } })

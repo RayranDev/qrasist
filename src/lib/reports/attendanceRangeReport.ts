@@ -28,6 +28,8 @@
 import { UNASSIGNED_CUT_NAME } from '@/lib/attendance/cutsBreakdown'
 import { bogotaCalendarDate } from '@/lib/utils/businessDays'
 import { hasClassEnded } from '@/lib/attendance/heldSessions'
+import { sessionGroupIp } from '@/lib/attendance/captureFlags'
+import { EMPTY_CAPTURE_CELLS, captureCellsFor, type CaptureReportCells } from './captureColumns'
 import type {
   ReportAttendanceInput,
   ReportEnrollmentInput,
@@ -65,6 +67,8 @@ export interface RangeDetailRow {
   scannedAt: string | null
   /** Corte que contiene la clase; vacío si la materia no tiene cortes definidos. */
   cutName: string
+  /** IP y ubicación (solo con includeCapture). Vacías si no hay asistencia real. */
+  capture?: CaptureReportCells
 }
 
 /** Cifras de una materia dentro de un corte, acotadas al rango del reporte. */
@@ -109,6 +113,8 @@ export interface RangeReport {
   to: string
   detail: RangeDetailRow[]
   summary: RangeSubjectSummary[]
+  /** El detalle lleva IP y ubicación (cada fila trae `capture`). */
+  includesCapture: boolean
 }
 
 export interface RangeReportInput {
@@ -123,6 +129,12 @@ export interface RangeReportInput {
   to: string
   /** Si el detalle supera esta cantidad de filas se aborta con RangeReportTooLargeError. */
   maxDetailRows?: number
+  /**
+   * Agrega IP y ubicación a cada fila con asistencia real. Las filas de clases
+   * virtuales y de marcas manuales quedan marcadas "No aplica". Requiere que los
+   * datos se hayan cargado con includeCapture.
+   */
+  includeCapture?: boolean
 }
 
 /** El detalle excede `maxDetailRows`: se corta apenas se detecta, sin seguir armando filas. */
@@ -196,6 +208,22 @@ export function buildRangeReport(input: RangeReportInput): RangeReport {
     else enrollmentsBySubject.set(e.subjectId, [e])
   }
 
+  // IP más repetida de cada clase, con TODAS sus asistencias (también las de
+  // invitados), igual que el historial del profesor.
+  const groupIpBySession = new Map<string, string | null>()
+  if (input.includeCapture) {
+    const ipsBySession = new Map<string, { ip_address: string | null }[]>()
+    for (const a of input.attendances) {
+      const list = ipsBySession.get(a.sessionId)
+      const entry = { ip_address: a.ip ?? null }
+      if (list) list.push(entry)
+      else ipsBySession.set(a.sessionId, [entry])
+    }
+    for (const s of input.sessions) {
+      groupIpBySession.set(s.id, sessionGroupIp(s, ipsBySession.get(s.id) ?? []))
+    }
+  }
+
   const detail: RangeDetailRow[] = []
   const summary: RangeSubjectSummary[] = []
 
@@ -259,7 +287,8 @@ export function buildRangeReport(input: RangeReportInput): RangeReport {
       const push = (
         enrollment: ReportEnrollmentInput,
         status: RangeStatus,
-        scannedAt: string | null
+        scannedAt: string | null,
+        attendance?: ReportAttendanceInput
       ) => {
         if (input.maxDetailRows !== undefined && detail.length >= input.maxDetailRows) {
           throw new RangeReportTooLargeError()
@@ -276,6 +305,25 @@ export function buildRangeReport(input: RangeReportInput): RangeReport {
           statusLabel: RANGE_STATUS_LABELS[status],
           scannedAt,
           cutName: bucket?.name ?? '',
+          ...(input.includeCapture
+            ? {
+                capture: attendance
+                  ? captureCellsFor(
+                      {
+                        modality: session.modality,
+                        latitude: session.latitude ?? null,
+                        longitude: session.longitude ?? null,
+                      },
+                      {
+                        ip: attendance.ip ?? null,
+                        latitude: attendance.latitude ?? null,
+                        longitude: attendance.longitude ?? null,
+                      },
+                      groupIpBySession.get(session.id) ?? null
+                    )
+                  : EMPTY_CAPTURE_CELLS,
+              }
+            : {}),
         })
       }
 
@@ -293,7 +341,7 @@ export function buildRangeReport(input: RangeReportInput): RangeReport {
             counts.late++
             if (bucket) bucket.late++
           }
-          push(enrollment, attendance.status, attendance.scannedAt ?? null)
+          push(enrollment, attendance.status, attendance.scannedAt ?? null, attendance)
         } else if (!ended) {
           // Clase en curso: solo cuenta para quien ya registró asistencia, así
           // que quien aún no escaneó no tiene falta todavía.
@@ -335,5 +383,11 @@ export function buildRangeReport(input: RangeReportInput): RangeReport {
   )
   summary.sort((a, b) => collator.compare(a.subjectCode, b.subjectCode))
 
-  return { from: input.from, to: input.to, detail, summary }
+  return {
+    from: input.from,
+    to: input.to,
+    detail,
+    summary,
+    includesCapture: input.includeCapture === true,
+  }
 }

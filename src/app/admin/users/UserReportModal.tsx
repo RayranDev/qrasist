@@ -32,6 +32,8 @@ export default function UserReportModal({
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [downloading, setDownloading] = useState<'xlsx' | 'pdf' | null>(null)
+  // Solo el Excel de un estudiante: el PDF no lleva IP ni ubicación.
+  const [includeCapture, setIncludeCapture] = useState(false)
 
   const hasOnlyOneDate = !!from !== !!to
   const rangeError = hasOnlyOneDate
@@ -44,7 +46,13 @@ export default function UserReportModal({
     if (rangeError || downloading) return
     setDownloading(format)
     const result = await downloadReport(
-      userReportUrl({ userId, format, from, to }),
+      userReportUrl({
+        userId,
+        format,
+        from,
+        to,
+        includeCapture: format === 'xlsx' && role === 'STUDENT' && includeCapture,
+      }),
       `reporte_asistencia.${format}`
     )
     if (result.ok) {
@@ -104,6 +112,26 @@ export default function UserReportModal({
             </p>
           )}
         </fieldset>
+
+        {role === 'STUDENT' && (
+          <div>
+            <label className="flex items-start gap-2 text-xs font-medium text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={includeCapture}
+                onChange={(e) => setIncludeCapture(e.target.checked)}
+                className="w-4 h-4 mt-0.5 rounded border-gray-300 text-navy-700 focus:ring-navy-600"
+              />
+              <span>
+                Incluir IP y ubicación
+                <span className="block font-normal text-gray-500 mt-0.5 leading-relaxed">
+                  Solo en el Excel, no en el PDF. Solo hay datos de las clases presenciales y la
+                  descarga queda registrada en la bitácora.
+                </span>
+              </span>
+            </label>
+          </div>
+        )}
 
         <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-gray-100 flex-wrap">
           <Button

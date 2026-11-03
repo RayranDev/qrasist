@@ -10,6 +10,7 @@ import {
 } from '@/lib/qrRotation'
 import { useToast } from '@/components/toast/ToastProvider'
 import { getBestEffortLocation } from '@/lib/utils/geolocation'
+import { sessionCapturesLocation } from '@/lib/attendance/captureScope'
 import { Settings2, ChevronDown } from 'lucide-react'
 import { bogotaCalendarDate } from '@/lib/utils/businessDays'
 import { dayOfWeekOf } from '@/lib/sessions/suspension'
@@ -69,7 +70,8 @@ export default function SessionButton({
       return
     }
     setLoading(true)
-    const coords = await getBestEffortLocation()
+    // En una clase virtual no se pide la ubicación (ni se guarda).
+    const coords = sessionCapturesLocation(modality) ? await getBestEffortLocation() : null
     const res = await createSession(subjectId, coords || undefined, rotationSeconds, {
       modality,
       isMakeup,

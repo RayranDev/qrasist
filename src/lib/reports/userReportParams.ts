@@ -3,7 +3,12 @@
  * para poder probarlo sin el route handler.
  */
 import { z } from 'zod'
-import { checkDayRange, dayParamSchema, idSchema } from './attendanceRangeParams'
+import {
+  checkDayRange,
+  dayParamSchema,
+  idSchema,
+  includeCaptureSchema,
+} from './attendanceRangeParams'
 
 const paramsSchema = z
   .object({
@@ -11,8 +16,18 @@ const paramsSchema = z
     from: dayParamSchema('La fecha inicial no es válida (usa AAAA-MM-DD).').optional(),
     to: dayParamSchema('La fecha final no es válida (usa AAAA-MM-DD).').optional(),
     format: z.enum(['xlsx', 'pdf'], { error: 'Formato no válido.' }).default('xlsx'),
+    includeCapture: includeCaptureSchema,
   })
   .superRefine((value, ctx) => {
+    // El PDF no lleva IP ni ubicación: solo el Excel.
+    if (value.includeCapture && value.format === 'pdf') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['includeCapture'],
+        message: 'La IP y la ubicación solo se incluyen en el Excel, no en el PDF.',
+      })
+      return
+    }
     if (!!value.from !== !!value.to) {
       ctx.addIssue({
         code: 'custom',
@@ -34,7 +49,7 @@ export type ParsedUserReportParams =
 
 export function parseUserReportParams(search: URLSearchParams): ParsedUserReportParams {
   const raw: Record<string, string> = {}
-  for (const key of ['userId', 'from', 'to', 'format']) {
+  for (const key of ['userId', 'from', 'to', 'format', 'includeCapture']) {
     const value = search.get(key)
     // Un parámetro vacío (?from=) equivale a no enviarlo.
     if (value) raw[key] = value

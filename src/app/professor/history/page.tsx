@@ -6,6 +6,7 @@ import { getAppSettings } from '@/lib/settings/appSettings'
 import { canProfessorEditSession, getEffectiveClassEnd } from '@/lib/sessions/classWindow'
 import { hasClassEnded } from '@/lib/attendance/heldSessions'
 import { usableCuts, type PeriodCutRow, type PeriodDates } from '@/lib/attendance/cutsView'
+import { redactCaptureFields, sessionCapturesLocation } from '@/lib/attendance/captureScope'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,6 +60,7 @@ export default async function ProfessorHistoryPage({
         is_active,
         suspended_at,
         suspension_reason,
+        modality,
         latitude,
         longitude,
         attendances (
@@ -122,9 +124,31 @@ export default async function ProfessorHistoryPage({
       sub.period as unknown as PeriodDates | null,
       sub.period_id ? cutRowsByPeriod.get(sub.period_id) : []
     ),
-    sessions: ((sub.sessions || []) as { date: string; class_ends_at: string | null }[]).map(
-      (session) => ({
+    sessions: (
+      (sub.sessions || []) as {
+        date: string
+        class_ends_at: string | null
+        modality: string | null
+        latitude: number | null
+        longitude: number | null
+        attendances: {
+          ip_address: string | null
+          latitude: number | null
+          longitude: number | null
+        }[]
+      }[]
+    ).map((session) => {
+      // Una clase virtual no muestra IP ni ubicación: se vacían aquí, en el
+      // servidor, para que ni siquiera lleguen al navegador (incluidas las
+      // filas guardadas antes de que se dejara de capturarlas).
+      const captures = sessionCapturesLocation(session.modality)
+      return {
         ...session,
+        latitude: captures ? session.latitude : null,
+        longitude: captures ? session.longitude : null,
+        attendances: (session.attendances || []).map((a) =>
+          redactCaptureFields(session.modality, a)
+        ),
         can_edit: canProfessorEditSession(session, defaultClassMinutes, now),
         // Calculado en el servidor para que el cliente no dependa de su reloj
         // (DEF-QA-05): una clase en curso no cuenta como dictada para quien
@@ -133,8 +157,8 @@ export default async function ProfessorHistoryPage({
         // Fin efectivo (class_ends_at, o date + duración por defecto en sesiones
         // viejas): el cliente lo usa para refrescar justo cuando termina la clase.
         class_ends_at_effective: getEffectiveClassEnd(session, defaultClassMinutes).toISOString(),
-      })
-    ),
+      }
+    }),
   }))
 
   return (

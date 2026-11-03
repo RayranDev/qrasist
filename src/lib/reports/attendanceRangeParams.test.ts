@@ -12,7 +12,12 @@ describe('parseRangeReportParams', () => {
     const result = parse('from=2026-10-01&to=2026-10-31')
     expect(result).toEqual({
       ok: true,
-      params: { from: '2026-10-01', to: '2026-10-31', format: 'xlsx' },
+      params: {
+        from: '2026-10-01',
+        to: '2026-10-31',
+        format: 'xlsx',
+        includeCapture: false,
+      },
     })
   })
 
@@ -81,5 +86,27 @@ describe('parseRangeReportParams', () => {
     }
     expect(parse('from=2000-01-01&to=2000-01-31').ok).toBe(true)
     expect(parse('from=2100-12-01&to=2100-12-31').ok).toBe(true)
+  })
+})
+
+describe('parseRangeReportParams includeCapture', () => {
+  it('is off by default and when empty', () => {
+    for (const q of ['', '&includeCapture=', '&includeCapture=0']) {
+      const result = parse(`from=2026-10-01&to=2026-10-31${q}`)
+      expect(result.ok && result.params.includeCapture).toBe(false)
+    }
+  })
+
+  it('turns on only with 1', () => {
+    const result = parse('from=2026-10-01&to=2026-10-31&includeCapture=1')
+    expect(result.ok && result.params.includeCapture).toBe(true)
+  })
+
+  it('rejects any other value instead of guessing', () => {
+    for (const value of ['true', 'yes', 'on', '2', 'TRUE', '1 ']) {
+      const result = parse(`from=2026-10-01&to=2026-10-31&includeCapture=${value}`)
+      expect(result.ok, value).toBe(false)
+      if (!result.ok) expect(result.error).toBe('includeCapture debe ser 1 o 0.')
+    }
   })
 })

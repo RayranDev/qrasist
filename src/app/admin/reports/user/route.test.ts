@@ -7,6 +7,7 @@ import { buildProfessorUserReport } from '@/lib/reports/professorUserReport'
 const getUser = vi.fn()
 const checkAdmin = vi.fn()
 const generateUserReport = vi.fn()
+const logCaptureExport = vi.fn()
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({ auth: { getUser } }),
@@ -16,6 +17,10 @@ vi.mock('@/lib/actions/authGuards', () => ({
 }))
 vi.mock('@/lib/reports/userReportService', () => ({
   generateUserReport: (...args: unknown[]) => generateUserReport(...args),
+}))
+
+vi.mock('@/lib/reports/captureExportAudit', () => ({
+  logCaptureExport: (...args: unknown[]) => logCaptureExport(...args),
 }))
 
 // Real implementations, wrapped in spies to see which meta the route hands them.
@@ -148,6 +153,7 @@ describe('GET /admin/reports/user', () => {
     expect(generateUserReport).toHaveBeenCalledWith(expect.anything(), {
       userId: UUID,
       range: { from: '2026-10-01', to: '2026-10-31' },
+      includeCapture: false,
     })
 
     const pdf = await GET(request(`userId=${UUID}&format=pdf`))
@@ -158,7 +164,56 @@ describe('GET /admin/reports/user', () => {
     expect(generateUserReport).toHaveBeenLastCalledWith(expect.anything(), {
       userId: UUID,
       range: null,
+      includeCapture: false,
     })
+  })
+
+  it('audits the export only when the student report carries IP and location', async () => {
+    const plain = await GET(request(`userId=${UUID}`))
+    expect(plain.status).toBe(200)
+    expect(logCaptureExport).not.toHaveBeenCalled()
+
+    const withCapture = await GET(request(`userId=${UUID}&includeCapture=1`))
+    expect(withCapture.status).toBe(200)
+    expect(generateUserReport).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ includeCapture: true })
+    )
+    expect(buildStudentUserWorkbook).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ includeCapture: true })
+    )
+    expect(logCaptureExport).toHaveBeenCalledTimes(1)
+    expect(logCaptureExport).toHaveBeenCalledWith(
+      expect.objectContaining({ actorId: 'u1', report: 'user-student' })
+    )
+  })
+
+  it('writes the audit entry only after the workbook is built: a build failure leaves none', async () => {
+    vi.mocked(buildStudentUserWorkbook).mockRejectedValueOnce(new Error('exceljs exploded'))
+    await expect(GET(request(`userId=${UUID}&includeCapture=1`))).rejects.toThrow(
+      'exceljs exploded'
+    )
+    expect(logCaptureExport).not.toHaveBeenCalled()
+  })
+
+  it('refuses IP and location in the PDF and for non-admins', async () => {
+    const pdf = await GET(request(`userId=${UUID}&format=pdf&includeCapture=1`))
+    expect(pdf.status).toBe(400)
+
+    checkAdmin.mockResolvedValue(false)
+    const forbidden = await GET(request(`userId=${UUID}&includeCapture=1`))
+    expect(forbidden.status).toBe(403)
+
+    expect(generateUserReport).not.toHaveBeenCalled()
+    expect(logCaptureExport).not.toHaveBeenCalled()
+  })
+
+  it('does not audit when the service refuses (e.g. a professor)', async () => {
+    generateUserReport.mockResolvedValue({ ok: false, status: 400, error: 'Solo estudiantes.' })
+    const res = await GET(request(`userId=${UUID}&includeCapture=1`))
+    expect(res.status).toBe(400)
+    expect(logCaptureExport).not.toHaveBeenCalled()
   })
 
   it('serves a professor report as xlsx and pdf', async () => {

@@ -12,6 +12,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows, unwrapRows } from '@/lib/supabase/fetchAll'
 import type { AbsenceRuleType } from '@/lib/utils/attendancePolicy'
 import { dayBounds } from '@/lib/attendance/calendarGrid'
+import { mostCommonIp } from '@/lib/attendance/captureFlags'
 import { usableCuts, type PeriodCutRow } from '@/lib/attendance/cutsView'
 import { getAppSettings } from '@/lib/settings/appSettings'
 import type {
@@ -58,6 +59,8 @@ interface SessionRow {
   modality: 'PRESENCIAL' | 'VIRTUAL' | null
   is_makeup: boolean | null
   makeup_reason: string | null
+  latitude?: number | null
+  longitude?: number | null
 }
 
 interface EnrollmentRow {
@@ -76,6 +79,9 @@ interface AttendanceRow {
   marked_by: string | null
   manual_reason: string | null
   scanned_at: string | null
+  ip_address?: string | null
+  latitude?: number | null
+  longitude?: number | null
 }
 
 interface JustificationRow {
@@ -112,6 +118,12 @@ export interface ReportDataQuery {
   widenToCuts?: boolean
   /** No consulta justificaciones (devuelve []): para reportes que no las usan. */
   skipJustifications?: boolean
+  /**
+   * Trae también la IP y la ubicación de cada asistencia y la ubicación de cada
+   * clase. Solo para reportes de coordinación con "Incluir IP y ubicación":
+   * sin esto esos datos ni se consultan.
+   */
+  includeCapture?: boolean
 }
 
 export interface ReportData {
@@ -142,6 +154,12 @@ function chunk<T>(items: T[], size: number): T[][] {
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
   return out
 }
+
+const SESSION_SELECT =
+  'id, subject_id, date, class_ends_at, is_active, suspended_at, suspension_reason, modality, is_makeup, makeup_reason'
+
+const ATTENDANCE_SELECT =
+  'session_id, student_id, status, marked_by, manual_reason, scanned_at, sessions!inner(subject_id)'
 
 const JUSTIFICATION_SELECT = 'session_id, student_id, subject_id, status, reason'
 
@@ -179,6 +197,35 @@ async function loadSubjectRows(
     }
   }
   return query.activeOnly ? rows.filter((r) => r.is_active !== false) : rows
+}
+
+/**
+ * IP más repetida de cada clase, con las asistencias de TODO el grupo (no solo
+ * las de un estudiante). Los reportes de un estudiante con IP y ubicación la
+ * necesitan para la alerta "IP distinta"; solo consulta las clases pedidas.
+ */
+export async function loadSessionGroupIps(
+  supabase: SupabaseClient,
+  sessionIds: string[]
+): Promise<Map<string, string | null>> {
+  const ipsBySession = new Map<string, (string | null)[]>()
+  for (const part of chunk([...new Set(sessionIds)], 100)) {
+    const result = await fetchAllRows<{ session_id: string; ip_address: string | null }>(
+      (from, to) =>
+        supabase
+          .from('attendances')
+          .select('session_id, ip_address')
+          .in('session_id', part)
+          .order('id')
+          .range(from, to)
+    )
+    for (const row of unwrapRows(result, 'las IP de las clases')) {
+      const list = ipsBySession.get(row.session_id)
+      if (list) list.push(row.ip_address)
+      else ipsBySession.set(row.session_id, [row.ip_address])
+    }
+  }
+  return new Map([...ipsBySession].map(([id, ips]) => [id, mostCommonIp(ips)]))
 }
 
 export async function loadReportData(
@@ -266,7 +313,9 @@ export async function loadReportData(
         let q = supabase
           .from('sessions')
           .select(
-            'id, subject_id, date, class_ends_at, is_active, suspended_at, suspension_reason, modality, is_makeup, makeup_reason'
+            (query.includeCapture
+              ? `${SESSION_SELECT}, latitude, longitude`
+              : SESSION_SELECT) as typeof SESSION_SELECT
           )
           .in('subject_id', part)
         if (dateRange) {
@@ -288,7 +337,12 @@ export async function loadReportData(
         let q = supabase
           .from('attendances')
           .select(
-            'session_id, student_id, status, marked_by, manual_reason, scanned_at, sessions!inner(subject_id)'
+            (query.includeCapture
+              ? ATTENDANCE_SELECT.replace(
+                  'scanned_at',
+                  'scanned_at, ip_address, latitude, longitude'
+                )
+              : ATTENDANCE_SELECT) as typeof ATTENDANCE_SELECT
           )
           .in('sessions.subject_id', part)
         if (query.studentId) q = q.eq('student_id', query.studentId)
@@ -335,6 +389,9 @@ export async function loadReportData(
         modality: s.modality,
         isMakeup: !!s.is_makeup,
         makeupReason: s.makeup_reason,
+        ...(query.includeCapture
+          ? { latitude: s.latitude ?? null, longitude: s.longitude ?? null }
+          : {}),
       })
     }
     for (const e of enrollmentRes.data) {
@@ -355,6 +412,13 @@ export async function loadReportData(
         markedBy: a.marked_by,
         manualReason: a.manual_reason,
         scannedAt: a.scanned_at,
+        ...(query.includeCapture
+          ? {
+              ip: a.ip_address ?? null,
+              latitude: a.latitude ?? null,
+              longitude: a.longitude ?? null,
+            }
+          : {}),
       })
     }
     for (const j of justificationRes.data) {

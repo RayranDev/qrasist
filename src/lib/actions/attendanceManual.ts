@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { authorizeAttendanceEdit } from './attendanceEditGuard'
 import { getBogotaDayRange } from '@/lib/utils/bogotaDay'
 import { logAudit } from '@/lib/audit/auditLog'
+import { captureResetForMove } from '@/lib/attendance/captureScope'
 import { revalidatePath } from 'next/cache'
 
 export type ManualAttendanceStatus = 'PRESENT' | 'LATE'
@@ -64,7 +65,7 @@ export async function markAttendanceManually({
 
   const { data: session } = await supabase
     .from('sessions')
-    .select('id, date, subject_id, class_ends_at, suspended_at')
+    .select('id, date, subject_id, class_ends_at, suspended_at, modality')
     .eq('id', sessionId)
     .single()
   if (!session) return { success: false, error: 'Sesión no encontrada.' }
@@ -153,6 +154,9 @@ export async function markAttendanceManually({
           return { success: false, error: 'Ya tiene asistencia registrada ese día.' }
         }
 
+        // Si la clase destino es virtual, la fila no puede conservar la IP ni la
+        // ubicación capturadas en la clase de origen.
+        const captureReset = captureResetForMove(session.modality, sameDayRow.ip_address)
         const { error: relocateError } = await admin
           .from('attendances')
           .update({
@@ -160,6 +164,7 @@ export async function markAttendanceManually({
             status,
             marked_by: user.id,
             manual_reason: trimmedReason,
+            ...captureReset,
           })
           .eq('id', sameDayRow.id)
 
@@ -181,7 +186,8 @@ export async function markAttendanceManually({
             status_before: sameDayRow.status,
             status_after: status,
             original_scanned_at: sameDayRow.scanned_at,
-            original_ip_address: sameDayRow.ip_address,
+            // No se copia la IP a la bitácora si la fila deja de conservarla.
+            original_ip_address: captureReset ? captureReset.ip_address : sameDayRow.ip_address,
             reason: trimmedReason,
             actor_role: editAuth.role,
           },

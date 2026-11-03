@@ -14,6 +14,8 @@ const mockUserSessionSelect = vi.fn()
 const mockSuspendedToday = vi.fn()
 const mockKeptAttendances = vi.fn()
 const mockMoveUpdate = vi.fn()
+const mockScrubUpdate = vi.fn()
+const mockScrubResult = vi.fn()
 const mockLogAudit = vi.fn()
 
 function chain(terminal: Record<string, unknown> = {}) {
@@ -35,11 +37,20 @@ vi.mock('@/lib/supabase/adminClient', () => ({
     from: vi.fn((table: string) => {
       if (table === 'attendances') {
         return {
-          select: vi.fn(() => ({ in: vi.fn(async () => mockKeptAttendances()) })),
           update: vi.fn((values: unknown) => ({
-            in: vi.fn(async (...args: unknown[]) => {
+            in: vi.fn((...args: unknown[]) => {
               mockMoveUpdate(values, ...args)
-              return { error: null }
+              return {
+                // the move: UPDATE ... .in('session_id', from).select('id') returns the rows it moved
+                select: vi.fn(async () => mockKeptAttendances()),
+                // the clear: UPDATE ... .in('id', moved).eq('session_id', target).or(...)
+                eq: vi.fn((...eqArgs: unknown[]) => ({
+                  or: vi.fn(async (...orArgs: unknown[]) => {
+                    mockScrubUpdate(values, args, eqArgs, ...orArgs)
+                    return mockScrubResult()
+                  }),
+                })),
+              }
             }),
           })),
         }
@@ -111,6 +122,9 @@ describe('createSession', () => {
     mockKeptAttendances.mockReset()
     mockKeptAttendances.mockResolvedValue({ data: [] })
     mockMoveUpdate.mockReset()
+    mockScrubUpdate.mockReset()
+    mockScrubResult.mockReset()
+    mockScrubResult.mockResolvedValue({ error: null })
     mockLogAudit.mockReset()
 
     mockGetUser.mockResolvedValue({ data: { user: { id: 'prof-1' } } })
@@ -160,6 +174,252 @@ describe('createSession', () => {
     expect(result.success).toBe(false)
     expect(result.error).toMatch(/suspendida/i)
     expect(mockInsert).not.toHaveBeenCalled()
+  })
+
+  it('clears the capture data of the attendances moved into a VIRTUAL makeup class', async () => {
+    mockSuspendedToday.mockResolvedValue({ data: [{ id: 'suspended-1' }] })
+    mockKeptAttendances.mockResolvedValue({
+      data: [
+        { id: 'att-1', student_id: 'stu-1', session_id: 'suspended-1' },
+        { id: 'att-2', student_id: 'stu-2', session_id: 'suspended-1' },
+      ],
+    })
+
+    await createSession('subject-1', undefined, undefined, {
+      modality: 'VIRTUAL',
+      isMakeup: true,
+      makeupReason: 'Reposición de la clase suspendida',
+    })
+
+    // IP and coordinates go to null, but rows holding the 'manual' marker are skipped
+    expect(mockScrubUpdate).toHaveBeenCalledWith(
+      { ip_address: null, latitude: null, longitude: null },
+      ['id', ['att-1', 'att-2']],
+      // it can only clear rows that actually sit in the makeup class
+      ['session_id', 'session-1'],
+      'ip_address.is.null,ip_address.neq.manual'
+    )
+  })
+
+  describe('makeup moves (race and failures)', () => {
+    const makeup = (modality: 'VIRTUAL' | 'PRESENCIAL' = 'VIRTUAL') =>
+      createSession('subject-1', undefined, undefined, {
+        modality,
+        isMakeup: true,
+        makeupReason: 'Reposición de la clase suspendida',
+      })
+
+    beforeEach(() => {
+      mockSuspendedToday.mockResolvedValue({ data: [{ id: 'suspended-1' }] })
+    })
+
+    it('clears and audits exactly the rows the move returned, including a scan that landed late', async () => {
+      // the move reports three rows; nothing was read beforehand, so a scan that
+      // arrived just before the UPDATE is covered like the others
+      mockKeptAttendances.mockResolvedValue({
+        data: [{ id: 'att-1' }, { id: 'att-2' }, { id: 'att-late' }],
+        error: null,
+      })
+
+      await makeup()
+
+      expect(mockScrubUpdate).toHaveBeenCalledWith(
+        expect.any(Object),
+        ['id', ['att-1', 'att-2', 'att-late']],
+        ['session_id', 'session-1'],
+        expect.any(String)
+      )
+      expect(mockLogAudit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'attendance.relocate',
+          details: expect.objectContaining({
+            attendance_ids: ['att-1', 'att-2', 'att-late'],
+            moved: 3,
+          }),
+        })
+      )
+    })
+
+    it('does not touch or audit anything when the move returns no rows', async () => {
+      mockKeptAttendances.mockResolvedValue({ data: [], error: null })
+
+      await makeup()
+
+      expect(mockScrubUpdate).not.toHaveBeenCalled()
+      expect(
+        mockLogAudit.mock.calls.filter(
+          (c) => (c[0] as { action: string }).action === 'attendance.relocate'
+        )
+      ).toHaveLength(0)
+    })
+
+    it('does not clear or audit when the move itself fails, and does not fail the class', async () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      mockKeptAttendances.mockResolvedValue({ data: null, error: { message: 'boom' } })
+
+      const result = await makeup()
+
+      expect(result.success).toBe(true)
+      expect(mockScrubUpdate).not.toHaveBeenCalled()
+      expect(spy).toHaveBeenCalled()
+      spy.mockRestore()
+    })
+
+    it('keeps a failed clear visible: server log plus a flag in the audit entry, class still created', async () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      mockKeptAttendances.mockResolvedValue({ data: [{ id: 'att-1' }], error: null })
+      mockScrubResult.mockResolvedValue({ error: { message: 'clear failed' } })
+
+      const result = await makeup()
+
+      expect(result.success).toBe(true)
+      expect(spy).toHaveBeenCalledWith(
+        expect.stringContaining('failed to clear capture data'),
+        expect.anything()
+      )
+      expect(mockLogAudit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'attendance.relocate',
+          details: expect.objectContaining({ capture_clear_failed: true }),
+        })
+      )
+      spy.mockRestore()
+    })
+
+    it('does not flag the audit entry when the clear works', async () => {
+      mockKeptAttendances.mockResolvedValue({ data: [{ id: 'att-1' }], error: null })
+
+      await makeup()
+
+      const relocate = mockLogAudit.mock.calls.find(
+        (c) => (c[0] as { action: string }).action === 'attendance.relocate'
+      )
+      expect(relocate?.[0].details).not.toHaveProperty('capture_clear_failed')
+    })
+  })
+
+  it('keeps the capture data of attendances moved into an in-person or legacy makeup class', async () => {
+    mockSuspendedToday.mockResolvedValue({ data: [{ id: 'suspended-1' }] })
+    mockKeptAttendances.mockResolvedValue({
+      data: [{ id: 'att-1', student_id: 'stu-1', session_id: 'suspended-1' }],
+    })
+
+    for (const modality of ['PRESENCIAL', undefined] as const) {
+      await createSession('subject-1', undefined, undefined, {
+        modality,
+        isMakeup: true,
+        makeupReason: 'Reposición de la clase suspendida',
+      })
+    }
+
+    expect(mockScrubUpdate).not.toHaveBeenCalled()
+  })
+
+  describe('modality chosen against the weekly schedule', () => {
+    // NOW is a Monday in Bogota (day_of_week = 1)
+    const monday = (modality: string, extra: Record<string, unknown> = {}) => ({
+      day_of_week: 1,
+      start_time: '08:00',
+      end_time: '10:00',
+      modality,
+      ...extra,
+    })
+    const modalityAudits = () =>
+      mockLogAudit.mock.calls.filter(
+        (call) =>
+          (call[0] as { action: string }).action === 'session.modality_differs_from_schedule'
+      )
+
+    it('audits a VIRTUAL class opened on a day the schedule says PRESENCIAL', async () => {
+      mockSchedulesResult.mockResolvedValue({ data: [monday('PRESENCIAL')] })
+
+      const result = await createSession('subject-1', undefined, undefined, { modality: 'VIRTUAL' })
+
+      expect(result.success).toBe(true)
+      expect(modalityAudits()).toHaveLength(1)
+      expect(mockLogAudit).toHaveBeenCalledWith({
+        actorId: 'prof-1',
+        action: 'session.modality_differs_from_schedule',
+        entityType: 'session',
+        entityId: 'session-1',
+        subjectId: 'subject-1',
+        details: {
+          session_id: 'session-1',
+          chosen_modality: 'VIRTUAL',
+          scheduled_modality: 'PRESENCIAL',
+        },
+      })
+    })
+
+    it('still creates the class: the change is never blocked', async () => {
+      mockSchedulesResult.mockResolvedValue({ data: [monday('PRESENCIAL')] })
+      await createSession('subject-1', { latitude: 4.6, longitude: -74.1 }, undefined, {
+        modality: 'VIRTUAL',
+      })
+      expect(mockInsert).toHaveBeenCalledWith(
+        expect.objectContaining({ modality: 'VIRTUAL', latitude: null, longitude: null })
+      )
+    })
+
+    it('also audits the opposite change, an in-person class on a virtual day', async () => {
+      mockSchedulesResult.mockResolvedValue({ data: [monday('VIRTUAL')] })
+
+      await createSession('subject-1', undefined, undefined, { modality: 'PRESENCIAL' })
+
+      expect(modalityAudits()).toHaveLength(1)
+    })
+
+    it('does not audit when the modality matches, when the day has no block or mixes modalities', async () => {
+      mockSchedulesResult.mockResolvedValue({ data: [monday('VIRTUAL')] })
+      await createSession('subject-1', undefined, undefined, { modality: 'VIRTUAL' })
+
+      mockSchedulesResult.mockResolvedValue({ data: [monday('PRESENCIAL', { day_of_week: 3 })] })
+      await createSession('subject-1', undefined, undefined, { modality: 'VIRTUAL' })
+
+      mockSchedulesResult.mockResolvedValue({ data: [monday('PRESENCIAL'), monday('VIRTUAL')] })
+      await createSession('subject-1', undefined, undefined, { modality: 'VIRTUAL' })
+
+      expect(modalityAudits()).toHaveLength(0)
+    })
+
+    it('validates the modality strictly: an unknown value is stored as null and never audited', async () => {
+      mockSchedulesResult.mockResolvedValue({ data: [monday('PRESENCIAL')] })
+
+      await createSession('subject-1', undefined, undefined, {
+        modality: 'ONLINE' as unknown as 'VIRTUAL',
+      })
+
+      expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({ modality: null }))
+      expect(modalityAudits()).toHaveLength(0)
+    })
+  })
+
+  it('stores the professor coordinates for an in-person class', async () => {
+    await createSession('subject-1', { latitude: 4.6, longitude: -74.1 }, undefined, {
+      modality: 'PRESENCIAL',
+    })
+
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ latitude: 4.6, longitude: -74.1, modality: 'PRESENCIAL' })
+    )
+  })
+
+  it('discards the coordinates of a virtual class even if the client sends them', async () => {
+    await createSession('subject-1', { latitude: 4.6, longitude: -74.1 }, undefined, {
+      modality: 'VIRTUAL',
+    })
+
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ latitude: null, longitude: null, modality: 'VIRTUAL' })
+    )
+  })
+
+  it('ignores invalid coordinates', async () => {
+    await createSession('subject-1', { latitude: 999, longitude: -74.1 }, undefined, {
+      modality: 'PRESENCIAL',
+    })
+
+    expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({ latitude: null }))
   })
 
   it('still allows a makeup class on a day whose regular class was suspended', async () => {

@@ -10,6 +10,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'session.reactivate': 'Reactivó una clase',
   'session.suspend': 'Suspendió una clase',
   'session.unsuspend': 'Deshizo la suspensión de una clase',
+  'session.modality_differs_from_schedule':
+    'Abrió una clase con una modalidad distinta a la del horario',
   'class_omission.justify': 'Justificó una clase no registrada',
   'enrollment_request.approve': 'Aprobó solicitud de inscripción',
   'enrollment_request.reject': 'Rechazó solicitud de inscripción',
@@ -30,12 +32,22 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'justification.register': 'Registró una excusa para un estudiante',
   'justification.change_decision': 'Cambió la decisión de una justificación',
   'auth.password_reset': 'Restableció su contraseña por enlace de correo',
+  'report.export_capture_data': 'Descargó un reporte con IP y ubicación de los estudiantes',
 }
 
 const JUSTIFICATION_STATUS_LABELS: Record<string, string> = {
   APPROVED: 'Aprobada',
   REJECTED: 'Rechazada',
   PENDING: 'Pendiente',
+}
+
+const REPORT_LABELS: Record<string, string> = {
+  'attendance-range': 'asistencia por rango',
+  'user-student': 'historial de un estudiante',
+}
+
+function modalityLabel(value: unknown): string {
+  return value === 'VIRTUAL' ? 'virtual' : value === 'PRESENCIAL' ? 'presencial' : '?'
 }
 
 function justificationStatusLabel(status: unknown): string {
@@ -65,6 +77,19 @@ export function summarizeAuditDetails(action: string, details: Record<string, un
       break
     case 'attendance.relocate':
       parts.push('sesión reubicada')
+      if (details.capture_clear_failed === true) {
+        parts.push('NO se pudo borrar la IP y la ubicación')
+      }
+      break
+    case 'session.modality_differs_from_schedule':
+      parts.push(
+        `${modalityLabel(details.chosen_modality)} (horario: ${modalityLabel(details.scheduled_modality)})`
+      )
+      break
+    case 'report.export_capture_data':
+      if (details.report)
+        parts.push(REPORT_LABELS[String(details.report)] ?? String(details.report))
+      if (typeof details.rows === 'number') parts.push(`${details.rows} filas`)
       break
     case 'settings.update_attendance':
       parts.push(

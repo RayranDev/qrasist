@@ -9,6 +9,9 @@ import { getAppSettings } from '@/lib/settings/appSettings'
 import { computeClassEndsAt, type ScheduleBlockTime } from '@/lib/sessions/classWindow'
 import { getBogotaDayRange } from '@/lib/utils/bogotaDay'
 import { logAudit } from '@/lib/audit/auditLog'
+import { captureResetForMove, sessionCapturesLocation } from '@/lib/attendance/captureScope'
+import { sanitizeCoords } from '@/lib/utils/clientIp'
+import { scheduledModalityForDay } from '@/lib/sessions/scheduledModality'
 
 interface Coords {
   latitude: number
@@ -82,7 +85,7 @@ export async function createSession(
     getAppSettings(supabase),
     supabase
       .from('subject_schedules')
-      .select('day_of_week, start_time, end_time')
+      .select('day_of_week, start_time, end_time, modality')
       .eq('subject_id', subjectId),
   ])
 
@@ -118,6 +121,10 @@ export async function createSession(
     minimumEnd: expiresAt,
   })
 
+  // La ubicación del profesor es la referencia para medir la distancia de los
+  // estudiantes: en una clase virtual no se guarda, aunque el cliente la envíe.
+  const sessionCoords = sessionCapturesLocation(modality) ? sanitizeCoords(coords) : null
+
   const admin = getSupabaseAdmin()
   const { data: newSession, error } = await admin
     .from('sessions')
@@ -127,8 +134,8 @@ export async function createSession(
       duration_minutes: registrationWindowMinutes,
       expires_at: expiresAt.toISOString(),
       class_ends_at: classEndsAt.toISOString(),
-      latitude: coords?.latitude ?? null,
-      longitude: coords?.longitude ?? null,
+      latitude: sessionCoords?.latitude ?? null,
+      longitude: sessionCoords?.longitude ?? null,
       qr_rotation_seconds: parsed.data.rotationSeconds,
       modality,
       is_makeup: isMakeup,
@@ -139,6 +146,29 @@ export async function createSession(
 
   if (error || !newSession) {
     return { success: false, error: 'No se pudo crear la sesión.' }
+  }
+
+  // La modalidad la elige el profesor y decide si se captura IP y ubicación.
+  // Cambiarla a último momento es legítimo (pasar la clase a virtual), así que
+  // no se bloquea: si difiere del horario de la materia ese día, queda en la
+  // bitácora para que coordinación lo vea.
+  const scheduledModality = scheduledModalityForDay(
+    (scheduleRows || []) as { day_of_week: number; modality: string | null }[],
+    startedAt
+  )
+  if (modality && scheduledModality && modality !== scheduledModality) {
+    await logAudit({
+      actorId: user.id,
+      action: 'session.modality_differs_from_schedule',
+      entityType: 'session',
+      entityId: newSession.id,
+      subjectId,
+      details: {
+        session_id: newSession.id,
+        chosen_modality: modality,
+        scheduled_modality: scheduledModality,
+      },
+    })
   }
 
   // Reposición el mismo día de una clase suspendida: las asistencias que se
@@ -153,6 +183,7 @@ export async function createSession(
       subjectId,
       fromSessionIds: suspendedTodayIds,
       toSessionId: newSession.id,
+      toModality: modality,
     })
   }
 
@@ -166,22 +197,51 @@ async function moveKeptAttendancesToMakeup(
     subjectId,
     fromSessionIds,
     toSessionId,
-  }: { actorId: string; subjectId: string; fromSessionIds: string[]; toSessionId: string }
+    toModality,
+  }: {
+    actorId: string
+    subjectId: string
+    fromSessionIds: string[]
+    toSessionId: string
+    toModality: SessionModality | null
+  }
 ) {
-  const { data: kept } = await admin
-    .from('attendances')
-    .select('id, student_id, session_id')
-    .in('session_id', fromSessionIds)
-  if (!kept || kept.length === 0) return
-
-  const { error } = await admin
+  // El UPDATE devuelve las filas que MOVIÓ de verdad: una asistencia que entre
+  // en la ventana entre una lectura previa y este UPDATE también se mueve, y
+  // tiene que limpiarse y quedar en la bitácora igual que las demás.
+  const { data: moved, error } = await admin
     .from('attendances')
     .update({ session_id: toSessionId })
     .in('session_id', fromSessionIds)
+    .select('id')
   if (error) {
     // La reposición ya existe y es válida: no se tumba, pero queda el rastro.
     console.error('[session] failed to move kept attendances into the makeup class', error)
     return
+  }
+  const attendanceIds = (moved || []).map((row: { id: string }) => row.id)
+  if (attendanceIds.length === 0) return
+
+  // Una reposición virtual no puede heredar la IP ni la ubicación que esas
+  // asistencias capturaron en la clase presencial suspendida. El marcador
+  // 'manual' no es una IP y se conserva. Si la limpieza falla no se tumba la
+  // reposición (ya existe y es válida), pero la falla no se calla: queda en el
+  // log del servidor y en la entrada de bitácora de esta reubicación.
+  let captureClearFailed = false
+  if (captureResetForMove(toModality, null)) {
+    const { error: resetError } = await admin
+      .from('attendances')
+      .update({ ip_address: null, latitude: null, longitude: null })
+      .in('id', attendanceIds)
+      .eq('session_id', toSessionId)
+      .or('ip_address.is.null,ip_address.neq.manual')
+    if (resetError) {
+      captureClearFailed = true
+      console.error(
+        '[session] failed to clear capture data of attendances moved to a virtual class',
+        resetError
+      )
+    }
   }
 
   await logAudit({
@@ -194,8 +254,9 @@ async function moveKeptAttendancesToMakeup(
       path: 'makeup_after_suspension',
       from_session_ids: fromSessionIds,
       to_session_id: toSessionId,
-      attendance_ids: kept.map((row: { id: string }) => row.id),
-      moved: kept.length,
+      attendance_ids: attendanceIds,
+      moved: attendanceIds.length,
+      ...(captureClearFailed ? { capture_clear_failed: true } : {}),
     },
   })
 }

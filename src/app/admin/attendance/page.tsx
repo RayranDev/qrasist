@@ -21,13 +21,13 @@ import { fetchDaySessions, fetchMonthSessions } from '@/lib/attendance/calendarD
 import { fetchAllRows, unwrapRows } from '@/lib/supabase/fetchAll'
 import { bogotaCalendarDate } from '@/lib/utils/businessDays'
 import { formatBogotaDateTime } from '@/lib/utils/bogotaDay'
-import ReportDownloadButton from '@/components/ReportDownloadButton'
-import { attendanceRangeUrl } from '@/lib/reports/attendanceRangeUrl'
 import AttendanceCalendar from './AttendanceCalendar'
 import AttendanceDayPanel from './AttendanceDayPanel'
 import SubjectPicker from './SubjectPicker'
 import PastClassModal from './PastClassModal'
 import SessionActiveToggle from './SessionActiveToggle'
+import SessionCapturePanel from './SessionCapturePanel'
+import RangeReportButton from './RangeReportButton'
 import SessionSuspensionControl from './SessionSuspensionControl'
 import SuspendDayModal from './SuspendDayModal'
 
@@ -287,20 +287,16 @@ export default async function AdminAttendancePage({
               </nav>
               <div className="flex items-center gap-2.5 flex-wrap">
                 <span className="text-xs text-gray-500">{reportScopeText}</span>
-                <ReportDownloadButton
-                  url={attendanceRangeUrl({
-                    from: isCalendar ? monthRange.firstDay : currentMonthRange.firstDay,
-                    to: isCalendar ? monthRange.lastDay : currentMonthRange.lastDay,
-                    ...reportFilters,
-                  })}
+                <RangeReportButton
+                  from={isCalendar ? monthRange.firstDay : currentMonthRange.firstDay}
+                  to={isCalendar ? monthRange.lastDay : currentMonthRange.lastDay}
+                  {...reportFilters}
                   label={
                     isCalendar
                       ? `Descargar mes de ${reportMonthLabel}`
                       : `Descargar reporte de ${reportMonthLabel}`
                   }
                   title={`Excel con la asistencia de ${reportMonthLabel}. ${reportScopeText}.`}
-                  fallbackName="asistencia.xlsx"
-                  icon="excel"
                 />
               </div>
             </div>
@@ -353,16 +349,12 @@ export default async function AdminAttendancePage({
                   filters={{ careerId: careerId || undefined, subjectId: selectedSubject?.id }}
                   dayActions={
                     selectedDay && (
-                      <ReportDownloadButton
-                        url={attendanceRangeUrl({
-                          from: selectedDay,
-                          to: selectedDay,
-                          ...reportFilters,
-                        })}
+                      <RangeReportButton
+                        from={selectedDay}
+                        to={selectedDay}
+                        {...reportFilters}
                         label="Descargar día"
                         title={`Excel con la asistencia del ${formatDayLabel(selectedDay)}. ${reportScopeText}.`}
-                        fallbackName="asistencia.xlsx"
-                        icon="excel"
                       />
                     )
                   }
@@ -376,6 +368,10 @@ export default async function AdminAttendancePage({
                       key={calendarSession.id}
                       sessionId={calendarSession.id}
                       autoRefresh={false}
+                    />
+                    <SessionCapturePanel
+                      key={`capture-${calendarSession.id}`}
+                      sessionId={calendarSession.id}
                     />
                   </div>
                 )}
@@ -557,6 +553,10 @@ export default async function AdminAttendancePage({
                       key={selectedSession.id}
                       sessionId={selectedSession.id}
                       autoRefresh={false}
+                    />
+                    <SessionCapturePanel
+                      key={`capture-${selectedSession.id}`}
+                      sessionId={selectedSession.id}
                     />
                   </div>
                 ) : (

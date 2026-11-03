@@ -25,3 +25,43 @@ describe('justification audit display', () => {
     expect(summarizeAuditDetails('justification.approve', { note: null })).toBe('—')
   })
 })
+
+describe('capture data export audit display', () => {
+  it('labels the action in Spanish', () => {
+    expect(auditActionLabel('report.export_capture_data')).toBe(
+      'Descargó un reporte con IP y ubicación de los estudiantes'
+    )
+  })
+
+  it('summarizes which report and how many rows', () => {
+    expect(
+      summarizeAuditDetails('report.export_capture_data', {
+        report: 'attendance-range',
+        rows: 120,
+      })
+    ).toBe('asistencia por rango · 120 filas')
+  })
+})
+
+describe('relocation audit display', () => {
+  it('flags a relocation whose capture data could not be cleared', () => {
+    expect(summarizeAuditDetails('attendance.relocate', {})).toBe('sesión reubicada')
+    expect(summarizeAuditDetails('attendance.relocate', { capture_clear_failed: true })).toBe(
+      'sesión reubicada · NO se pudo borrar la IP y la ubicación'
+    )
+  })
+})
+
+describe('modality override audit display', () => {
+  it('labels the action in Spanish and summarizes chosen vs scheduled modality', () => {
+    expect(auditActionLabel('session.modality_differs_from_schedule')).toBe(
+      'Abrió una clase con una modalidad distinta a la del horario'
+    )
+    expect(
+      summarizeAuditDetails('session.modality_differs_from_schedule', {
+        chosen_modality: 'VIRTUAL',
+        scheduled_modality: 'PRESENCIAL',
+      })
+    ).toBe('virtual (horario: presencial)')
+  })
+})

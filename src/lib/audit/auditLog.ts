@@ -21,6 +21,7 @@ export type AuditAction =
   | 'session.reactivate'
   | 'session.suspend'
   | 'session.unsuspend'
+  | 'session.modality_differs_from_schedule'
   | 'class_omission.justify'
   | 'enrollment_request.approve'
   | 'enrollment_request.reject'
@@ -40,6 +41,7 @@ export type AuditAction =
   | 'justification.register'
   | 'justification.change_decision'
   | 'auth.password_reset'
+  | 'report.export_capture_data'
 
 interface LogAuditInput {
   actorId: string | null

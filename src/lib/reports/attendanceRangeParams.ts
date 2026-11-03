@@ -31,12 +31,23 @@ export function dayParamSchema(message: string) {
     )
 }
 
+/**
+ * "Incluir IP y ubicación": solo '1' (sí) o '0' (no, el valor por defecto).
+ * Cualquier otro valor es un 400: son datos personales y no se activan por una
+ * interpretación laxa del parámetro.
+ */
+export const includeCaptureSchema = z
+  .enum(['1', '0'], { error: 'includeCapture debe ser 1 o 0.' })
+  .default('0')
+  .transform((value) => value === '1')
+
 const paramsSchema = z
   .object({
     from: dayParamSchema('La fecha inicial no es válida (usa AAAA-MM-DD).'),
     to: dayParamSchema('La fecha final no es válida (usa AAAA-MM-DD).'),
     careerId: idSchema.optional(),
     subjectId: idSchema.optional(),
+    includeCapture: includeCaptureSchema,
     // Solo Excel: el detalle por estudiante y clase no cabe en un PDF legible.
     format: z.enum(['xlsx'], { error: 'Formato no válido.' }).default('xlsx'),
   })
@@ -53,7 +64,7 @@ export type ParsedRangeParams =
 /** Convierte los query params en parámetros tipados o en un mensaje de error en español. */
 export function parseRangeReportParams(search: URLSearchParams): ParsedRangeParams {
   const raw: Record<string, string> = {}
-  for (const key of ['from', 'to', 'careerId', 'subjectId', 'format']) {
+  for (const key of ['from', 'to', 'careerId', 'subjectId', 'format', 'includeCapture']) {
     const value = search.get(key)
     // Un parámetro vacío (?careerId=) equivale a no enviarlo.
     if (value) raw[key] = value
