@@ -36,3 +36,22 @@ export function redactCaptureFields<T extends CaptureFields>(
   if (sessionCapturesLocation(modality)) return row
   return { ...row, ip_address: null, latitude: null, longitude: null }
 }
+
+/**
+ * Columnas a limpiar cuando una asistencia YA guardada pasa a una clase
+ * virtual (reubicación manual, reposición tras una suspensión): sin esto la fila
+ * conservaría la IP y la ubicación que se capturaron en la clase de origen.
+ * El marcador 'manual' de ip_address no es una IP real y se conserva.
+ * Devuelve null si la clase destino captura (no hay nada que limpiar).
+ */
+export function captureResetForMove(
+  targetModality: string | null | undefined,
+  currentIp: string | null
+): { ip_address: string | null; latitude: null; longitude: null } | null {
+  if (sessionCapturesLocation(targetModality)) return null
+  return {
+    ip_address: currentIp === 'manual' ? 'manual' : null,
+    latitude: null,
+    longitude: null,
+  }
+}
