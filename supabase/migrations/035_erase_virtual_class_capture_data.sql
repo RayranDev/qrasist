@@ -114,9 +114,9 @@
 --                     AND jsonb_typeof(al.details->'attendance_ids') = 'array'
 --                     AND al.details->'attendance_ids' @> to_jsonb(a.id::text)
 --                     AND jsonb_typeof(al.details->'from_session_ids') = 'array'
---                     AND jsonb_array_length(al.details->'from_session_ids') > 0
+--                     AND (CASE WHEN jsonb_typeof(al.details->'from_session_ids') = 'array' THEN jsonb_array_length(al.details->'from_session_ids') ELSE 0 END) > 0
 --                     AND NOT EXISTS (
---                       SELECT 1 FROM jsonb_array_elements_text(al.details->'from_session_ids') f(id)
+--                       SELECT 1 FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(al.details->'from_session_ids') = 'array' THEN al.details->'from_session_ids' ELSE '[]'::jsonb END) f(id)
 --                       WHERE NOT EXISTS (
 --                         SELECT 1 FROM public.sessions s
 --                         WHERE s.id::text = f.id AND s.modality = 'VIRTUAL'
@@ -157,9 +157,9 @@
 --                   AND jsonb_typeof(al.details->'attendance_ids') = 'array'
 --                   AND al.details->'attendance_ids' @> to_jsonb(a.id::text)
 --                   AND jsonb_typeof(al.details->'from_session_ids') = 'array'
---                   AND jsonb_array_length(al.details->'from_session_ids') > 0
+--                   AND (CASE WHEN jsonb_typeof(al.details->'from_session_ids') = 'array' THEN jsonb_array_length(al.details->'from_session_ids') ELSE 0 END) > 0
 --                   AND NOT EXISTS (
---                     SELECT 1 FROM jsonb_array_elements_text(al.details->'from_session_ids') f(id)
+--                     SELECT 1 FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(al.details->'from_session_ids') = 'array' THEN al.details->'from_session_ids' ELSE '[]'::jsonb END) f(id)
 --                     WHERE NOT EXISTS (
 --                       SELECT 1 FROM public.sessions s
 --                       WHERE s.id::text = f.id AND s.modality = 'VIRTUAL'
@@ -251,9 +251,9 @@ WHERE
               AND jsonb_typeof(al.details->'attendance_ids') = 'array'
               AND al.details->'attendance_ids' @> to_jsonb(a.id::text)
               AND jsonb_typeof(al.details->'from_session_ids') = 'array'
-              AND jsonb_array_length(al.details->'from_session_ids') > 0
+              AND (CASE WHEN jsonb_typeof(al.details->'from_session_ids') = 'array' THEN jsonb_array_length(al.details->'from_session_ids') ELSE 0 END) > 0
               AND NOT EXISTS (
-                SELECT 1 FROM jsonb_array_elements_text(al.details->'from_session_ids') f(id)
+                SELECT 1 FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(al.details->'from_session_ids') = 'array' THEN al.details->'from_session_ids' ELSE '[]'::jsonb END) f(id)
                 WHERE NOT EXISTS (
                   SELECT 1 FROM public.sessions s
                   WHERE s.id::text = f.id AND s.modality = 'VIRTUAL'
