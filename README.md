@@ -126,13 +126,25 @@ npm start          # servidor de producción
 
 ---
 
+## Documentación
+
+Los documentos del proyecto están organizados en [`docs/`](docs/README.md): entregables, registro de cambios de software, guías técnicas, referencias y material archivado.
+
+---
+
 ## Paleta de Colores
 
-| Token      | Valor                   | Uso                     |
-| ---------- | ----------------------- | ----------------------- |
-| Primary    | `emerald-600` `#059669` | Botones, acentos, links |
-| Background | `#F7F7F5`               | Fondo general           |
-| Surface    | `#FFFFFF`               | Cards, modales          |
-| Success    | `emerald-500`           | Registro exitoso        |
-| Warning    | `amber-500`             | Invitado, alertas       |
-| Error      | `red-600`               | Errores de registro     |
+Identidad institucional, definida en [`src/app/globals.css`](src/app/globals.css).
+
+| Token       | Valor                             | Uso                                   |
+| ----------- | --------------------------------- | ------------------------------------- |
+| Navy        | `navy-900` `#002849`              | Encabezados, navegación, texto fuerte |
+| Brand       | `brand-600` `#ab1b26` (vinotinto) | Botones, acentos, links               |
+| Brand hover | `brand-700` `#a2121c`             | Estado hover/activo de los acentos    |
+| Background  | `#FFFFFF`                         | Fondo general y tarjetas              |
+| Surface     | `#F7F7F5`                         | Fondo de secciones detrás de tarjetas |
+| Success     | `emerald-500`                     | Registro exitoso                      |
+| Warning     | `amber-500`                       | Invitado, alertas                     |
+| Error       | `red-600`                         | Errores de registro                   |
+
+Cada color tiene una escala completa (`navy-50` a `navy-950`, `brand-50` a `brand-950`). La interfaz es solo en modo claro.
