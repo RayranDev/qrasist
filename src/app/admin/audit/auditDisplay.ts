@@ -77,6 +77,9 @@ export function summarizeAuditDetails(action: string, details: Record<string, un
       break
     case 'attendance.relocate':
       parts.push('sesión reubicada')
+      if (details.capture_clear_failed === true) {
+        parts.push('NO se pudo borrar la IP y la ubicación')
+      }
       break
     case 'session.modality_differs_from_schedule':
       parts.push(

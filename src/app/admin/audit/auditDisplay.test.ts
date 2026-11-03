@@ -43,6 +43,15 @@ describe('capture data export audit display', () => {
   })
 })
 
+describe('relocation audit display', () => {
+  it('flags a relocation whose capture data could not be cleared', () => {
+    expect(summarizeAuditDetails('attendance.relocate', {})).toBe('sesión reubicada')
+    expect(summarizeAuditDetails('attendance.relocate', { capture_clear_failed: true })).toBe(
+      'sesión reubicada · NO se pudo borrar la IP y la ubicación'
+    )
+  })
+})
+
 describe('modality override audit display', () => {
   it('labels the action in Spanish and summarizes chosen vs scheduled modality', () => {
     expect(auditActionLabel('session.modality_differs_from_schedule')).toBe(

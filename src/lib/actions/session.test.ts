@@ -15,6 +15,7 @@ const mockSuspendedToday = vi.fn()
 const mockKeptAttendances = vi.fn()
 const mockMoveUpdate = vi.fn()
 const mockScrubUpdate = vi.fn()
+const mockScrubResult = vi.fn()
 const mockLogAudit = vi.fn()
 
 function chain(terminal: Record<string, unknown> = {}) {
@@ -36,17 +37,20 @@ vi.mock('@/lib/supabase/adminClient', () => ({
     from: vi.fn((table: string) => {
       if (table === 'attendances') {
         return {
-          select: vi.fn(() => ({ in: vi.fn(async () => mockKeptAttendances()) })),
           update: vi.fn((values: unknown) => ({
             in: vi.fn((...args: unknown[]) => {
               mockMoveUpdate(values, ...args)
-              // `.in(...)` is awaited for the move and chained with `.or(...)` for the scrub
-              return Object.assign(Promise.resolve({ error: null }), {
-                or: vi.fn(async (...orArgs: unknown[]) => {
-                  mockScrubUpdate(values, args, ...orArgs)
-                  return { error: null }
-                }),
-              })
+              return {
+                // the move: UPDATE ... .in('session_id', from).select('id') returns the rows it moved
+                select: vi.fn(async () => mockKeptAttendances()),
+                // the clear: UPDATE ... .in('id', moved).eq('session_id', target).or(...)
+                eq: vi.fn((...eqArgs: unknown[]) => ({
+                  or: vi.fn(async (...orArgs: unknown[]) => {
+                    mockScrubUpdate(values, args, eqArgs, ...orArgs)
+                    return mockScrubResult()
+                  }),
+                })),
+              }
             }),
           })),
         }
@@ -119,6 +123,8 @@ describe('createSession', () => {
     mockKeptAttendances.mockResolvedValue({ data: [] })
     mockMoveUpdate.mockReset()
     mockScrubUpdate.mockReset()
+    mockScrubResult.mockReset()
+    mockScrubResult.mockResolvedValue({ error: null })
     mockLogAudit.mockReset()
 
     mockGetUser.mockResolvedValue({ data: { user: { id: 'prof-1' } } })
@@ -189,8 +195,107 @@ describe('createSession', () => {
     expect(mockScrubUpdate).toHaveBeenCalledWith(
       { ip_address: null, latitude: null, longitude: null },
       ['id', ['att-1', 'att-2']],
+      // it can only clear rows that actually sit in the makeup class
+      ['session_id', 'session-1'],
       'ip_address.is.null,ip_address.neq.manual'
     )
+  })
+
+  describe('makeup moves (race and failures)', () => {
+    const makeup = (modality: 'VIRTUAL' | 'PRESENCIAL' = 'VIRTUAL') =>
+      createSession('subject-1', undefined, undefined, {
+        modality,
+        isMakeup: true,
+        makeupReason: 'Reposición de la clase suspendida',
+      })
+
+    beforeEach(() => {
+      mockSuspendedToday.mockResolvedValue({ data: [{ id: 'suspended-1' }] })
+    })
+
+    it('clears and audits exactly the rows the move returned, including a scan that landed late', async () => {
+      // the move reports three rows; nothing was read beforehand, so a scan that
+      // arrived just before the UPDATE is covered like the others
+      mockKeptAttendances.mockResolvedValue({
+        data: [{ id: 'att-1' }, { id: 'att-2' }, { id: 'att-late' }],
+        error: null,
+      })
+
+      await makeup()
+
+      expect(mockScrubUpdate).toHaveBeenCalledWith(
+        expect.any(Object),
+        ['id', ['att-1', 'att-2', 'att-late']],
+        ['session_id', 'session-1'],
+        expect.any(String)
+      )
+      expect(mockLogAudit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'attendance.relocate',
+          details: expect.objectContaining({
+            attendance_ids: ['att-1', 'att-2', 'att-late'],
+            moved: 3,
+          }),
+        })
+      )
+    })
+
+    it('does not touch or audit anything when the move returns no rows', async () => {
+      mockKeptAttendances.mockResolvedValue({ data: [], error: null })
+
+      await makeup()
+
+      expect(mockScrubUpdate).not.toHaveBeenCalled()
+      expect(
+        mockLogAudit.mock.calls.filter(
+          (c) => (c[0] as { action: string }).action === 'attendance.relocate'
+        )
+      ).toHaveLength(0)
+    })
+
+    it('does not clear or audit when the move itself fails, and does not fail the class', async () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      mockKeptAttendances.mockResolvedValue({ data: null, error: { message: 'boom' } })
+
+      const result = await makeup()
+
+      expect(result.success).toBe(true)
+      expect(mockScrubUpdate).not.toHaveBeenCalled()
+      expect(spy).toHaveBeenCalled()
+      spy.mockRestore()
+    })
+
+    it('keeps a failed clear visible: server log plus a flag in the audit entry, class still created', async () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      mockKeptAttendances.mockResolvedValue({ data: [{ id: 'att-1' }], error: null })
+      mockScrubResult.mockResolvedValue({ error: { message: 'clear failed' } })
+
+      const result = await makeup()
+
+      expect(result.success).toBe(true)
+      expect(spy).toHaveBeenCalledWith(
+        expect.stringContaining('failed to clear capture data'),
+        expect.anything()
+      )
+      expect(mockLogAudit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'attendance.relocate',
+          details: expect.objectContaining({ capture_clear_failed: true }),
+        })
+      )
+      spy.mockRestore()
+    })
+
+    it('does not flag the audit entry when the clear works', async () => {
+      mockKeptAttendances.mockResolvedValue({ data: [{ id: 'att-1' }], error: null })
+
+      await makeup()
+
+      const relocate = mockLogAudit.mock.calls.find(
+        (c) => (c[0] as { action: string }).action === 'attendance.relocate'
+      )
+      expect(relocate?.[0].details).not.toHaveProperty('capture_clear_failed')
+    })
   })
 
   it('keeps the capture data of attendances moved into an in-person or legacy makeup class', async () => {

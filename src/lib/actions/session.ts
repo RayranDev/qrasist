@@ -206,33 +206,37 @@ async function moveKeptAttendancesToMakeup(
     toModality: SessionModality | null
   }
 ) {
-  const { data: kept } = await admin
-    .from('attendances')
-    .select('id, student_id, session_id')
-    .in('session_id', fromSessionIds)
-  if (!kept || kept.length === 0) return
-
-  const { error } = await admin
+  // El UPDATE devuelve las filas que MOVIÓ de verdad: una asistencia que entre
+  // en la ventana entre una lectura previa y este UPDATE también se mueve, y
+  // tiene que limpiarse y quedar en la bitácora igual que las demás.
+  const { data: moved, error } = await admin
     .from('attendances')
     .update({ session_id: toSessionId })
     .in('session_id', fromSessionIds)
+    .select('id')
   if (error) {
     // La reposición ya existe y es válida: no se tumba, pero queda el rastro.
     console.error('[session] failed to move kept attendances into the makeup class', error)
     return
   }
+  const attendanceIds = (moved || []).map((row: { id: string }) => row.id)
+  if (attendanceIds.length === 0) return
 
   // Una reposición virtual no puede heredar la IP ni la ubicación que esas
   // asistencias capturaron en la clase presencial suspendida. El marcador
-  // 'manual' no es una IP y se conserva.
-  const attendanceIds = kept.map((row: { id: string }) => row.id)
+  // 'manual' no es una IP y se conserva. Si la limpieza falla no se tumba la
+  // reposición (ya existe y es válida), pero la falla no se calla: queda en el
+  // log del servidor y en la entrada de bitácora de esta reubicación.
+  let captureClearFailed = false
   if (captureResetForMove(toModality, null)) {
     const { error: resetError } = await admin
       .from('attendances')
       .update({ ip_address: null, latitude: null, longitude: null })
       .in('id', attendanceIds)
+      .eq('session_id', toSessionId)
       .or('ip_address.is.null,ip_address.neq.manual')
     if (resetError) {
+      captureClearFailed = true
       console.error(
         '[session] failed to clear capture data of attendances moved to a virtual class',
         resetError
@@ -251,7 +255,8 @@ async function moveKeptAttendancesToMakeup(
       from_session_ids: fromSessionIds,
       to_session_id: toSessionId,
       attendance_ids: attendanceIds,
-      moved: kept.length,
+      moved: attendanceIds.length,
+      ...(captureClearFailed ? { capture_clear_failed: true } : {}),
     },
   })
 }
