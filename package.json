@@ -14,7 +14,9 @@
     "db:reset:local": "supabase db reset",
     "e2e:seed": "tsx e2e/seed/seed.ts",
     "e2e:install": "playwright install --with-deps chromium",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "changelog:pending": "node scripts/changelog.mjs pending",
+    "changelog:add": "node scripts/changelog.mjs add"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
