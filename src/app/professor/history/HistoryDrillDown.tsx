@@ -2,15 +2,7 @@
 
 import { useState } from 'react'
 import { useToast } from '@/components/toast/ToastProvider'
-import {
-  Archive,
-  Users,
-  ChevronRight,
-  BookOpen,
-  TriangleAlert,
-  CheckCircle2,
-  CalendarX2,
-} from 'lucide-react'
+import { Archive, Users, ChevronRight, BookOpen, CheckCircle2, CalendarX2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -22,6 +14,9 @@ import CutsBreakdownList, { CutsInline } from '@/components/attendance/CutsBreak
 import { buildStudentCutBreakdown } from '@/lib/attendance/cutsView'
 import type { CutInput, SessionAttendance } from '@/lib/attendance/cutsBreakdown'
 import { countOf } from '@/lib/utils/plural'
+import { IpCell, LocationCell } from '@/components/attendance/CaptureCells'
+import { evaluateSessionCapture } from '@/lib/attendance/captureFlags'
+import { VIRTUAL_NO_CAPTURE_NOTE, sessionCapturesLocation } from '@/lib/attendance/captureScope'
 import { useRefreshAtClassEnd } from '@/lib/hooks/useRefreshAtClassEnd'
 import {
   capitalizeFirst,
@@ -54,36 +49,6 @@ interface Attendance {
   student: Student | null
 }
 
-const SUSPICIOUS_DISTANCE_METERS = 300
-
-function distanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371000
-  const toRad = (deg: number) => (deg * Math.PI) / 180
-  const dLat = toRad(lat2 - lat1)
-  const dLon = toRad(lon2 - lon1)
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
-
-function mostCommonIp(attendances: Attendance[]): string | null {
-  const counts = new Map<string, number>()
-  for (const a of attendances) {
-    if (!a.ip_address || a.ip_address === 'unknown') continue
-    counts.set(a.ip_address, (counts.get(a.ip_address) || 0) + 1)
-  }
-  let best: string | null = null
-  let bestCount = 0
-  for (const [ip, count] of counts) {
-    if (count > bestCount) {
-      best = ip
-      bestCount = count
-    }
-  }
-  return bestCount > 1 ? best : null
-}
-
 interface Session {
   id: string
   date: string
@@ -92,6 +57,8 @@ interface Session {
   /** RF20: clase suspendida (también tiene is_active = false). */
   suspended_at?: string | null
   suspension_reason?: string | null
+  /** null = sesión anterior a la modalidad: se trata como presencial. */
+  modality?: 'PRESENCIAL' | 'VIRTUAL' | null
   latitude: number | null
   longitude: number | null
   /** false cuando la clase ya terminó (RF21): solo coordinación puede
@@ -171,7 +138,16 @@ export default function HistoryDrillDown({
     const guestAttendances =
       selectedSession.attendances?.filter((a) => !enrolledIds.has(a.student_id)) || []
 
-    const groupIp = mostCommonIp(selectedSession.attendances || [])
+    // En una clase virtual no se captura IP ni ubicación (el servidor además
+    // las vacía antes de mandar la página). Las alertas se calculan con la
+    // misma lógica que ve coordinación.
+    const showCapture = sessionCapturesLocation(selectedSession.modality)
+    const captureById = new Map(
+      evaluateSessionCapture(selectedSession, selectedSession.attendances || []).map((r) => [
+        r.attendance.id,
+        r.evaluation,
+      ])
+    )
 
     // Estudiantes inscritos que todavía no tienen ningún registro en
     // esta sesión puntual -- permite marcarlos manualmente desde el
@@ -208,12 +184,16 @@ export default function HistoryDrillDown({
               <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">
                 Hora
               </th>
-              <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">
-                IP
-              </th>
-              <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">
-                Ubicación
-              </th>
+              {showCapture && (
+                <>
+                  <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">
+                    IP
+                  </th>
+                  <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">
+                    Ubicación
+                  </th>
+                </>
+              )}
               {allowManualActions && (
                 <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">
                   Acciones
@@ -225,25 +205,7 @@ export default function HistoryDrillDown({
             {attendances && attendances.length > 0 ? (
               attendances.map((att) => {
                 const dateObj = new Date(att.scanned_at)
-                const isOutlierIp =
-                  groupIp !== null &&
-                  att.ip_address !== null &&
-                  att.ip_address !== 'unknown' &&
-                  att.ip_address !== groupIp
-                const hasBothCoords =
-                  selectedSession.latitude !== null &&
-                  selectedSession.longitude !== null &&
-                  att.latitude !== null &&
-                  att.longitude !== null
-                const distance = hasBothCoords
-                  ? distanceMeters(
-                      selectedSession.latitude as number,
-                      selectedSession.longitude as number,
-                      att.latitude as number,
-                      att.longitude as number
-                    )
-                  : null
-                const isFarAway = distance !== null && distance > SUSPICIOUS_DISTANCE_METERS
+                const capture = captureById.get(att.id)
                 return (
                   <tr key={att.id} className="hover:bg-gray-50/50 transition">
                     <td className="px-6 py-4 font-bold text-gray-900 flex items-center gap-2.5">
@@ -271,40 +233,16 @@ export default function HistoryDrillDown({
                     <td className="px-6 py-4 text-gray-600 font-mono">
                       {formatBogotaClock(dateObj)}
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-xs text-gray-500">
-                          {att.ip_address && att.ip_address !== 'unknown' ? att.ip_address : '—'}
-                        </span>
-                        {isOutlierIp && (
-                          <span
-                            title="Esta IP es distinta a la del resto del grupo en esta clase"
-                            className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md"
-                          >
-                            <TriangleAlert className="w-3 h-3" strokeWidth={2.5} />
-                            distinta
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      {distance !== null ? (
-                        isFarAway ? (
-                          <span
-                            title="La ubicación del estudiante al escanear está lejos de donde el profesor generó el código."
-                            className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md"
-                          >
-                            <TriangleAlert className="w-3 h-3" strokeWidth={2.5} />
-                            {'>'}
-                            {SUSPICIOUS_DISTANCE_METERS}m
-                          </span>
-                        ) : (
-                          <span className="text-xs text-gray-400">cerca</span>
-                        )
-                      ) : (
-                        <span className="text-xs text-gray-300">—</span>
-                      )}
-                    </td>
+                    {showCapture && capture && (
+                      <>
+                        <td className="px-6 py-4">
+                          <IpCell evaluation={capture} />
+                        </td>
+                        <td className="px-6 py-4">
+                          <LocationCell evaluation={capture} />
+                        </td>
+                      </>
+                    )}
                     {allowManualActions && (
                       <td className="px-6 py-4">
                         <AttendanceRowActions
@@ -322,7 +260,7 @@ export default function HistoryDrillDown({
             ) : (
               <tr>
                 <td
-                  colSpan={allowManualActions ? 8 : 7}
+                  colSpan={(showCapture ? 7 : 5) + (allowManualActions ? 1 : 0)}
                   className="px-6 py-8 text-center text-gray-500 italic"
                 >
                   {emptyMessage}
@@ -359,6 +297,14 @@ export default function HistoryDrillDown({
           </span>
           Estudiantes Regulares (Inscritos)
         </h4>
+        {!showCapture && (
+          <p
+            role="note"
+            className="mb-4 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2"
+          >
+            {VIRTUAL_NO_CAPTURE_NOTE}
+          </p>
+        )}
         {!canEditSession && (
           <p
             role="note"
