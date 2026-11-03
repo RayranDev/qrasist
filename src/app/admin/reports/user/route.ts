@@ -86,15 +86,6 @@ export async function GET(request: NextRequest) {
     })
   }
 
-  if (includeCapture && result.kind === 'student') {
-    await logCaptureExport({
-      actorId: user.id,
-      report: 'user-student',
-      filters: { userId, from, to },
-      rows: result.history.reduce((sum, h) => sum + h.entries.length, 0),
-    })
-  }
-
   const workbook =
     result.kind === 'student'
       ? await buildStudentUserWorkbook(result.history, {
@@ -110,6 +101,15 @@ export async function GET(request: NextRequest) {
           ranged: !!(from && to),
         })
   const buffer = await workbook.xlsx.writeBuffer()
+  // La bitácora se escribe cuando el archivo ya está armado (ver attendance-range).
+  if (includeCapture && result.kind === 'student') {
+    await logCaptureExport({
+      actorId: user.id,
+      report: 'user-student',
+      filters: { userId, from, to },
+      rows: result.history.reduce((sum, h) => sum + h.entries.length, 0),
+    })
+  }
   return new NextResponse(buffer as unknown as BodyInit, {
     status: 200,
     headers: {

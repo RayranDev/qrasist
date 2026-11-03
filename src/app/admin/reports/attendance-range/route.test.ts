@@ -18,11 +18,16 @@ vi.mock('@/lib/reports/attendanceRangeService', () => ({
   generateRangeReport: (...args: unknown[]) => generateRangeReport(...args),
 }))
 
+vi.mock('@/lib/reports/attendanceRangeWorkbook', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/reports/attendanceRangeWorkbook')>()
+  return { ...actual, buildRangeWorkbook: vi.fn(actual.buildRangeWorkbook) }
+})
 vi.mock('@/lib/reports/captureExportAudit', () => ({
   logCaptureExport: (...args: unknown[]) => logCaptureExport(...args),
 }))
 
 import { GET } from './route'
+import { buildRangeWorkbook } from '@/lib/reports/attendanceRangeWorkbook'
 
 const UUID = '3f2b8c1e-0a4d-4c55-9e2a-7d1f6b9a1c10'
 
@@ -157,6 +162,14 @@ describe('GET /admin/reports/attendance-range', () => {
     const res = await GET(request('from=2026-10-01&to=2026-10-31&includeCapture=true'))
     expect(res.status).toBe(400)
     expect(generateRangeReport).not.toHaveBeenCalled()
+    expect(logCaptureExport).not.toHaveBeenCalled()
+  })
+
+  it('writes the audit entry only after the workbook is built: a build failure leaves none', async () => {
+    vi.mocked(buildRangeWorkbook).mockRejectedValueOnce(new Error('exceljs exploded'))
+    await expect(GET(request('from=2026-10-01&to=2026-10-31&includeCapture=1'))).rejects.toThrow(
+      'exceljs exploded'
+    )
     expect(logCaptureExport).not.toHaveBeenCalled()
   })
 

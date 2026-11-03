@@ -50,6 +50,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }
 
+  const workbook = await buildRangeWorkbook(result.report, {
+    scopeLabel: result.scopeLabel,
+    filtersLabel: result.filtersLabel,
+  })
+  const buffer = await workbook.xlsx.writeBuffer()
+  // La bitácora se escribe cuando el archivo ya está armado: una descarga que
+  // falla no deja un registro de datos que nunca salieron.
   if (includeCapture) {
     await logCaptureExport({
       actorId: user.id,
@@ -59,12 +66,6 @@ export async function GET(request: NextRequest) {
       subjectId,
     })
   }
-
-  const workbook = await buildRangeWorkbook(result.report, {
-    scopeLabel: result.scopeLabel,
-    filtersLabel: result.filtersLabel,
-  })
-  const buffer = await workbook.xlsx.writeBuffer()
   const fileName = from === to ? `asistencia_${from}` : `asistencia_${from}_a_${to}`
   return new NextResponse(buffer as unknown as BodyInit, {
     status: 200,

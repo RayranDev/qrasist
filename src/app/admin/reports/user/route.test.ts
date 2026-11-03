@@ -189,6 +189,14 @@ describe('GET /admin/reports/user', () => {
     )
   })
 
+  it('writes the audit entry only after the workbook is built: a build failure leaves none', async () => {
+    vi.mocked(buildStudentUserWorkbook).mockRejectedValueOnce(new Error('exceljs exploded'))
+    await expect(GET(request(`userId=${UUID}&includeCapture=1`))).rejects.toThrow(
+      'exceljs exploded'
+    )
+    expect(logCaptureExport).not.toHaveBeenCalled()
+  })
+
   it('refuses IP and location in the PDF and for non-admins', async () => {
     const pdf = await GET(request(`userId=${UUID}&format=pdf&includeCapture=1`))
     expect(pdf.status).toBe(400)
