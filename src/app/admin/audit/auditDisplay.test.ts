@@ -42,3 +42,17 @@ describe('capture data export audit display', () => {
     ).toBe('asistencia por rango · 120 filas')
   })
 })
+
+describe('modality override audit display', () => {
+  it('labels the action in Spanish and summarizes chosen vs scheduled modality', () => {
+    expect(auditActionLabel('session.modality_differs_from_schedule')).toBe(
+      'Abrió una clase con una modalidad distinta a la del horario'
+    )
+    expect(
+      summarizeAuditDetails('session.modality_differs_from_schedule', {
+        chosen_modality: 'VIRTUAL',
+        scheduled_modality: 'PRESENCIAL',
+      })
+    ).toBe('virtual (horario: presencial)')
+  })
+})

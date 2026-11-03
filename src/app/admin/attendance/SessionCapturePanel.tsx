@@ -14,6 +14,10 @@ import { getSessionCaptureData, type SessionCaptureResult } from '@/lib/actions/
  * panel), no viajan con la página. Es solo de /admin/attendance: el panel en
  * vivo del profesor, que se proyecta en el aula, nunca los muestra.
  */
+function modalityLabel(value: 'PRESENCIAL' | 'VIRTUAL'): string {
+  return value === 'VIRTUAL' ? 'Virtual' : 'Presencial'
+}
+
 export default function SessionCapturePanel({ sessionId }: { sessionId: string }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -69,9 +73,15 @@ export default function SessionCapturePanel({ sessionId }: { sessionId: string }
               {result.error}
             </p>
           ) : !result.applies ? (
-            <p role="note" className="text-xs text-gray-600 text-center py-6">
-              {VIRTUAL_NO_CAPTURE_NOTE}
-            </p>
+            <div role="note" className="text-xs text-gray-600 text-center py-6 space-y-1">
+              <p>{VIRTUAL_NO_CAPTURE_NOTE}</p>
+              {result.scheduledModality && result.modality && (
+                <p className="font-semibold text-amber-700">
+                  {modalityLabel(result.modality)} (horario:{' '}
+                  {modalityLabel(result.scheduledModality).toLowerCase()})
+                </p>
+              )}
+            </div>
           ) : rows.length === 0 ? (
             <p className="text-xs text-gray-400 text-center py-6">
               Nadie ha registrado asistencia en esta clase.

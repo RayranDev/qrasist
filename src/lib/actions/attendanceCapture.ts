@@ -22,6 +22,13 @@ export type SessionCaptureResult =
       /** false en una clase virtual: no hay IP ni ubicación que mostrar. */
       applies: boolean
       rows: SessionCaptureRow[]
+      /** Modalidad con la que se abrió la clase; null en clases anteriores a la modalidad. */
+      modality: 'PRESENCIAL' | 'VIRTUAL' | null
+      /**
+       * Modalidad del horario ese día, solo si el profesor abrió la clase con una
+       * distinta (queda en la bitácora al crearla); null si coincidió o no se sabe.
+       */
+      scheduledModality: 'PRESENCIAL' | 'VIRTUAL' | null
     }
   | { success: false; error: string }
 
@@ -67,8 +74,21 @@ export async function getSessionCaptureData(sessionId: string): Promise<SessionC
     .maybeSingle()
   if (!session) return { success: false, error: 'Sesión no encontrada.' }
 
+  const modality =
+    session.modality === 'VIRTUAL' || session.modality === 'PRESENCIAL' ? session.modality : null
+
+  const { data: override } = await supabase
+    .from('audit_log')
+    .select('details')
+    .eq('action', 'session.modality_differs_from_schedule')
+    .eq('entity_id', sessionId)
+    .maybeSingle()
+  const scheduled = (override?.details as { scheduled_modality?: string } | null)
+    ?.scheduled_modality
+  const scheduledModality = scheduled === 'VIRTUAL' || scheduled === 'PRESENCIAL' ? scheduled : null
+
   if (!sessionCapturesLocation(session.modality)) {
-    return { success: true, applies: false, rows: [] }
+    return { success: true, applies: false, rows: [], modality, scheduledModality }
   }
 
   const [{ data: attendances, error }, { data: enrollments }] = await Promise.all([
@@ -90,6 +110,8 @@ export async function getSessionCaptureData(sessionId: string): Promise<SessionC
   return {
     success: true,
     applies: true,
+    modality,
+    scheduledModality,
     rows: evaluated.map(({ attendance: a, evaluation }) => {
       const student = Array.isArray(a.student) ? a.student[0] : a.student
       return {

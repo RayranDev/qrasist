@@ -6,6 +6,7 @@ const mockCheckAdmin = vi.fn()
 const mockSession = vi.fn()
 const mockAttendances = vi.fn()
 const mockEnrollments = vi.fn()
+const mockOverride = vi.fn()
 
 vi.mock('./authGuards', () => ({
   checkAdmin: (...args: unknown[]) => mockCheckAdmin(...args),
@@ -24,6 +25,7 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'sessions') return chain({ maybeSingle: () => mockSession() })
       if (table === 'attendances') return chain({ order: () => mockAttendances() })
       if (table === 'enrollments') return chain({ eq: () => mockEnrollments() })
+      if (table === 'audit_log') return chain({ maybeSingle: () => mockOverride() })
       throw new Error(`unexpected table in test: ${table}`)
     }),
   })),
@@ -50,9 +52,17 @@ function attendance(id: string, studentId: string, ip: string | null, far = fals
 
 describe('getSessionCaptureData', () => {
   beforeEach(() => {
-    for (const m of [mockGetUser, mockCheckAdmin, mockSession, mockAttendances, mockEnrollments]) {
+    for (const m of [
+      mockGetUser,
+      mockCheckAdmin,
+      mockSession,
+      mockAttendances,
+      mockEnrollments,
+      mockOverride,
+    ]) {
       m.mockReset()
     }
+    mockOverride.mockResolvedValue({ data: null })
     mockGetUser.mockResolvedValue({ data: { user: { id: 'admin-1' } } })
     mockCheckAdmin.mockResolvedValue(true)
     mockSession.mockResolvedValue(sessionRow('PRESENCIAL'))
@@ -111,8 +121,29 @@ describe('getSessionCaptureData', () => {
 
     const result = await getSessionCaptureData('s1')
 
-    expect(result).toEqual({ success: true, applies: false, rows: [] })
+    expect(result).toEqual({
+      success: true,
+      applies: false,
+      rows: [],
+      modality: 'VIRTUAL',
+      scheduledModality: null,
+    })
     expect(mockAttendances).not.toHaveBeenCalled()
+  })
+
+  it('tells coordination when the class was opened with a modality different from the schedule', async () => {
+    mockSession.mockResolvedValue(sessionRow('VIRTUAL'))
+    mockOverride.mockResolvedValue({
+      data: { details: { chosen_modality: 'VIRTUAL', scheduled_modality: 'PRESENCIAL' } },
+    })
+
+    const result = await getSessionCaptureData('s1')
+
+    expect(result).toMatchObject({
+      applies: false,
+      modality: 'VIRTUAL',
+      scheduledModality: 'PRESENCIAL',
+    })
   })
 
   it('treats a legacy class without modality as in person', async () => {

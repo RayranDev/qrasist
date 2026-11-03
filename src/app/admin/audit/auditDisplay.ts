@@ -10,6 +10,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'session.reactivate': 'Reactivó una clase',
   'session.suspend': 'Suspendió una clase',
   'session.unsuspend': 'Deshizo la suspensión de una clase',
+  'session.modality_differs_from_schedule':
+    'Abrió una clase con una modalidad distinta a la del horario',
   'class_omission.justify': 'Justificó una clase no registrada',
   'enrollment_request.approve': 'Aprobó solicitud de inscripción',
   'enrollment_request.reject': 'Rechazó solicitud de inscripción',
@@ -44,6 +46,10 @@ const REPORT_LABELS: Record<string, string> = {
   'user-student': 'historial de un estudiante',
 }
 
+function modalityLabel(value: unknown): string {
+  return value === 'VIRTUAL' ? 'virtual' : value === 'PRESENCIAL' ? 'presencial' : '?'
+}
+
 function justificationStatusLabel(status: unknown): string {
   return typeof status === 'string' ? (JUSTIFICATION_STATUS_LABELS[status] ?? status) : '?'
 }
@@ -71,6 +77,11 @@ export function summarizeAuditDetails(action: string, details: Record<string, un
       break
     case 'attendance.relocate':
       parts.push('sesión reubicada')
+      break
+    case 'session.modality_differs_from_schedule':
+      parts.push(
+        `${modalityLabel(details.chosen_modality)} (horario: ${modalityLabel(details.scheduled_modality)})`
+      )
       break
     case 'report.export_capture_data':
       if (details.report)

@@ -26,6 +26,8 @@ const captured = {
 const result: SessionCaptureResult = {
   success: true,
   applies: true,
+  modality: 'PRESENCIAL',
+  scheduledModality: null,
   rows: [
     {
       attendanceId: 'a1',
@@ -76,13 +78,34 @@ describe('SessionCapturePanel', () => {
   })
 
   it('shows the neutral note instead of rows for a virtual class', async () => {
-    mockGetData.mockResolvedValue({ success: true, applies: false, rows: [] })
+    mockGetData.mockResolvedValue({
+      success: true,
+      applies: false,
+      rows: [],
+      modality: 'VIRTUAL',
+      scheduledModality: null,
+    })
     render(<SessionCapturePanel sessionId="s1" />)
 
     fireEvent.click(screen.getByRole('button', { name: /IP y ubicación/ }))
 
     expect(await screen.findByText('Clase virtual: no se captura IP ni ubicación')).toBeTruthy()
     expect(screen.queryByRole('table')).toBeNull()
+  })
+
+  it('adds the schedule note when a virtual class was opened against a presencial schedule', async () => {
+    mockGetData.mockResolvedValue({
+      success: true,
+      applies: false,
+      rows: [],
+      modality: 'VIRTUAL',
+      scheduledModality: 'PRESENCIAL',
+    })
+    render(<SessionCapturePanel sessionId="s1" />)
+
+    fireEvent.click(screen.getByRole('button', { name: /IP y ubicación/ }))
+
+    expect(await screen.findByText('Virtual (horario: presencial)')).toBeTruthy()
   })
 
   it('shows the error when the server refuses', async () => {
