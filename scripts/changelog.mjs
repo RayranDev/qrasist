@@ -513,16 +513,7 @@ function readCommits(ref) {
   try {
     output = execFileSync(
       'git',
-      [
-        '-C',
-        ROOT,
-        'log',
-        ref,
-        '--no-merges',
-        '--abbrev=7',
-        '--format=%h|%ad|%s',
-        '--date=short',
-      ],
+      ['-C', ROOT, 'log', ref, '--no-merges', '--abbrev=7', '--format=%h|%ad|%s', '--date=short'],
       { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }
     )
   } catch (err) {
@@ -539,7 +530,8 @@ function readCommits(ref) {
       const prMatch = /\(#(\d+)\)\s*$/.exec(subject)
       const header = /^([a-z]+)(?:\(([^)]*)\))?!?:/i.exec(subject)
       // chore(docs): ... is documentation work too, and this log is software-only.
-      const type = header?.[2]?.toLowerCase() === 'docs' ? 'docs' : (header?.[1]?.toLowerCase() ?? '')
+      const type =
+        header?.[2]?.toLowerCase() === 'docs' ? 'docs' : (header?.[1]?.toLowerCase() ?? '')
       return {
         hash,
         date: line.slice(first + 1, second),
