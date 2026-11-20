@@ -173,6 +173,9 @@ describe('AttendanceSettingsModal global policy', () => {
     expect(rotation).toHaveValue(20)
     expect(rotation).toHaveAttribute('min', '10')
     expect(rotation).toHaveAttribute('max', '60')
+    // The helper says a shared photo can stay valid for about twice the interval.
+    const helper = screen.getByText(/código actual y el anterior/)
+    expect(helper.textContent).toMatch(/doble del intervalo \(≈40 s con 20 s, ≈120 s con 60 s\)/)
 
     fireEvent.change(rotation, { target: { value: '30' } })
     expect(saveButton().disabled).toBe(true)

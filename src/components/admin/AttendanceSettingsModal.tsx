@@ -219,7 +219,7 @@ export default function AttendanceSettingsModal({
               max={QR_ROTATION_RANGE.max}
               value={qrRotation}
               onChange={(e) => setQrRotation(e.target.value)}
-              helperText={`Cada cuántos segundos cambia el código QR que proyecta el profesor, en todas las clases nuevas. Un intervalo más largo reduce la carga del servidor; uno más corto hace que las fotos compartidas del código caduquen antes. Entre ${QR_ROTATION_RANGE.min} y ${QR_ROTATION_RANGE.max}. Las clases ya iniciadas conservan su intervalo.`}
+              helperText={`Cada cuántos segundos cambia el código QR en las clases nuevas (las ya iniciadas conservan el suyo). Un intervalo más largo reduce la carga del servidor; uno más corto hace caducar antes las fotos compartidas. Al escanear se acepta el código actual y el anterior, así que una foto puede seguir valiendo hasta el doble del intervalo (≈${DEFAULT_ROTATION_SECONDS * 2} s con ${DEFAULT_ROTATION_SECONDS} s, ≈${QR_ROTATION_RANGE.max * 2} s con ${QR_ROTATION_RANGE.max} s). Entre ${QR_ROTATION_RANGE.min} y ${QR_ROTATION_RANGE.max}.`}
               required
             />
 
