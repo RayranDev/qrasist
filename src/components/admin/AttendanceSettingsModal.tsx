@@ -40,10 +40,12 @@ export default function AttendanceSettingsModal({
   const unreachableLateAfter =
     registrationWindow.trim() === '' || !Number.isFinite(windowMinutes)
       ? null
-      : smallestUnreachableLateAfter(windowMinutes, [
-          DEFAULT_LATE_AFTER_MINUTES,
-          ...knownLateAfterMinutes,
-        ])
+      : smallestUnreachableLateAfter(
+          windowMinutes,
+          [DEFAULT_LATE_AFTER_MINUTES, ...knownLateAfterMinutes],
+          // Tolerancias que ni la ventana máxima supera no se pueden arreglar aquí.
+          REGISTRATION_WINDOW_RANGE.max
+        )
 
   const close = () => {
     setIsOpen(false)
@@ -119,19 +121,21 @@ export default function AttendanceSettingsModal({
               required
             />
 
-            {unreachableLateAfter !== null && (
-              <div
-                role="status"
-                className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200/70 text-xs text-amber-900 leading-snug"
-              >
-                <Info className="w-4 h-4 shrink-0 mt-px text-amber-600" />
-                <p>
-                  Con esta ventana nadie podrá registrarse como tarde: la tardanza empieza a los{' '}
-                  {unreachableLateAfter} min y el registro por QR se cierra a los {windowMinutes}{' '}
-                  min. Solo se podrá marcar tarde de forma manual. Puedes guardar igualmente.
-                </p>
-              </div>
-            )}
+            {/* El contenedor del aviso siempre está en el DOM: una región en vivo que
+                aparece junto con su contenido no se anuncia de forma fiable. */}
+            <div role="status">
+              {unreachableLateAfter !== null && (
+                <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200/70 text-xs text-amber-900 leading-snug">
+                  <Info className="w-4 h-4 shrink-0 mt-px text-amber-600" />
+                  <p>
+                    Con esta ventana, las materias con tolerancia de {unreachableLateAfter} min o
+                    más no podrán registrar tardanzas por QR: el registro se cierra a los{' '}
+                    {windowMinutes} min. En ellas solo se podrá marcar tarde de forma manual. Puedes
+                    guardar igualmente.
+                  </p>
+                </div>
+              )}
+            </div>
 
             {feedback && (
               <div

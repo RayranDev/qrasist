@@ -45,6 +45,14 @@ describe('smallestUnreachableLateAfter', () => {
     expect(smallestUnreachableLateAfter(10, [30, 20, 15, 5])).toBe(15)
   })
 
+  it('ignores tolerances the form cannot fix (>= the maximum window)', () => {
+    // 90 and 60 need a window above 60, which cannot be configured
+    expect(smallestUnreachableLateAfter(30, [90, 60], 60)).toBeNull()
+    expect(smallestUnreachableLateAfter(30, [90, 60, 45], 60)).toBe(45)
+    // without a maximum they count
+    expect(smallestUnreachableLateAfter(30, [90])).toBe(90)
+  })
+
   it('ignores disabled (null) tolerances and handles an empty list', () => {
     expect(smallestUnreachableLateAfter(10, [null, undefined])).toBeNull()
     expect(smallestUnreachableLateAfter(10, [])).toBeNull()

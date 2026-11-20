@@ -5,7 +5,7 @@ import AttendanceSettingsModal from './AttendanceSettingsModal'
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }))
 vi.mock('@/lib/actions/appSettings', () => ({ updateAppSettings: vi.fn() }))
 
-const WARNING = /nadie podrá registrarse como tarde/
+const WARNING = /no podrán registrar tardanzas/
 
 function openModal(props: { window: number; known?: number[] }) {
   render(
@@ -18,6 +18,9 @@ function openModal(props: { window: number; known?: number[] }) {
   fireEvent.click(screen.getByRole('button', { name: /Configuración de asistencia/ }))
 }
 
+const setWindow = (value: string) =>
+  fireEvent.change(screen.getByLabelText(/Ventana de registro/), { target: { value } })
+
 describe('AttendanceSettingsModal late-tracking warning', () => {
   it('shows no warning with the default window (30) and tolerance (20)', () => {
     openModal({ window: 30, known: [20] })
@@ -28,25 +31,45 @@ describe('AttendanceSettingsModal late-tracking warning', () => {
   it('warns when the window does not exceed the default tolerance', () => {
     openModal({ window: 5 })
 
-    expect(screen.getByText(WARNING).textContent).toMatch(/empieza a los 20 min/)
+    expect(screen.getByText(WARNING).textContent).toMatch(/tolerancia de 20 min o más/)
   })
 
-  it('warns about a subject tolerance above the default and updates as the value is edited', () => {
-    openModal({ window: 50, known: [20, 45] })
+  it('names the smallest unreachable tolerance and updates as the value is edited', () => {
+    openModal({ window: 50, known: [20, 45, 90] })
     expect(screen.queryByText(WARNING)).toBeNull()
 
-    fireEvent.change(screen.getByLabelText(/Ventana de registro/), { target: { value: '45' } })
-    expect(screen.getByText(WARNING).textContent).toMatch(/empieza a los 45 min/)
+    setWindow('45')
+    expect(screen.getByText(WARNING).textContent).toMatch(/tolerancia de 45 min o más/)
 
-    fireEvent.change(screen.getByLabelText(/Ventana de registro/), { target: { value: '50' } })
+    setWindow('50')
+    expect(screen.queryByText(WARNING)).toBeNull()
+  })
+
+  it('does not warn about tolerances the window cannot be raised to cover (>= 60)', () => {
+    openModal({ window: 30, known: [90, 60] })
+
     expect(screen.queryByText(WARNING)).toBeNull()
   })
 
   it('stays quiet while the field is empty', () => {
     openModal({ window: 30 })
 
-    fireEvent.change(screen.getByLabelText(/Ventana de registro/), { target: { value: '' } })
+    setWindow('')
 
     expect(screen.queryByText(WARNING)).toBeNull()
+  })
+
+  it('keeps the live region in the DOM and toggles only its content', () => {
+    openModal({ window: 30 })
+    const region = screen.getByRole('status')
+    expect(region.textContent).toBe('')
+
+    setWindow('5')
+    expect(screen.getByRole('status')).toBe(region)
+    expect(region.textContent).toMatch(WARNING)
+
+    setWindow('30')
+    expect(screen.getByRole('status')).toBe(region)
+    expect(region.textContent).toBe('')
   })
 })

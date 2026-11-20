@@ -28,14 +28,20 @@ export function lateTrackingReachable(
 /**
  * Menor tolerancia (entre las candidatas) que la ventana deja inalcanzable, o
  * null si todas siguen siendo alcanzables. Las candidatas nulas se ignoran.
+ *
+ * `maxWindowMinutes` es la ventana más larga que se puede configurar: una
+ * tolerancia igual o mayor no se puede arreglar desde ese formulario (haría
+ * falta una ventana mayor al máximo), así que no cuenta para el aviso.
  */
 export function smallestUnreachableLateAfter(
   windowMinutes: number,
-  candidates: readonly (number | null | undefined)[]
+  candidates: readonly (number | null | undefined)[],
+  maxWindowMinutes: number = Number.POSITIVE_INFINITY
 ): number | null {
   let smallest: number | null = null
   for (const candidate of candidates) {
-    if (candidate == null || lateTrackingReachable(windowMinutes, candidate)) continue
+    if (candidate == null || candidate >= maxWindowMinutes) continue
+    if (lateTrackingReachable(windowMinutes, candidate)) continue
     if (smallest === null || candidate < smallest) smallest = candidate
   }
   return smallest
