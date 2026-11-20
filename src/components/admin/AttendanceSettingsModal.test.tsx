@@ -160,7 +160,7 @@ describe('AttendanceSettingsModal global policy', () => {
     expect(mockRefresh).toHaveBeenCalled()
   })
 
-  it('shows the server error when the save is rejected', async () => {
+  it('announces the server error in an alert region', async () => {
     mockUpdate.mockResolvedValue({ success: false, error: 'El motivo del cambio es obligatorio' })
     openModal({ window: 30 })
 
@@ -168,7 +168,60 @@ describe('AttendanceSettingsModal global policy', () => {
     setReason('Acuerdo de reunión')
     fireEvent.click(saveButton())
 
-    expect(await screen.findByText('El motivo del cambio es obligatorio')).toBeTruthy()
+    expect((await screen.findByRole('alert')).textContent).toMatch(
+      /El motivo del cambio es obligatorio/
+    )
+  })
+
+  it('exposes why Guardar is disabled and marks the reason as required', () => {
+    openModal({ window: 30 })
+    const describedBy = () =>
+      document.getElementById(saveButton().getAttribute('aria-describedby') ?? '')?.textContent
+
+    expect(describedBy()).toMatch(/Cambia algún valor/)
+
+    setLate('25')
+    expect(describedBy()).toMatch(/Escribe el motivo del cambio/)
+    expect(screen.getByLabelText(/Motivo del cambio/)).toBeRequired()
+
+    setReason('Acuerdo de reunión')
+    expect(saveButton().hasAttribute('aria-describedby')).toBe(false)
+  })
+
+  it('reopens from the current values with an empty reason', () => {
+    openModal({ window: 30 })
+    setLate('25')
+    setReason('Acuerdo de reunión')
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /Configuración de asistencia/ }))
+    expect(screen.getByLabelText(/Tolerancia de tardanza/)).toHaveValue(20)
+    expect(screen.getByLabelText(/Motivo del cambio/)).toHaveValue('')
+  })
+
+  it('sends a null fixed count while the rule is percentage, even with a leftover value', async () => {
+    mockUpdate.mockResolvedValue({
+      success: true,
+      changed: true,
+      inheritingCount: 1,
+      customCount: 0,
+    })
+    openModal({ window: 30, policy: { ...DEFAULT_GLOBAL_POLICY, maxAbsenceCount: null } })
+    fireEvent.change(screen.getByLabelText(/Regla de faltas/), { target: { value: 'FIXED_COUNT' } })
+    fireEvent.change(screen.getByLabelText(/Límite de faltas \(cantidad\)/), {
+      target: { value: '999' },
+    })
+    fireEvent.change(screen.getByLabelText(/Regla de faltas/), { target: { value: 'PERCENTAGE' } })
+    setReason('Vuelve a porcentaje')
+    setLate('25')
+    fireEvent.click(saveButton())
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1))
+    expect(mockUpdate.mock.calls[0][0]).toMatchObject({
+      absenceRuleType: 'PERCENTAGE',
+      maxAbsenceCount: null,
+    })
   })
 
   it('switches the limit field with the absence rule', () => {

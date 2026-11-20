@@ -1,18 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { CreateSubjectForm, SubjectsEmptyState } from './SubjectComponents'
+import { CreateSubjectForm, SubjectActionButtons, SubjectsEmptyState } from './SubjectComponents'
 import { buildSubjectsViewKey } from './subjectsViewKey'
 import { DEFAULT_GLOBAL_POLICY } from '@/lib/settings/globalPolicy'
 
 const mockCreateSubject = vi.fn()
 const mockToast = vi.fn()
+const mockUpdateSubject = vi.fn()
+const mockListSchedules = vi.fn()
 
 vi.mock('@/lib/actions/adminSubjects', () => ({
   createSubject: (...a: unknown[]) => mockCreateSubject(...a),
   deleteSubject: vi.fn(),
-  updateSubject: vi.fn(),
+  updateSubject: (...a: unknown[]) => mockUpdateSubject(...a),
   reactivateSubject: vi.fn(),
-  listSubjectSchedules: vi.fn(),
+  listSubjectSchedules: (...a: unknown[]) => mockListSchedules(...a),
   addSubjectSchedule: vi.fn(),
   removeSubjectSchedule: vi.fn(),
 }))
@@ -188,6 +190,128 @@ describe('CreateSubjectForm policy', () => {
     const fd = mockCreateSubject.mock.calls[0][0] as FormData
     expect(fd.get('policy_mode')).toBe('global')
     expect(fd.get('late_after_minutes')).toBeNull()
+  })
+})
+
+describe('SubjectActionButtons edit dialog policy', () => {
+  const subject = {
+    id: 's1',
+    name: 'Cálculo',
+    code: 'CAL-1',
+    professor_id: null,
+    period_id: null,
+    policy_override: false,
+    late_after_minutes: 20,
+    lates_per_absence: null,
+    absence_rule_type: 'PERCENTAGE' as const,
+    max_absence_percentage: 20,
+    max_absence_count: null,
+    total_planned_sessions: 16,
+  }
+
+  function openEditor(over: Record<string, unknown> = {}) {
+    render(
+      <SubjectActionButtons
+        subject={{ ...subject, ...over } as typeof subject}
+        professors={[]}
+        periods={[]}
+        subjectCareerIds={[]}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Editar Cálculo/ }))
+  }
+  const reopen = () => fireEvent.click(screen.getByRole('button', { name: /Editar Cálculo/ }))
+  const guardar = () => screen.getByRole('button', { name: 'Guardar' }) as HTMLButtonElement
+  const dialogOpen = () => screen.queryByRole('dialog') !== null
+
+  beforeEach(() => {
+    mockListSchedules.mockResolvedValue({ success: true, schedules: [] })
+  })
+
+  it('requires a reason to enable Guardar and exposes why it is disabled', () => {
+    openEditor()
+    expect(guardar()).toBeEnabled()
+
+    fireEvent.click(screen.getByLabelText(/Política personalizada/))
+    expect(guardar()).toBeDisabled()
+    const hint = document.getElementById(guardar().getAttribute('aria-describedby')!)
+    expect(hint?.textContent).toMatch(/Escribe el motivo/)
+    expect(screen.getByLabelText(/Motivo del cambio de política/)).toBeRequired()
+
+    fireEvent.change(screen.getByLabelText(/Motivo del cambio de política/), {
+      target: { value: 'abc' },
+    })
+    expect(guardar()).toBeDisabled()
+    fireEvent.change(screen.getByLabelText(/Motivo del cambio de política/), {
+      target: { value: 'Laboratorio con ingreso escalonado' },
+    })
+    expect(guardar()).toBeEnabled()
+  })
+
+  it('sends the reason, then starts the next edit without it or the previous values', async () => {
+    mockUpdateSubject.mockResolvedValue({ success: true })
+    openEditor()
+    fireEvent.click(screen.getByLabelText(/Política personalizada/))
+    fireEvent.change(screen.getByLabelText(/Tolerancia de tardanza/), { target: { value: '10' } })
+    fireEvent.change(screen.getByLabelText(/Motivo del cambio de política/), {
+      target: { value: 'Laboratorio con ingreso escalonado' },
+    })
+    fireEvent.click(guardar())
+
+    await waitFor(() => expect(mockUpdateSubject).toHaveBeenCalledTimes(1))
+    expect(mockUpdateSubject.mock.calls[0][1]).toMatchObject({
+      policy_mode: 'custom',
+      policy_reason: 'Laboratorio con ingreso escalonado',
+      late_after_minutes: 10,
+      max_absence_count: null,
+    })
+    await waitFor(() => expect(dialogOpen()).toBe(false))
+
+    // Props did not change (still inheriting): the next edit must start clean.
+    reopen()
+    expect(screen.getByLabelText(/Usar política global/)).toBeChecked()
+    fireEvent.click(screen.getByLabelText(/Política personalizada/))
+    expect(screen.getByLabelText(/Motivo del cambio de política/)).toHaveValue('')
+    expect(screen.getByLabelText(/Tolerancia de tardanza/)).toHaveValue(20)
+    expect(guardar()).toBeDisabled()
+  })
+
+  it('drops unsaved edits on Cancelar', () => {
+    openEditor()
+    fireEvent.click(screen.getByLabelText(/Política personalizada/))
+    fireEvent.change(screen.getByLabelText(/Motivo del cambio de política/), {
+      target: { value: 'Algo escrito sin guardar' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+    expect(dialogOpen()).toBe(false)
+
+    reopen()
+    expect(screen.getByLabelText(/Usar política global/)).toBeChecked()
+    fireEvent.click(screen.getByLabelText(/Política personalizada/))
+    expect(screen.getByLabelText(/Motivo del cambio de política/)).toHaveValue('')
+  })
+
+  it('does not send a fixed count under the percentage rule', async () => {
+    mockUpdateSubject.mockResolvedValue({ success: true })
+    openEditor({ policy_override: true, max_absence_count: 7 })
+    fireEvent.change(screen.getByLabelText(/Tolerancia de tardanza/), { target: { value: '15' } })
+    fireEvent.change(screen.getByLabelText(/Motivo del cambio de política/), {
+      target: { value: 'Ajuste acordado' },
+    })
+    fireEvent.click(guardar())
+
+    await waitFor(() => expect(mockUpdateSubject).toHaveBeenCalledTimes(1))
+    expect(mockUpdateSubject.mock.calls[0][1].max_absence_count).toBeNull()
+  })
+
+  it('announces a save error in an alert region and keeps the dialog open', async () => {
+    mockUpdateSubject.mockResolvedValue({ success: false, error: 'No se pudo guardar' })
+    openEditor()
+    fireEvent.click(guardar())
+
+    expect(await screen.findByText('No se pudo guardar')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('No se pudo guardar')
+    expect(dialogOpen()).toBe(true)
   })
 })
 

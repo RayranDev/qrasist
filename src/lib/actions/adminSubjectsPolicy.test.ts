@@ -162,6 +162,16 @@ describe('updateSubject policy', () => {
     })
   })
 
+  it.each(['nope', '', null, 'GLOBAL'])('rejects an unknown policy_mode %j', async (mode) => {
+    results.set('subjects.select', { data: inheritingRow })
+    const result = await updateSubject('s1', {
+      ...base,
+      policy_mode: mode as unknown as 'global',
+    })
+    expect(result).toEqual({ success: false, error: 'Modo de política inválido.' })
+    expect(subjectWrite('update')).toBeUndefined()
+  })
+
   it('rejects an invalid custom policy before writing', async () => {
     results.set('subjects.select', { data: inheritingRow })
     const result = await updateSubject('s1', {
@@ -227,9 +237,28 @@ describe('createSubject policy', () => {
     expect(mockLogAudit).not.toHaveBeenCalled()
   })
 
-  it('defaults to inheriting when policy_mode is missing', async () => {
-    await createSubject(form({}))
-    expect(subjectWrite('insert')!.policy_override).toBe(false)
+  it.each([{}, { policy_mode: '' }, { policy_mode: 'nope' }, { policy_mode: 'GLOBAL' }])(
+    'rejects a missing or unknown policy_mode %j instead of treating it as global',
+    async (fields) => {
+      const result = await createSubject(form(fields as Record<string, string>))
+      expect(result).toEqual({ success: false, error: 'Modo de política inválido.' })
+      expect(subjectWrite('insert')).toBeUndefined()
+    }
+  )
+
+  it('ignores a hidden fixed count under the percentage rule', async () => {
+    const result = await createSubject(
+      form({
+        policy_mode: 'custom',
+        policy_reason: 'Materia de laboratorio',
+        absence_rule_type: 'PERCENTAGE',
+        max_absence_percentage: '25',
+        max_absence_count: '999',
+        late_after_minutes: '10',
+      })
+    )
+    expect(result).toEqual({ success: true })
+    expect(subjectWrite('insert')).toMatchObject({ max_absence_count: null })
   })
 
   it('requires a reason for a custom policy', async () => {

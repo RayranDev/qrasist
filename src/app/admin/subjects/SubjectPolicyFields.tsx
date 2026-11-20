@@ -200,11 +200,10 @@ export function SubjectPolicyFields({
               />
             </div>
           </div>
-          {/* Con la regla por porcentaje el límite en cantidad no aplica y viceversa;
-              se conserva el valor oculto para no perderlo al alternar la regla. */}
-          {value.ruleType === 'PERCENTAGE' ? (
-            <input type="hidden" name="max_absence_count" value={value.count} />
-          ) : (
+          {/* Con la regla por cantidad el porcentaje sigue siendo obligatorio en la base,
+              así que viaja oculto. Con la regla por porcentaje NO se envía la cantidad:
+              no aplica y un valor oculto inválido no debe bloquear el guardado. */}
+          {value.ruleType === 'FIXED_COUNT' && (
             <input type="hidden" name="max_absence_percentage" value={value.percentage} />
           )}
         </div>
@@ -224,11 +223,13 @@ export function SubjectPolicyFields({
             value={value.reason}
             onChange={(e) => onChange({ reason: e.target.value })}
             rows={2}
+            required
+            aria-describedby={`${uid}-reason-hint`}
             maxLength={MAX_CHANGE_REASON_LENGTH}
             placeholder="Ej. Acuerdo de la reunión de coordinación"
             className={`${inputClass} text-xs resize-none`}
           />
-          <p className="text-[11px] text-gray-500 ml-1">
+          <p id={`${uid}-reason-hint`} className="text-[11px] text-gray-500 ml-1">
             Obligatorio (mínimo {MIN_CHANGE_REASON_LENGTH} caracteres). Queda registrado en la
             auditoría.
           </p>

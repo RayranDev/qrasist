@@ -347,6 +347,7 @@ export function SubjectActionButtons({
   const [policy, setPolicy] = useState<PolicyFormValue>(() =>
     policyFormFromPolicy(initialPolicyMode, currentPolicy)
   )
+  const [saveError, setSaveError] = useState<string | null>(null)
   const showToast = useToast()
 
   // Un cambio de política (de modo o de valores propios) exige motivo y se audita.
@@ -360,6 +361,21 @@ export function SubjectActionButtons({
         policy.percentage !== initialPolicyForm.percentage ||
         policy.count !== initialPolicyForm.count))
   const reasonMissing = policyChanged && policy.reason.trim().length < MIN_CHANGE_REASON_LENGTH
+  const saveHintId = `edit-subject-save-hint-${subject.id}`
+
+  // Cada vez que se abre el diálogo el formulario arranca desde los valores ACTUALES
+  // de la materia (props) y sin motivo: así Cancelar o un guardado anterior no dejan
+  // valores ni un motivo viejos que se reutilicen en la edición siguiente.
+  const openEditor = () => {
+    setName(subject.name)
+    setCode(subject.code)
+    setProfId(subject.professor_id || '')
+    setPeriodId(subject.period_id || '')
+    setTotalPlannedSessions(subject.total_planned_sessions ?? 16)
+    setPolicy(policyFormFromPolicy(initialPolicyMode, currentPolicy))
+    setSaveError(null)
+    setIsEditing(true)
+  }
 
   const isActive = subject.is_active !== false
   const hasCareer = subjectCareerIds.length > 0
@@ -397,6 +413,7 @@ export function SubjectActionButtons({
 
   const handleSave = async () => {
     setLoading(true)
+    setSaveError(null)
     const result = await updateSubject(subject.id, {
       name,
       code,
@@ -409,7 +426,10 @@ export function SubjectActionButtons({
         ? {
             absence_rule_type: policy.ruleType,
             max_absence_percentage: Number(policy.percentage),
-            max_absence_count: policy.count !== '' ? Number(policy.count) : null,
+            max_absence_count:
+              policy.ruleType === 'FIXED_COUNT' && policy.count !== ''
+                ? Number(policy.count)
+                : null,
             late_after_minutes: policy.lateAfter !== '' ? Number(policy.lateAfter) : null,
             lates_per_absence:
               policy.latesPerAbsence !== '' ? Number(policy.latesPerAbsence) : null,
@@ -417,10 +437,12 @@ export function SubjectActionButtons({
         : {}),
     })
     if (result.success) {
+      // El motivo pertenece a este cambio: no debe sobrevivir al guardado.
+      setPolicy((prev) => ({ ...prev, reason: '' }))
       setIsEditing(false)
       showToast('Materia actualizada.', 'success')
     } else {
-      showToast(result.error || 'No se pudo guardar la materia.', 'error')
+      setSaveError(result.error || 'No se pudo guardar la materia.')
     }
     setLoading(false)
   }
@@ -528,6 +550,19 @@ export function SubjectActionButtons({
               />
             </div>
           </div>
+          {/* Siempre en el DOM: una región que aparece junto con su contenido no se anuncia de forma fiable. */}
+          <div role="alert" className="mb-3">
+            {saveError && (
+              <p className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-medium text-red-800">
+                {saveError}
+              </p>
+            )}
+          </div>
+          {reasonMissing && (
+            <p id={saveHintId} className="mb-3 text-xs text-gray-500">
+              Escribe el motivo del cambio de política para poder guardar.
+            </p>
+          )}
           <div className="flex gap-3">
             <button
               disabled={loading}
@@ -538,6 +573,7 @@ export function SubjectActionButtons({
             </button>
             <button
               disabled={loading || reasonMissing}
+              aria-describedby={reasonMissing ? saveHintId : undefined}
               onClick={handleSave}
               className="flex-1 py-2 bg-navy-800 text-white rounded-xl text-sm font-bold hover:bg-navy-900 transition"
             >
@@ -566,7 +602,7 @@ export function SubjectActionButtons({
       {isActive ? (
         <>
           <button
-            onClick={() => setIsEditing(true)}
+            onClick={openEditor}
             disabled={loading}
             className="p-1.5 text-gray-400 hover:text-navy-700 hover:bg-navy-50 rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
             title="Editar"

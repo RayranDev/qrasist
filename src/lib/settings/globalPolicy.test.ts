@@ -72,11 +72,19 @@ describe('parseGlobalPolicyInput', () => {
     { absenceRuleType: undefined },
     { maxAbsencePercentage: 0 },
     { maxAbsencePercentage: 101 },
-    { maxAbsenceCount: 0 },
-    { maxAbsenceCount: 51 },
+    { absenceRuleType: 'FIXED_COUNT', maxAbsenceCount: 0 },
+    { absenceRuleType: 'FIXED_COUNT', maxAbsenceCount: 51 },
+    { absenceRuleType: 'FIXED_COUNT', maxAbsenceCount: 'abc' },
     { absenceRuleType: 'FIXED_COUNT', maxAbsenceCount: null },
   ])('rejects %j', (override) => {
     expect(parseGlobalPolicyInput({ ...valid, ...override }).ok).toBe(false)
+  })
+
+  it('ignores (and nulls) the fixed count under the percentage rule, even if invalid', () => {
+    for (const hidden of [0, 51, 'abc', 4]) {
+      const result = parseGlobalPolicyInput({ ...valid, maxAbsenceCount: hidden })
+      expect(result).toMatchObject({ ok: true, policy: { maxAbsenceCount: null } })
+    }
   })
 
   it('rejects an empty payload', () => {

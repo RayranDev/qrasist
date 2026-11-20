@@ -80,7 +80,8 @@ export default function AttendanceSettingsModal({
     latesPerAbsence: emptyToNull(latesPerAbsence),
     absenceRuleType: ruleType,
     maxAbsencePercentage: Number(percentage),
-    maxAbsenceCount: emptyToNull(count),
+    // La cantidad fija solo aplica con esa regla; con porcentaje se envía null.
+    maxAbsenceCount: ruleType === 'FIXED_COUNT' ? emptyToNull(count) : null,
   }
   const hasChanges =
     payload.registrationWindowMinutes !== initialRegistrationWindowMinutes ||
@@ -91,6 +92,10 @@ export default function AttendanceSettingsModal({
     payload.maxAbsencePercentage !== initialPolicy.maxAbsencePercentage ||
     payload.maxAbsenceCount !== initialPolicy.maxAbsenceCount
   const reasonValid = reason.trim().length >= MIN_CHANGE_REASON_LENGTH
+  const saveDisabled = !hasChanges || !reasonValid
+  const saveHint = !hasChanges
+    ? 'Cambia algún valor para poder guardar.'
+    : 'Escribe el motivo del cambio para poder guardar.'
 
   // Aviso no bloqueante: si la ventana no supera la tolerancia de tardanza (la
   // global del formulario o la de alguna materia personalizada), esos escaneos
@@ -113,6 +118,24 @@ export default function AttendanceSettingsModal({
   const close = () => {
     setIsOpen(false)
     setFeedback(null)
+  }
+
+  // Al abrir, el formulario arranca desde los valores vigentes y sin motivo: lo
+  // escrito antes y no guardado no debe reaparecer ni reutilizarse.
+  const open = () => {
+    setRegistrationWindow(String(initialRegistrationWindowMinutes))
+    setClassMinutes(String(initialDefaultClassMinutes))
+    setTrackLates(initialPolicy.lateAfterMinutes !== null)
+    setLateAfter(String(initialPolicy.lateAfterMinutes ?? DEFAULT_LATE_AFTER_MINUTES))
+    setLatesPerAbsence(
+      initialPolicy.latesPerAbsence === null ? '' : String(initialPolicy.latesPerAbsence)
+    )
+    setRuleType(initialPolicy.absenceRuleType)
+    setPercentage(String(initialPolicy.maxAbsencePercentage))
+    setCount(initialPolicy.maxAbsenceCount === null ? '' : String(initialPolicy.maxAbsenceCount))
+    setReason('')
+    setFeedback(null)
+    setIsOpen(true)
   }
 
   const handleSave = async (e: React.FormEvent) => {
@@ -149,7 +172,7 @@ export default function AttendanceSettingsModal({
     <>
       <button
         type="button"
-        onClick={() => setIsOpen(true)}
+        onClick={open}
         className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-neutral-700 bg-white border border-neutral-200/80 hover:bg-neutral-50 hover:border-neutral-300 rounded-lg shadow-2xs transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
       >
         <Timer className="w-3.5 h-3.5 text-neutral-500 stroke-[1.75]" />
@@ -297,11 +320,13 @@ export default function AttendanceSettingsModal({
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 rows={2}
+                required
+                aria-describedby="settings-change-reason-hint"
                 maxLength={MAX_CHANGE_REASON_LENGTH}
                 placeholder="Ej. Acuerdo de la reunión de coordinación del 12 de noviembre"
                 className={textareaClass}
               />
-              <p className="text-xs text-gray-500">
+              <p id="settings-change-reason-hint" className="text-xs text-gray-500">
                 Obligatorio (mínimo {MIN_CHANGE_REASON_LENGTH} caracteres). Queda registrado en la
                 auditoría junto con el valor anterior y el nuevo.
               </p>
@@ -309,7 +334,7 @@ export default function AttendanceSettingsModal({
 
             {feedback && (
               <div
-                role="status"
+                role={feedback.type === 'error' ? 'alert' : 'status'}
                 className={`p-3 rounded-xl flex items-center gap-2 text-xs font-medium ${
                   feedback.type === 'success'
                     ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
@@ -323,6 +348,12 @@ export default function AttendanceSettingsModal({
                 )}
                 <span>{feedback.message}</span>
               </div>
+            )}
+
+            {saveDisabled && (
+              <p id="settings-save-hint" className="text-xs text-gray-500 text-right">
+                {saveHint}
+              </p>
             )}
 
             <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-neutral-100">
@@ -340,7 +371,8 @@ export default function AttendanceSettingsModal({
                 variant="primary"
                 size="sm"
                 isLoading={loading}
-                disabled={!hasChanges || !reasonValid}
+                disabled={saveDisabled}
+                aria-describedby={saveDisabled ? 'settings-save-hint' : undefined}
               >
                 Guardar
               </Button>

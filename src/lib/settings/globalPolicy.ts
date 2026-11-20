@@ -95,14 +95,16 @@ export function parseGlobalPolicyInput(
     }
   }
 
-  const maxAbsenceCount = optionalNumber(input.maxAbsenceCount)
-  if (
-    (absenceRuleType === 'FIXED_COUNT' || maxAbsenceCount !== null) &&
-    !isIntegerInRange(maxAbsenceCount, MAX_ABSENCE_COUNT_RANGE)
-  ) {
-    return {
-      ok: false,
-      error: `La cantidad máxima de faltas debe ser un número entero entre ${MAX_ABSENCE_COUNT_RANGE.min} y ${MAX_ABSENCE_COUNT_RANGE.max}.`,
+  // La cantidad fija solo aplica con la regla FIXED_COUNT: con porcentaje se
+  // ignora (y se guarda null), así un valor oculto no puede bloquear el guardado.
+  let maxAbsenceCount: number | null = null
+  if (absenceRuleType === 'FIXED_COUNT') {
+    maxAbsenceCount = optionalNumber(input.maxAbsenceCount)
+    if (!isIntegerInRange(maxAbsenceCount, MAX_ABSENCE_COUNT_RANGE)) {
+      return {
+        ok: false,
+        error: `La cantidad máxima de faltas debe ser un número entero entre ${MAX_ABSENCE_COUNT_RANGE.min} y ${MAX_ABSENCE_COUNT_RANGE.max}.`,
+      }
     }
   }
 

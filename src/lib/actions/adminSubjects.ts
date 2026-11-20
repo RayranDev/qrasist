@@ -30,7 +30,11 @@ export async function createSubject(formData: FormData) {
 
   // Por defecto la materia hereda la política global (la base de datos copia
   // los valores globales). Solo con "personalizada" se guardan valores propios.
-  const customPolicy = formData.get('policy_mode') === 'custom'
+  const policyMode = formData.get('policy_mode')
+  if (policyMode !== 'global' && policyMode !== 'custom') {
+    return { success: false, error: 'Modo de política inválido.' }
+  }
+  const customPolicy = policyMode === 'custom'
 
   const raw = {
     name: formData.get('name') as string,
@@ -228,6 +232,12 @@ export async function updateSubject(
 
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message || 'Datos inválidos' }
+  }
+
+  // Llega del cliente: se valida en tiempo de ejecución (ausente = no tocar la política).
+  const rawMode: unknown = data.policy_mode
+  if (rawMode !== undefined && rawMode !== 'global' && rawMode !== 'custom') {
+    return { success: false, error: 'Modo de política inválido.' }
   }
 
   if (data.professor_id) {
