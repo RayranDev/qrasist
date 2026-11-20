@@ -28,6 +28,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'policy.update_global_refused':
     'Se rechazó actualizar la política global (la cantidad de materias cambió)',
   'settings.update_attendance': 'Actualizó la configuración de asistencia',
+  'subject.update_policy': 'Cambió la política de asistencia de una materia',
   'justification.approve': 'Aprobó una justificación',
   'justification.reject': 'Rechazó una justificación',
   'justification.register': 'Registró una excusa para un estudiante',
@@ -104,6 +105,16 @@ export function summarizeAuditDetails(action: string, details: Record<string, un
           `registro ${details.registration_window_minutes_before ?? '?'} → ${details.registration_window_minutes_after ?? '?'} min`,
           `clase ${details.default_class_minutes_before ?? '?'} → ${details.default_class_minutes_after ?? '?'} min`
         )
+      }
+      break
+    }
+    case 'subject.update_policy': {
+      if (details.created === true) parts.push('al crear la materia')
+      const changes = readFieldChanges(details)
+      if (changes) {
+        for (const [field, change] of Object.entries(changes)) {
+          parts.push(describeFieldChange(field, change))
+        }
       }
       break
     }

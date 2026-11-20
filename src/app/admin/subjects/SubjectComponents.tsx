@@ -18,7 +18,17 @@ import CreateFormToggle from '@/components/CreateFormToggle'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Plus, Pencil, Trash2, Calendar, BookMarked } from 'lucide-react'
 import { computePlannedSessions } from '@/lib/utils/plannedSessions'
-import { DEFAULT_LATE_AFTER_MINUTES } from '@/lib/attendance/lateTracking'
+import {
+  DEFAULT_GLOBAL_POLICY,
+  MIN_CHANGE_REASON_LENGTH,
+  type GlobalPolicy,
+} from '@/lib/settings/globalPolicy'
+import {
+  SubjectPolicyFields,
+  policyFormFromPolicy,
+  type PolicyFormValue,
+  type PolicyMode,
+} from './SubjectPolicyFields'
 
 const DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 
@@ -57,6 +67,8 @@ interface Subject {
   professor_id: string | null
   period_id: string | null
   is_active?: boolean
+  /** true = política personalizada; false = hereda la global. */
+  policy_override?: boolean
   absence_rule_type?: 'PERCENTAGE' | 'FIXED_COUNT'
   max_absence_percentage?: number
   max_absence_count?: number | null
@@ -84,12 +96,18 @@ function scrollToForm(form: HTMLElement) {
 export function CreateSubjectForm({
   periods,
   resetKey = '',
+  globalPolicy = DEFAULT_GLOBAL_POLICY,
 }: {
   periods: Period[]
   resetKey?: string
+  /** Política global vigente: es la que hereda la materia nueva por defecto. */
+  globalPolicy?: GlobalPolicy
 }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [policy, setPolicy] = useState<PolicyFormValue>(() =>
+    policyFormFromPolicy('global', globalPolicy)
+  )
   const formRef = useRef<HTMLFormElement>(null)
   const scrollOnOpen = useRef(false)
   const showToast = useToast()
@@ -137,6 +155,7 @@ export function CreateSubjectForm({
     const result = await createSubject(formData)
     if (result.success) {
       ;(e.target as HTMLFormElement).reset()
+      setPolicy(policyFormFromPolicy('global', globalPolicy))
       setOpen(false)
       showToast(`Materia "${name}" creada.`, 'success')
     } else {
@@ -212,99 +231,31 @@ export function CreateSubjectForm({
       </div>
 
       <div className="pt-3 border-t border-gray-100">
-        <p className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 ml-1">
-          Regla de Inasistencias y Reprobación
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-          <div>
-            <label className="block text-[11px] font-semibold text-gray-600 mb-1 ml-1">
-              Cálculo por
-            </label>
-            <select
-              name="absence_rule_type"
-              className={`${inputClass} appearance-none cursor-pointer text-xs`}
-            >
-              <option value="PERCENTAGE">Porcentaje (% de inasistencia)</option>
-              <option value="FIXED_COUNT">Cantidad fija de fallas</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-[11px] font-semibold text-gray-600 mb-1 ml-1">
-              % Máx / Faltas Permitidas
-            </label>
-            <div className="flex gap-2">
-              <input
-                name="max_absence_percentage"
-                type="number"
-                defaultValue={20}
-                min={1}
-                max={100}
-                placeholder="20%"
-                className={`${inputClass} text-xs`}
-                title="% Máximo de inasistencias"
-              />
-              <input
-                name="max_absence_count"
-                type="number"
-                min={1}
-                max={50}
-                placeholder="Faltas (ej. 4)"
-                className={`${inputClass} text-xs`}
-                title="Cantidad fija de fallas (si aplica)"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-[11px] font-semibold text-gray-600 mb-1 ml-1">
-              Clases Semestre (Total)
-            </label>
-            <input
-              name="total_planned_sessions"
-              type="number"
-              defaultValue={16}
-              min={1}
-              max={60}
-              className={`${inputClass} text-xs`}
-            />
-          </div>
+        <div className="max-w-xs">
+          <label className="block text-[11px] font-semibold text-gray-600 mb-1 ml-1">
+            Clases del semestre (total)
+          </label>
+          <input
+            name="total_planned_sessions"
+            type="number"
+            defaultValue={16}
+            min={1}
+            max={60}
+            className={`${inputClass} text-xs`}
+          />
         </div>
       </div>
 
       <div className="pt-3 mt-3 border-t border-gray-100">
         <p className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 ml-1">
-          Tardanzas
+          Política de asistencia
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-[11px] font-semibold text-gray-600 mb-1 ml-1">
-              Tolerancia (minutos)
-            </label>
-            <input
-              name="late_after_minutes"
-              type="number"
-              defaultValue={DEFAULT_LATE_AFTER_MINUTES}
-              min={1}
-              max={180}
-              placeholder="Vacío = sin seguimiento"
-              className={`${inputClass} text-xs`}
-              title="Minutos tras abrir el QR a partir de los cuales el escaneo cuenta como tarde. Vacío desactiva el seguimiento de tardanzas."
-            />
-          </div>
-          <div>
-            <label className="block text-[11px] font-semibold text-gray-600 mb-1 ml-1">
-              Tardanzas por falta
-            </label>
-            <input
-              name="lates_per_absence"
-              type="number"
-              min={1}
-              max={10}
-              placeholder="Ej. 3 (opcional)"
-              className={`${inputClass} text-xs`}
-              title="Cada cuántas tardanzas se suma una inasistencia. Vacío = las tardanzas nunca se convierten en falta."
-            />
-          </div>
-        </div>
+        <SubjectPolicyFields
+          value={policy}
+          onChange={(patch) => setPolicy((prev) => ({ ...prev, ...patch }))}
+          globalPolicy={globalPolicy}
+          reasonRequired={policy.mode === 'custom'}
+        />
       </div>
 
       <div className="mt-5 flex items-center justify-between gap-4">
@@ -355,11 +306,14 @@ export function SubjectActionButtons({
   professors,
   periods,
   subjectCareerIds,
+  globalPolicy = DEFAULT_GLOBAL_POLICY,
 }: {
   subject: Subject
   professors: Professor[]
   periods: Period[]
   subjectCareerIds: string[]
+  /** Política global vigente, para mostrar lo que hereda la materia. */
+  globalPolicy?: GlobalPolicy
 }) {
   const [isEditing, setIsEditing] = useState(false)
 
@@ -377,25 +331,35 @@ export function SubjectActionButtons({
   const [code, setCode] = useState(subject.code)
   const [profId, setProfId] = useState(subject.professor_id || '')
   const [periodId, setPeriodId] = useState(subject.period_id || '')
-  const [absenceRuleType, setAbsenceRuleType] = useState<'PERCENTAGE' | 'FIXED_COUNT'>(
-    subject.absence_rule_type || 'PERCENTAGE'
-  )
-  const [maxAbsencePercentage, setMaxAbsencePercentage] = useState(
-    subject.max_absence_percentage ?? 20
-  )
-  const [maxAbsenceCount, setMaxAbsenceCount] = useState<number | string>(
-    subject.max_absence_count ?? ''
-  )
   const [totalPlannedSessions, setTotalPlannedSessions] = useState(
     subject.total_planned_sessions ?? 16
   )
-  const [lateAfterMinutes, setLateAfterMinutes] = useState<number | string>(
-    subject.late_after_minutes ?? DEFAULT_LATE_AFTER_MINUTES
-  )
-  const [latesPerAbsence, setLatesPerAbsence] = useState<number | string>(
-    subject.lates_per_absence ?? ''
+  // Valores de política que la materia tiene hoy (los efectivos), para arrancar
+  // el formulario y detectar si el admin los cambió.
+  const currentPolicy: GlobalPolicy = {
+    lateAfterMinutes: subject.late_after_minutes ?? null,
+    latesPerAbsence: subject.lates_per_absence ?? null,
+    absenceRuleType: subject.absence_rule_type ?? 'PERCENTAGE',
+    maxAbsencePercentage: subject.max_absence_percentage ?? 20,
+    maxAbsenceCount: subject.max_absence_count ?? null,
+  }
+  const initialPolicyMode: PolicyMode = subject.policy_override ? 'custom' : 'global'
+  const [policy, setPolicy] = useState<PolicyFormValue>(() =>
+    policyFormFromPolicy(initialPolicyMode, currentPolicy)
   )
   const showToast = useToast()
+
+  // Un cambio de política (de modo o de valores propios) exige motivo y se audita.
+  const initialPolicyForm = policyFormFromPolicy(initialPolicyMode, currentPolicy)
+  const policyChanged =
+    policy.mode !== initialPolicyMode ||
+    (policy.mode === 'custom' &&
+      (policy.lateAfter !== initialPolicyForm.lateAfter ||
+        policy.latesPerAbsence !== initialPolicyForm.latesPerAbsence ||
+        policy.ruleType !== initialPolicyForm.ruleType ||
+        policy.percentage !== initialPolicyForm.percentage ||
+        policy.count !== initialPolicyForm.count))
+  const reasonMissing = policyChanged && policy.reason.trim().length < MIN_CHANGE_REASON_LENGTH
 
   const isActive = subject.is_active !== false
   const hasCareer = subjectCareerIds.length > 0
@@ -438,12 +402,19 @@ export function SubjectActionButtons({
       code,
       professor_id: profId === '' ? null : profId,
       period_id: periodId === '' ? null : periodId,
-      absence_rule_type: absenceRuleType,
-      max_absence_percentage: Number(maxAbsencePercentage) || 20,
-      max_absence_count: maxAbsenceCount !== '' ? Number(maxAbsenceCount) : null,
       total_planned_sessions: Number(totalPlannedSessions) || 16,
-      late_after_minutes: lateAfterMinutes !== '' ? Number(lateAfterMinutes) : null,
-      lates_per_absence: latesPerAbsence !== '' ? Number(latesPerAbsence) : null,
+      policy_mode: policy.mode,
+      policy_reason: policy.reason,
+      ...(policy.mode === 'custom'
+        ? {
+            absence_rule_type: policy.ruleType,
+            max_absence_percentage: Number(policy.percentage),
+            max_absence_count: policy.count !== '' ? Number(policy.count) : null,
+            late_after_minutes: policy.lateAfter !== '' ? Number(policy.lateAfter) : null,
+            lates_per_absence:
+              policy.latesPerAbsence !== '' ? Number(policy.latesPerAbsence) : null,
+          }
+        : {}),
     })
     if (result.success) {
       setIsEditing(false)
@@ -525,94 +496,27 @@ export function SubjectActionButtons({
             </div>
 
             <div className="pt-3 border-t border-gray-100">
-              <p className="text-xs font-bold text-gray-700 mb-2">Regla de Inasistencias</p>
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div>
-                  <label className="block text-[11px] text-gray-500 mb-1">Tipo de Regla</label>
-                  <select
-                    value={absenceRuleType}
-                    onChange={(e) =>
-                      setAbsenceRuleType(e.target.value as 'PERCENTAGE' | 'FIXED_COUNT')
-                    }
-                    className={`${inputClass} text-xs appearance-none`}
-                  >
-                    <option value="PERCENTAGE">Porcentaje (%)</option>
-                    <option value="FIXED_COUNT">Cantidad de Fallas</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] text-gray-500 mb-1">
-                    {absenceRuleType === 'PERCENTAGE' ? '% Límite' : 'Faltas Máx.'}
-                  </label>
-                  {absenceRuleType === 'PERCENTAGE' ? (
-                    <input
-                      type="number"
-                      value={maxAbsencePercentage}
-                      onChange={(e) => setMaxAbsencePercentage(Number(e.target.value))}
-                      min={1}
-                      max={100}
-                      className={`${inputClass} text-xs`}
-                    />
-                  ) : (
-                    <input
-                      type="number"
-                      value={maxAbsenceCount}
-                      onChange={(e) => setMaxAbsenceCount(e.target.value)}
-                      placeholder="Ej. 4"
-                      min={1}
-                      max={50}
-                      className={`${inputClass} text-xs`}
-                    />
-                  )}
-                </div>
-              </div>
-              <div>
-                <label className="block text-[11px] text-gray-500 mb-1">
-                  Clases Planificadas (Semestre)
-                </label>
-                <input
-                  type="number"
-                  value={totalPlannedSessions}
-                  onChange={(e) => setTotalPlannedSessions(Number(e.target.value))}
-                  min={1}
-                  max={60}
-                  className={`${inputClass} text-xs`}
-                />
-              </div>
+              <label className="block text-[11px] text-gray-500 mb-1">
+                Clases Planificadas (Semestre)
+              </label>
+              <input
+                type="number"
+                value={totalPlannedSessions}
+                onChange={(e) => setTotalPlannedSessions(Number(e.target.value))}
+                min={1}
+                max={60}
+                className={`${inputClass} text-xs`}
+              />
             </div>
 
             <div className="pt-3 border-t border-gray-100">
-              <p className="text-xs font-bold text-gray-700 mb-2">Tardanzas</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] text-gray-500 mb-1">Tolerancia (min)</label>
-                  <input
-                    type="number"
-                    value={lateAfterMinutes}
-                    onChange={(e) => setLateAfterMinutes(e.target.value)}
-                    min={1}
-                    max={180}
-                    placeholder="Vacío = sin seguimiento"
-                    title="Minutos tras abrir el QR a partir de los cuales el escaneo cuenta como tarde. Vacío desactiva el seguimiento de tardanzas."
-                    className={`${inputClass} text-xs`}
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] text-gray-500 mb-1">
-                    Tardanzas por falta
-                  </label>
-                  <input
-                    type="number"
-                    value={latesPerAbsence}
-                    onChange={(e) => setLatesPerAbsence(e.target.value)}
-                    min={1}
-                    max={10}
-                    placeholder="Ej. 3 (opcional)"
-                    title="Cada cuántas tardanzas se suma una inasistencia. Vacío = las tardanzas nunca se convierten en falta."
-                    className={`${inputClass} text-xs`}
-                  />
-                </div>
-              </div>
+              <p className="text-xs font-bold text-gray-700 mb-2">Política de asistencia</p>
+              <SubjectPolicyFields
+                value={policy}
+                onChange={(patch) => setPolicy((prev) => ({ ...prev, ...patch }))}
+                globalPolicy={globalPolicy}
+                reasonRequired={policyChanged}
+              />
             </div>
 
             <div className="pt-3 border-t border-gray-100">
@@ -633,7 +537,7 @@ export function SubjectActionButtons({
               Cancelar
             </button>
             <button
-              disabled={loading}
+              disabled={loading || reasonMissing}
               onClick={handleSave}
               className="flex-1 py-2 bg-navy-800 text-white rounded-xl text-sm font-bold hover:bg-navy-900 transition"
             >

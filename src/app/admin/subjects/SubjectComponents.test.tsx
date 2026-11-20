@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { CreateSubjectForm, SubjectsEmptyState } from './SubjectComponents'
 import { buildSubjectsViewKey } from './subjectsViewKey'
+import { DEFAULT_GLOBAL_POLICY } from '@/lib/settings/globalPolicy'
 
 const mockCreateSubject = vi.fn()
 const mockToast = vi.fn()
@@ -144,6 +145,49 @@ describe('CreateSubjectForm behavior', () => {
     } finally {
       window.matchMedia = original
     }
+  })
+})
+
+describe('CreateSubjectForm policy', () => {
+  it('inherits the global policy by default and shows its values read-only', () => {
+    render(
+      <CreateSubjectForm
+        periods={periods}
+        resetKey="active"
+        globalPolicy={{ ...DEFAULT_GLOBAL_POLICY, lateAfterMinutes: 25 }}
+      />
+    )
+    openForm()
+
+    expect(screen.getByLabelText(/Usar política global/)).toBeChecked()
+    expect(screen.getByTestId('inherited-policy').textContent).toMatch(/tardanza a los 25 min/)
+    expect(screen.queryByLabelText(/Tolerancia de tardanza/)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/Motivo del cambio de política/)).not.toBeInTheDocument()
+  })
+
+  it('shows the policy fields and a required reason only for a custom policy', () => {
+    render(<CreateSubjectForm periods={periods} resetKey="active" />)
+    openForm()
+
+    fireEvent.click(screen.getByLabelText(/Política personalizada/))
+
+    expect(screen.getByLabelText(/Tolerancia de tardanza/)).toHaveValue(20)
+    expect(screen.getByLabelText(/Motivo del cambio de política/)).toBeInTheDocument()
+    expect(screen.queryByTestId('inherited-policy')).not.toBeInTheDocument()
+  })
+
+  it('submits policy_mode=global without policy fields by default', async () => {
+    mockCreateSubject.mockResolvedValue({ success: true })
+    render(<CreateSubjectForm periods={periods} resetKey="active" />)
+    openForm()
+    fireEvent.change(screen.getByPlaceholderText('Ej. Cálculo I'), { target: { value: 'Física' } })
+    fireEvent.change(screen.getByPlaceholderText('Ej. CALC-101'), { target: { value: 'FIS-1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Crear Materia' }))
+
+    await waitFor(() => expect(mockCreateSubject).toHaveBeenCalledTimes(1))
+    const fd = mockCreateSubject.mock.calls[0][0] as FormData
+    expect(fd.get('policy_mode')).toBe('global')
+    expect(fd.get('late_after_minutes')).toBeNull()
   })
 })
 

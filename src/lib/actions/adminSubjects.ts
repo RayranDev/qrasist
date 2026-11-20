@@ -7,6 +7,14 @@ import { checkAdmin } from './authGuards'
 import { checkProfessorAssignable, getProfessorCareerIds } from './enrollmentGuards'
 import { subjectSchema } from '@/lib/validations/schemas'
 import { logAudit } from '@/lib/audit/auditLog'
+import {
+  diffFields,
+  getGlobalPolicy,
+  parseChangeReason,
+  parseGlobalPolicyInput,
+  policyToColumns,
+  type FieldChanges,
+} from '@/lib/settings/globalPolicy'
 import { sanitizeSearchTerm } from '@/lib/utils/searchTerm'
 import { ASSIGNABLE_SUBJECTS_PAGE_SIZE, normalizeSubjectIds } from '@/lib/admin/assignSubjects'
 
@@ -20,19 +28,15 @@ export async function createSubject(formData: FormData) {
     return { success: false, error: 'No autorizado' }
   }
 
+  // Por defecto la materia hereda la política global (la base de datos copia
+  // los valores globales). Solo con "personalizada" se guardan valores propios.
+  const customPolicy = formData.get('policy_mode') === 'custom'
+
   const raw = {
     name: formData.get('name') as string,
     code: formData.get('code') as string,
     periodId: (formData.get('period_id') as string) || undefined,
-    absenceRuleType: (formData.get('absence_rule_type') as string) || 'PERCENTAGE',
-    maxAbsencePercentage: formData.get('max_absence_percentage') || 20,
-    maxAbsenceCount: formData.get('max_absence_count') || undefined,
     totalPlannedSessions: formData.get('total_planned_sessions') || 16,
-    // Campo vacío = tardanzas desactivadas para esta materia (columna NULL);
-    // el input de creación siempre trae un defaultValue, así que "vacío"
-    // solo ocurre si el admin lo borra a propósito.
-    lateAfterMinutes: formData.get('late_after_minutes') || null,
-    latesPerAbsence: formData.get('lates_per_absence') || null,
   }
 
   const parsed = subjectSchema.safeParse(raw)
@@ -43,22 +47,58 @@ export async function createSubject(formData: FormData) {
     }
   }
 
-  const { error } = await supabase.from('subjects').insert({
-    name: parsed.data.name,
-    code: parsed.data.code,
-    period_id: parsed.data.periodId || null,
-    absence_rule_type: parsed.data.absenceRuleType,
-    max_absence_percentage: parsed.data.maxAbsencePercentage,
-    max_absence_count: parsed.data.maxAbsenceCount || null,
-    total_planned_sessions: parsed.data.totalPlannedSessions,
-    late_after_minutes: parsed.data.lateAfterMinutes ?? null,
-    lates_per_absence: parsed.data.latesPerAbsence ?? null,
-  })
+  let policyColumns: Record<string, unknown> = {}
+  let policyChanges: FieldChanges = {}
+  let policyReason = ''
+  if (customPolicy) {
+    // Campo de tolerancia vacío = tardanzas desactivadas para esta materia.
+    const policy = parseGlobalPolicyInput({
+      lateAfterMinutes: formData.get('late_after_minutes'),
+      latesPerAbsence: formData.get('lates_per_absence'),
+      absenceRuleType: formData.get('absence_rule_type'),
+      maxAbsencePercentage: formData.get('max_absence_percentage'),
+      maxAbsenceCount: formData.get('max_absence_count'),
+    })
+    if (!policy.ok) return { success: false, error: policy.error }
+    const reason = parseChangeReason(formData.get('policy_reason'))
+    if (!reason.ok) return { success: false, error: reason.error }
+
+    policyReason = reason.reason
+    policyColumns = policyToColumns(policy.policy)
+    policyChanges = diffFields(
+      { policy_override: false, ...policyToColumns(await getGlobalPolicy(supabase)) },
+      { policy_override: true, ...policyColumns }
+    )
+  }
+
+  const { data: created, error } = await supabase
+    .from('subjects')
+    .insert({
+      name: parsed.data.name,
+      code: parsed.data.code,
+      period_id: parsed.data.periodId || null,
+      total_planned_sessions: parsed.data.totalPlannedSessions,
+      policy_override: customPolicy,
+      ...policyColumns,
+    })
+    .select('id')
+    .single()
 
   if (error) {
     if (error.code === '23505')
       return { success: false, error: 'Ya existe una materia con este código' }
     return { success: false, error: 'Error al crear la materia' }
+  }
+
+  if (customPolicy) {
+    await logAudit({
+      actorId: user.id,
+      action: 'subject.update_policy',
+      entityType: 'subject',
+      entityId: created?.id ?? null,
+      subjectId: created?.id ?? null,
+      details: { changes: policyChanges, reason: policyReason, created: true },
+    })
   }
 
   revalidatePath('/admin/subjects')
@@ -155,10 +195,17 @@ export async function updateSubject(
     code: string
     professor_id: string | null
     period_id: string | null
+    total_planned_sessions?: number
+    /**
+     * 'global' = la materia hereda la política global; 'custom' = política
+     * propia con los valores de abajo. Sin `policy_mode` no se toca la política.
+     */
+    policy_mode?: 'global' | 'custom'
+    /** Motivo obligatorio cuando cambia la política o el modo de la materia. */
+    policy_reason?: string
     absence_rule_type?: 'PERCENTAGE' | 'FIXED_COUNT'
     max_absence_percentage?: number
     max_absence_count?: number | null
-    total_planned_sessions?: number
     late_after_minutes?: number | null
     lates_per_absence?: number | null
   }
@@ -176,12 +223,7 @@ export async function updateSubject(
     name: data.name,
     code: data.code,
     periodId: data.period_id,
-    absenceRuleType: data.absence_rule_type,
-    maxAbsencePercentage: data.max_absence_percentage,
-    maxAbsenceCount: data.max_absence_count,
     totalPlannedSessions: data.total_planned_sessions,
-    lateAfterMinutes: data.late_after_minutes,
-    latesPerAbsence: data.lates_per_absence,
   })
 
   if (!parsed.success) {
@@ -193,6 +235,46 @@ export async function updateSubject(
     if (!check.ok) return { success: false, error: check.error }
   }
 
+  // Política de asistencia: se compara contra lo guardado y, si algo cambia
+  // (valores o modo global/personalizada), exige un motivo y se audita.
+  let policyUpdate: Record<string, unknown> = {}
+  let policyChanges: FieldChanges = {}
+  let policyReason = ''
+  if (data.policy_mode) {
+    const { data: current } = await supabase
+      .from('subjects')
+      .select(
+        'policy_override, late_after_minutes, lates_per_absence, absence_rule_type, max_absence_percentage, max_absence_count'
+      )
+      .eq('id', subjectId)
+      .maybeSingle()
+    if (!current) return { success: false, error: 'La materia no existe.' }
+
+    const custom = data.policy_mode === 'custom'
+    let nextPolicy = await getGlobalPolicy(supabase)
+    if (custom) {
+      const policy = parseGlobalPolicyInput({
+        lateAfterMinutes: data.late_after_minutes,
+        latesPerAbsence: data.lates_per_absence,
+        absenceRuleType: data.absence_rule_type,
+        maxAbsencePercentage: data.max_absence_percentage,
+        maxAbsenceCount: data.max_absence_count,
+      })
+      if (!policy.ok) return { success: false, error: policy.error }
+      nextPolicy = policy.policy
+    }
+
+    const after = { policy_override: custom, ...policyToColumns(nextPolicy) }
+    policyChanges = diffFields(current, after)
+    if (Object.keys(policyChanges).length > 0) {
+      const reason = parseChangeReason(data.policy_reason)
+      if (!reason.ok) return { success: false, error: reason.error }
+      policyReason = reason.reason
+      // En modo global solo se apaga el override: el trigger copia los valores globales.
+      policyUpdate = custom ? after : { policy_override: false }
+    }
+  }
+
   const { error } = await supabase
     .from('subjects')
     .update({
@@ -200,12 +282,8 @@ export async function updateSubject(
       code: parsed.data.code,
       professor_id: data.professor_id || null,
       period_id: parsed.data.periodId || null,
-      absence_rule_type: parsed.data.absenceRuleType,
-      max_absence_percentage: parsed.data.maxAbsencePercentage,
-      max_absence_count: parsed.data.maxAbsenceCount || null,
       total_planned_sessions: parsed.data.totalPlannedSessions,
-      late_after_minutes: parsed.data.lateAfterMinutes ?? null,
-      lates_per_absence: parsed.data.latesPerAbsence ?? null,
+      ...policyUpdate,
     })
     .eq('id', subjectId)
 
@@ -215,7 +293,20 @@ export async function updateSubject(
     return { success: false, error: 'Error al actualizar la materia' }
   }
 
+  if (Object.keys(policyChanges).length > 0) {
+    await logAudit({
+      actorId: user.id,
+      action: 'subject.update_policy',
+      entityType: 'subject',
+      entityId: subjectId,
+      subjectId,
+      details: { changes: policyChanges, reason: policyReason },
+    })
+  }
+
   revalidatePath('/admin/subjects')
+  revalidatePath('/admin/dashboard')
+  revalidatePath('/professor/subjects')
   return { success: true }
 }
 

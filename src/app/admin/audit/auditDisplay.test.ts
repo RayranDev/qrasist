@@ -52,6 +52,23 @@ describe('attendance settings audit display', () => {
     ).toBe('registro 5 → 30 min · clase 120 → 120 min')
   })
 
+  it('summarizes a per-subject policy change, including the switch to a custom policy', () => {
+    expect(auditActionLabel('subject.update_policy')).toBe(
+      'Cambió la política de asistencia de una materia'
+    )
+    expect(
+      summarizeAuditDetails('subject.update_policy', {
+        changes: {
+          policy_override: { before: false, after: true },
+          late_after_minutes: { before: 20, after: 10 },
+        },
+        reason: 'Laboratorio con ingreso escalonado',
+      })
+    ).toBe(
+      'política de la materia: global → personalizada · tolerancia de tardanza: 20 min → 10 min · motivo: Laboratorio con ingreso escalonado'
+    )
+  })
+
   it('keeps the historical bulk overwrite actions readable', () => {
     expect(auditActionLabel('policy.update_global_absence')).toBe(
       'Actualizó la política global de inasistencias'
