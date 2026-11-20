@@ -204,6 +204,7 @@ export function policyToColumns(policy: GlobalPolicy): Record<string, unknown> {
 const FIELD_LABELS: Record<string, string> = {
   registration_window_minutes: 'ventana de registro',
   default_class_minutes: 'duración de clase',
+  qr_rotation_seconds: 'rotación del código QR',
   late_after_minutes: 'tolerancia de tardanza',
   lates_per_absence: 'tardanzas por falta',
   absence_rule_type: 'regla de faltas',
@@ -219,6 +220,8 @@ function formatValue(field: string, value: unknown): string {
     case 'registration_window_minutes':
     case 'default_class_minutes':
       return `${value ?? '?'} min`
+    case 'qr_rotation_seconds':
+      return `${value ?? '?'} s`
     case 'lates_per_absence':
       return value == null ? 'ninguna' : String(value)
     case 'absence_rule_type':

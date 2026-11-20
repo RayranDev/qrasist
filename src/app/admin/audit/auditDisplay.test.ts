@@ -41,6 +41,15 @@ describe('attendance settings audit display', () => {
     )
   })
 
+  it('labels a QR rotation change in seconds', () => {
+    expect(
+      summarizeAuditDetails('settings.update_attendance', {
+        changes: { qr_rotation_seconds: { before: 20, after: 30 } },
+        reason: 'Acuerdo de la reunión',
+      })
+    ).toBe('rotación del código QR: 20 s → 30 s · motivo: Acuerdo de la reunión')
+  })
+
   it('still renders rows written before the global policy existed', () => {
     expect(
       summarizeAuditDetails('settings.update_attendance', {

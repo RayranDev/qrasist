@@ -47,18 +47,3 @@ export const subjectSchema = z.object({
   lateAfterMinutes: z.coerce.number().int().min(1).max(180).optional().nullable(),
   latesPerAbsence: z.coerce.number().int().min(1).max(10).optional().nullable(),
 })
-
-export const sessionConfigSchema = z.object({
-  durationMinutes: z.coerce
-    .number()
-    .int()
-    .min(1, 'Mínimo 1 minuto')
-    .max(180, 'Máximo 180 minutos')
-    .default(15),
-  rotationSeconds: z.coerce
-    .number()
-    .int()
-    .min(10, 'Mínimo 10 segundos')
-    .max(60, 'Máximo 60 segundos')
-    .default(20),
-})

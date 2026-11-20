@@ -410,6 +410,7 @@ export default async function AdminDashboardPage({
             <AttendanceSettingsModal
               initialRegistrationWindowMinutes={appSettings.registrationWindowMinutes}
               initialDefaultClassMinutes={appSettings.defaultClassMinutes}
+              initialQrRotationSeconds={appSettings.qrRotationSeconds}
               initialPolicy={globalPolicy}
               inheritingCount={inheritingSubjectsCount}
               customCount={customSubjects.length}

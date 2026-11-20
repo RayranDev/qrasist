@@ -8,7 +8,12 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { updateAppSettings } from '@/lib/actions/appSettings'
-import { CLASS_MINUTES_RANGE, REGISTRATION_WINDOW_RANGE } from '@/lib/settings/appSettings'
+import {
+  CLASS_MINUTES_RANGE,
+  QR_ROTATION_RANGE,
+  REGISTRATION_WINDOW_RANGE,
+} from '@/lib/settings/appSettings'
+import { DEFAULT_ROTATION_SECONDS } from '@/lib/qrRotation'
 import {
   DEFAULT_GLOBAL_POLICY,
   LATE_AFTER_RANGE,
@@ -33,6 +38,7 @@ const emptyToNull = (value: string): number | null => (value.trim() === '' ? nul
 export default function AttendanceSettingsModal({
   initialRegistrationWindowMinutes,
   initialDefaultClassMinutes,
+  initialQrRotationSeconds = DEFAULT_ROTATION_SECONDS,
   initialPolicy = DEFAULT_GLOBAL_POLICY,
   inheritingCount = 0,
   customCount = 0,
@@ -40,6 +46,8 @@ export default function AttendanceSettingsModal({
 }: {
   initialRegistrationWindowMinutes: number
   initialDefaultClassMinutes: number
+  /** Rotación global del código QR (segundos) que heredan las sesiones nuevas. */
+  initialQrRotationSeconds?: number
   /** Política global vigente (app_settings). */
   initialPolicy?: GlobalPolicy
   /** Materias activas que heredan la política global. */
@@ -55,6 +63,7 @@ export default function AttendanceSettingsModal({
     String(initialRegistrationWindowMinutes)
   )
   const [classMinutes, setClassMinutes] = useState(String(initialDefaultClassMinutes))
+  const [qrRotation, setQrRotation] = useState(String(initialQrRotationSeconds))
   const [trackLates, setTrackLates] = useState(initialPolicy.lateAfterMinutes !== null)
   const [lateAfter, setLateAfter] = useState(
     String(initialPolicy.lateAfterMinutes ?? DEFAULT_LATE_AFTER_MINUTES)
@@ -76,6 +85,7 @@ export default function AttendanceSettingsModal({
   const payload = {
     registrationWindowMinutes: Number(registrationWindow),
     defaultClassMinutes: Number(classMinutes),
+    qrRotationSeconds: Number(qrRotation),
     lateAfterMinutes: trackLates ? emptyToNull(lateAfter) : null,
     latesPerAbsence: emptyToNull(latesPerAbsence),
     absenceRuleType: ruleType,
@@ -86,6 +96,7 @@ export default function AttendanceSettingsModal({
   const hasChanges =
     payload.registrationWindowMinutes !== initialRegistrationWindowMinutes ||
     payload.defaultClassMinutes !== initialDefaultClassMinutes ||
+    payload.qrRotationSeconds !== initialQrRotationSeconds ||
     payload.lateAfterMinutes !== initialPolicy.lateAfterMinutes ||
     payload.latesPerAbsence !== initialPolicy.latesPerAbsence ||
     payload.absenceRuleType !== initialPolicy.absenceRuleType ||
@@ -125,6 +136,7 @@ export default function AttendanceSettingsModal({
   const open = () => {
     setRegistrationWindow(String(initialRegistrationWindowMinutes))
     setClassMinutes(String(initialDefaultClassMinutes))
+    setQrRotation(String(initialQrRotationSeconds))
     setTrackLates(initialPolicy.lateAfterMinutes !== null)
     setLateAfter(String(initialPolicy.lateAfterMinutes ?? DEFAULT_LATE_AFTER_MINUTES))
     setLatesPerAbsence(
@@ -196,6 +208,18 @@ export default function AttendanceSettingsModal({
               value={registrationWindow}
               onChange={(e) => setRegistrationWindow(e.target.value)}
               helperText={`Tiempo que tienen los estudiantes para registrarse con el QR desde que el profesor habilita la asistencia. Entre ${REGISTRATION_WINDOW_RANGE.min} y ${REGISTRATION_WINDOW_RANGE.max}. Aplica a las clases que se inicien desde ahora.`}
+              required
+            />
+
+            <Input
+              label="Rotación del código QR (segundos)"
+              type="number"
+              inputMode="numeric"
+              min={QR_ROTATION_RANGE.min}
+              max={QR_ROTATION_RANGE.max}
+              value={qrRotation}
+              onChange={(e) => setQrRotation(e.target.value)}
+              helperText={`Cada cuántos segundos cambia el código QR que proyecta el profesor, en todas las clases nuevas. Un intervalo más largo reduce la carga del servidor; uno más corto hace que las fotos compartidas del código caduquen antes. Entre ${QR_ROTATION_RANGE.min} y ${QR_ROTATION_RANGE.max}. Las clases ya iniciadas conservan su intervalo.`}
               required
             />
 

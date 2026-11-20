@@ -3,15 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSession, type SessionModality } from '@/lib/actions/session'
-import {
-  DEFAULT_ROTATION_SECONDS,
-  MIN_ROTATION_SECONDS,
-  MAX_ROTATION_SECONDS,
-} from '@/lib/qrRotation'
 import { useToast } from '@/components/toast/ToastProvider'
 import { getBestEffortLocation } from '@/lib/utils/geolocation'
 import { sessionCapturesLocation } from '@/lib/attendance/captureScope'
-import { Settings2, ChevronDown } from 'lucide-react'
 import { bogotaCalendarDate } from '@/lib/utils/businessDays'
 import { dayOfWeekOf } from '@/lib/sessions/suspension'
 
@@ -48,8 +42,6 @@ export default function SessionButton({
   makeupOnly?: boolean
 }) {
   const [loading, setLoading] = useState(false)
-  const [showOptions, setShowOptions] = useState(false)
-  const [rotationSeconds, setRotationSeconds] = useState(DEFAULT_ROTATION_SECONDS)
   const [modality, setModality] = useState<SessionModality>(() =>
     defaultModalityForToday(schedules)
   )
@@ -72,7 +64,7 @@ export default function SessionButton({
     setLoading(true)
     // En una clase virtual no se pide la ubicación (ni se guarda).
     const coords = sessionCapturesLocation(modality) ? await getBestEffortLocation() : null
-    const res = await createSession(subjectId, coords || undefined, rotationSeconds, {
+    const res = await createSession(subjectId, coords || undefined, {
       modality,
       isMakeup,
       makeupReason: isMakeup ? trimmedMakeupReason : undefined,
@@ -139,49 +131,6 @@ export default function SessionButton({
           </div>
         )}
       </div>
-
-      <button
-        type="button"
-        onClick={() => setShowOptions((v) => !v)}
-        aria-expanded={showOptions}
-        className={`w-full flex items-center justify-between gap-1.5 px-3 py-2 mb-2 text-xs font-bold rounded-lg border transition ${
-          showOptions
-            ? 'text-navy-800 bg-navy-50 border-navy-200'
-            : 'text-gray-600 bg-gray-50 border-gray-200 hover:border-navy-200 hover:bg-navy-50 hover:text-navy-700'
-        }`}
-      >
-        <span className="flex items-center gap-1.5">
-          <Settings2 className="w-3.5 h-3.5" strokeWidth={2} />
-          Ajustar rotación del código
-        </span>
-        <ChevronDown
-          className={`w-3.5 h-3.5 transition-transform ${showOptions ? 'rotate-180' : ''}`}
-          strokeWidth={2}
-        />
-      </button>
-
-      {showOptions && (
-        <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-xl">
-          <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-            Rotación (segundos)
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              min={MIN_ROTATION_SECONDS}
-              max={MAX_ROTATION_SECONDS}
-              value={rotationSeconds}
-              onChange={(e) => setRotationSeconds(Number(e.target.value))}
-              className="w-20 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 font-semibold outline-none focus:border-navy-600 focus:ring-2 focus:ring-navy-100"
-            />
-            <p className="text-xs text-gray-500">
-              El código se renueva cada tantos segundos. Entre {MIN_ROTATION_SECONDS} y{' '}
-              {MAX_ROTATION_SECONDS} — más corto es más seguro, más largo da más margen para
-              escanear.
-            </p>
-          </div>
-        </div>
-      )}
 
       <button
         onClick={handleCreate}
