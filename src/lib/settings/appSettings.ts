@@ -12,7 +12,9 @@ export interface AppSettings {
   defaultClassMinutes: number
 }
 
-export const DEFAULT_REGISTRATION_WINDOW_MINUTES = 5
+// 30 min: debe superar la tolerancia de tardanza por defecto (20 min, ver
+// lateTracking.ts), o ningún escaneo por QR podría contar como tarde.
+export const DEFAULT_REGISTRATION_WINDOW_MINUTES = 30
 export const DEFAULT_CLASS_MINUTES = 120
 
 export const REGISTRATION_WINDOW_RANGE = { min: 1, max: 60 } as const

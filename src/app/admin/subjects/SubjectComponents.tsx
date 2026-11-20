@@ -18,6 +18,7 @@ import CreateFormToggle from '@/components/CreateFormToggle'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Plus, Pencil, Trash2, Calendar, BookMarked } from 'lucide-react'
 import { computePlannedSessions } from '@/lib/utils/plannedSessions'
+import { DEFAULT_LATE_AFTER_MINUTES } from '@/lib/attendance/lateTracking'
 
 const DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 
@@ -281,7 +282,7 @@ export function CreateSubjectForm({
             <input
               name="late_after_minutes"
               type="number"
-              defaultValue={15}
+              defaultValue={DEFAULT_LATE_AFTER_MINUTES}
               min={1}
               max={180}
               placeholder="Vacío = sin seguimiento"
@@ -389,7 +390,7 @@ export function SubjectActionButtons({
     subject.total_planned_sessions ?? 16
   )
   const [lateAfterMinutes, setLateAfterMinutes] = useState<number | string>(
-    subject.late_after_minutes ?? 15
+    subject.late_after_minutes ?? DEFAULT_LATE_AFTER_MINUTES
   )
   const [latesPerAbsence, setLatesPerAbsence] = useState<number | string>(
     subject.lates_per_absence ?? ''

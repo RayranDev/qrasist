@@ -85,8 +85,8 @@ export function validateAttachmentMeta({
  * Una sesión es justificable cuando la CLASE ya terminó: ahora es posterior
  * al fin efectivo de la clase (class_ends_at, o date + duración por defecto
  * en sesiones viejas). NO se usa expires_at: desde la migración 027 es solo
- * la ventana de registro por QR (5 minutos por defecto), y con ella un
- * estudiante figuraría como ausente a los 5 minutos de una clase de 2 horas.
+ * la ventana de registro por QR (30 minutos por defecto), y con ella un
+ * estudiante figuraría como ausente a los 30 minutos de una clase de 2 horas.
  *
  * Las sesiones archivadas (is_active = false) no cuentan como clase dictada,
  * así que quien llama debe descartarlas aparte.

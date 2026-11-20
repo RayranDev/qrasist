@@ -501,12 +501,12 @@ describe('createSession', () => {
     expect(row.expires_at).toBe('2026-03-02T13:28:00.000Z')
   })
 
-  it('falls back to the default 5 minute window when settings are unavailable', async () => {
+  it('falls back to the default 30 minute window when settings are unavailable', async () => {
     mockSettingsMaybeSingle.mockResolvedValue({ data: null })
 
     await createSession('subject-1')
 
-    expect(mockInsert.mock.calls[0][0].expires_at).toBe('2026-03-02T13:25:00.000Z')
+    expect(mockInsert.mock.calls[0][0].expires_at).toBe('2026-03-02T13:50:00.000Z')
   })
 
   it('ends the class at the schedule block end when the session starts inside a block', async () => {
