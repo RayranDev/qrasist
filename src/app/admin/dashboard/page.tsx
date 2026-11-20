@@ -11,6 +11,8 @@ import OnboardingChecklist from '@/components/admin/dashboard/OnboardingChecklis
 import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
 import { buildHeldCounter } from '@/lib/attendance/heldSessions'
 import { getAppSettings } from '@/lib/settings/appSettings'
+import { fetchAllRows, unwrapRows } from '@/lib/supabase/fetchAll'
+import { fetchDashboardAttendanceData } from '@/lib/admin/dashboardAttendanceData'
 import { countUnjustified, fetchClassOmissions } from '@/lib/attendance/classOmissionsData'
 import { countRecentSuspensions } from '@/lib/attendance/suspendedClasses'
 import {
@@ -98,23 +100,45 @@ export default async function AdminDashboardPage({
     ).map((c) => ({ id: c.id, name: c.name }))
   }
 
-  const { data: studentCareerLinks } = await supabase
-    .from('student_careers')
-    .select('student_id, career_id')
-    .eq('is_active', true)
+  // Vínculos estudiante-carrera: crecen con la cantidad de estudiantes, así
+  // que se paginan (un select sin rango se corta en 1000 filas).
+  const studentCareerLinks = unwrapRows(
+    await fetchAllRows<{ student_id: string; career_id: string }>(
+      (from, to) =>
+        supabase
+          .from('student_careers')
+          .select('id, student_id, career_id')
+          .eq('is_active', true)
+          .order('id')
+          .range(from, to),
+      1000,
+      { untilEmpty: true }
+    ),
+    'los vínculos estudiante-carrera'
+  )
 
-  const { data: subjectCareerLinks } = await supabase
-    .from('subject_careers')
-    .select('subject_id, career_id')
-    .eq('is_active', true)
+  const subjectCareerLinks = unwrapRows(
+    await fetchAllRows<{ subject_id: string; career_id: string }>(
+      (from, to) =>
+        supabase
+          .from('subject_careers')
+          .select('id, subject_id, career_id')
+          .eq('is_active', true)
+          .order('id')
+          .range(from, to),
+      1000,
+      { untilEmpty: true }
+    ),
+    'los vínculos materia-carrera'
+  )
 
   const careerStats = (careers || [])
     .map((c) => ({
       ...c,
       studentCount: new Set(
-        (studentCareerLinks || []).filter((sc) => sc.career_id === c.id).map((sc) => sc.student_id)
+        studentCareerLinks.filter((sc) => sc.career_id === c.id).map((sc) => sc.student_id)
       ).size,
-      subjectCount: (subjectCareerLinks || []).filter((sc) => sc.career_id === c.id).length,
+      subjectCount: subjectCareerLinks.filter((sc) => sc.career_id === c.id).length,
     }))
     .sort((a, b) => b.studentCount - a.studentCount)
 
@@ -166,48 +190,46 @@ export default async function AdminDashboardPage({
   // Materias asignadas a la vez a un período y a una carrera -- paso
   // de onboarding "Crear materias", ver dashboardAttention.ts
   const assignedSubjectsCount = (allSubjects || []).filter(
-    (s) => !!s.period_id && (subjectCareerLinks || []).some((l) => l.subject_id === s.id)
+    (s) => !!s.period_id && subjectCareerLinks.some((l) => l.subject_id === s.id)
   ).length
 
-  // Estudiantes con conteo de materias inscritas
-  const { data: students } = await supabase
-    .from('profiles')
-    .select('id, name, student_code')
-    .eq('role', 'STUDENT')
-    .eq('is_active', true)
-    .order('name')
+  // Estudiantes con conteo de materias inscritas. Las tablas que crecen con
+  // la cantidad de estudiantes, asistencias o sesiones se paginan: un select
+  // sin rango se corta en 1000 filas (max_rows de PostgREST) sin avisar.
+  const studentsResult = await fetchAllRows<{ id: string; name: string; student_code: string }>(
+    (from, to) =>
+      supabase
+        .from('profiles')
+        .select('id, name, student_code')
+        .eq('role', 'STUDENT')
+        .eq('is_active', true)
+        .order('name')
+        .order('id')
+        .range(from, to),
+    1000,
+    { untilEmpty: true }
+  )
+  const students = unwrapRows(studentsResult, 'los estudiantes')
 
-  const { data: allEnrollments } = await supabase
-    .from('enrollments')
-    .select('student_id, subject_id')
+  // Sesiones activas, asistencias, justificaciones aprobadas e inscripciones:
+  // base del presentismo institucional y de los estudiantes en riesgo.
+  const {
+    activeSessions: allActiveSessions,
+    attendances: allAttendanceRecords,
+    approvedJustifications: allApprovedJustifications,
+    enrollments: allEnrollments,
+  } = await fetchDashboardAttendanceData(supabase)
 
-  const studentStats = (students || [])
+  const studentStats = students
     .map((s) => ({
       ...s,
-      subjectCount: (allEnrollments || []).filter((e) => e.student_id === s.id).length,
+      subjectCount: allEnrollments.filter((e) => e.student_id === s.id).length,
     }))
     .sort((a, b) => b.subjectCount - a.subjectCount)
 
   // ==================== CÁLCULO DE KPIS DE ASISTENCIA ====================
-  // Sesiones activas con sus materias
-  const { data: allActiveSessions } = await supabase
-    .from('sessions')
-    .select('id, subject_id, date, class_ends_at')
-    .eq('is_active', true)
-
-  // Registro de asistencias para cálculo de alumnos en riesgo
-  const { data: allAttendanceRecords } = await supabase
-    .from('attendances')
-    .select('student_id, session_id, status, session:sessions(subject_id, is_active)')
-
-  // Justificaciones aprobadas: descuentan la falta en computeAttendanceSummary
-  const { data: allApprovedJustifications } = await supabase
-    .from('absence_justifications')
-    .select('student_id, subject_id')
-    .eq('status', 'APPROVED')
-
   const studentSubjectJustifiedCounts = new Map<string, number>()
-  for (const j of allApprovedJustifications || []) {
+  for (const j of allApprovedJustifications) {
     const key = `${j.student_id}_${j.subject_id}`
     studentSubjectJustifiedCounts.set(key, (studentSubjectJustifiedCounts.get(key) || 0) + 1)
   }
@@ -215,8 +237,8 @@ export default async function AdminDashboardPage({
   // Clases dictadas por estudiante y materia (DEF-QA-05): las terminadas,
   // más las clases en curso donde el estudiante ya escaneó.
   const heldFor = buildHeldCounter(
-    allActiveSessions || [],
-    allAttendanceRecords || [],
+    allActiveSessions,
+    allAttendanceRecords,
     new Date(),
     appSettings.defaultClassMinutes
   )
@@ -225,7 +247,7 @@ export default async function AdminDashboardPage({
   // key = `${studentId}_${subjectId}`
   const studentSubjectAttendances = new Map<string, number>()
   const studentSubjectLateCounts = new Map<string, number>()
-  for (const att of allAttendanceRecords || []) {
+  for (const att of allAttendanceRecords) {
     const attSession = att.session as { subject_id?: string; is_active?: boolean | null } | null
     // Clases archivadas o suspendidas no cuentan como dictadas, y sus
     // asistencias tampoco.
@@ -344,7 +366,7 @@ export default async function AdminDashboardPage({
     assignedSubjectsCount,
     professorsCount: totalProfessors ?? 0,
     studentsCount: totalStudents ?? 0,
-    enrollmentsCount: allEnrollments?.length ?? 0,
+    enrollmentsCount: allEnrollments.length,
   })
   const showOnboarding = !isOnboardingComplete(onboardingSteps)
 
