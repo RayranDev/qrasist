@@ -3,8 +3,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/adminClient'
 import { checkSubjectProfessor } from './authGuards'
-import { DEFAULT_ROTATION_SECONDS } from '@/lib/qrRotation'
-import { sessionConfigSchema } from '@/lib/validations/schemas'
 import { getAppSettings } from '@/lib/settings/appSettings'
 import { computeClassEndsAt, type ScheduleBlockTime } from '@/lib/sessions/classWindow'
 import { getBogotaDayRange } from '@/lib/utils/bogotaDay'
@@ -33,20 +31,19 @@ const MIN_MAKEUP_REASON_LENGTH = 5
  * decide el cliente: sale de app_settings (configurable por el
  * coordinador, RF11), y el fin de la clase (class_ends_at, RF21) se
  * deduce del horario semanal de la materia o, en su defecto, de la
- * duración de clase por defecto.
+ * duración de clase por defecto. La rotación del código QR tampoco la
+ * decide el cliente: es un parámetro global de coordinación
+ * (app_settings.qr_rotation_seconds) y la base de datos lo fuerza al insertar.
  */
-export async function createSession(
-  subjectId: string,
-  coords?: Coords,
-  rotationSeconds: number = DEFAULT_ROTATION_SECONDS,
-  extras?: SessionExtras
-) {
-  const parsed = sessionConfigSchema.pick({ rotationSeconds: true }).safeParse({ rotationSeconds })
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.issues[0]?.message || 'Parámetros de sesión inválidos.',
-    }
+export async function createSession(subjectId: string, coords?: Coords, extras?: SessionExtras) {
+  // Un cliente desactualizado (antes de que la rotación pasara a ser global)
+  // llama con la firma anterior (id, coords, rotación, extras): el tercer
+  // argumento sería un número y se perderían la modalidad y la reposición sin
+  // avisar. Se rechaza en vez de crear una sesión con datos equivocados.
+  const extrasIsPlainObject =
+    typeof extras === 'object' && extras !== null && !Array.isArray(extras)
+  if (extras !== undefined && !extrasIsPlainObject) {
+    return { success: false, error: 'Recarga la página e inténtalo de nuevo.' }
   }
 
   const modality: SessionModality | null =
@@ -136,7 +133,7 @@ export async function createSession(
       class_ends_at: classEndsAt.toISOString(),
       latitude: sessionCoords?.latitude ?? null,
       longitude: sessionCoords?.longitude ?? null,
-      qr_rotation_seconds: parsed.data.rotationSeconds,
+      qr_rotation_seconds: settings.qrRotationSeconds,
       modality,
       is_makeup: isMakeup,
       makeup_reason: isMakeup ? makeupReason : null,

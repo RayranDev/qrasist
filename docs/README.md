@@ -6,7 +6,7 @@ Cada carpeta responde a una pregunta distinta. Antes de agregar un archivo, elig
 | --- | --- | --- |
 | `entregables/` | Los cuatro documentos del proyecto en Word: manual de usuario, documentación de la aplicación, casos de uso y documentación del proyecto. | Sí, cuando cambia el software. |
 | `seguimiento/` | `QR-Asist_Registro_de_Cambios_Software.xlsx`: registro de cada cambio de software (funcionalidades, mejoras, correcciones, migraciones). | Sí, con cada cambio. Ver su hoja «Guía». |
-| `tecnica/` | Guías técnicas vigentes: propuesta de modo sin conexión, configuración de Supabase Auth y verificación autónoma con el entorno local. | Sí, cuando cambia lo que describen. |
+| `tecnica/` | Guías técnicas vigentes: parámetros de asistencia (globales, herencia, auditoría y orden de despliegue), propuesta de modo sin conexión, configuración de Supabase Auth y verificación autónoma con el entorno local. | Sí, cuando cambia lo que describen. |
 | `referencia/` | Documentos de origen que no son nuestros, como el levantamiento de requisitos del otro equipo. | No. Solo se cita. |
 | `presentaciones/` | Presentaciones de sustentación e informe técnico. | No, salvo para una nueva sustentación. |
 | `archivo/` | Material histórico o superado, conservado hasta decidir su retiro. | No. No lo uses como fuente. |

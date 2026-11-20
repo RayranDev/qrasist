@@ -143,18 +143,38 @@ describe('createSession', () => {
     vi.useRealTimers()
   })
 
-  it('rejects an out-of-range rotation without touching the database', async () => {
-    const result = await createSession('subject-1', undefined, 500)
+  it('inserts the GLOBAL QR rotation from app_settings (the client does not choose it)', async () => {
+    mockSettingsMaybeSingle.mockResolvedValue({
+      data: { registration_window_minutes: 5, default_class_minutes: 120, qr_rotation_seconds: 40 },
+    })
 
-    expect(result.success).toBe(false)
-    expect(mockGetUser).not.toHaveBeenCalled()
+    await createSession('subject-1')
+
+    expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({ qr_rotation_seconds: 40 }))
   })
 
-  it('rejects a non-finite rotation', async () => {
-    const result = await createSession('subject-1', undefined, NaN)
+  it.each([20, '20', null, ['x']])(
+    'rejects a stale client call whose third argument is not an options object (%j)',
+    async (stale) => {
+      const result = await createSession(
+        'subject-1',
+        undefined,
+        stale as unknown as Parameters<typeof createSession>[2]
+      )
 
-    expect(result.success).toBe(false)
-    expect(mockGetUser).not.toHaveBeenCalled()
+      expect(result).toEqual({
+        success: false,
+        error: 'Recarga la página e inténtalo de nuevo.',
+      })
+      expect(mockGetUser).not.toHaveBeenCalled()
+      expect(mockInsert).not.toHaveBeenCalled()
+    }
+  )
+
+  it('falls back to the default rotation when app_settings has no value yet', async () => {
+    await createSession('subject-1')
+
+    expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({ qr_rotation_seconds: 20 }))
   })
 
   it('rejects when the caller does not own the subject', async () => {
@@ -185,7 +205,7 @@ describe('createSession', () => {
       ],
     })
 
-    await createSession('subject-1', undefined, undefined, {
+    await createSession('subject-1', undefined, {
       modality: 'VIRTUAL',
       isMakeup: true,
       makeupReason: 'Reposición de la clase suspendida',
@@ -203,7 +223,7 @@ describe('createSession', () => {
 
   describe('makeup moves (race and failures)', () => {
     const makeup = (modality: 'VIRTUAL' | 'PRESENCIAL' = 'VIRTUAL') =>
-      createSession('subject-1', undefined, undefined, {
+      createSession('subject-1', undefined, {
         modality,
         isMakeup: true,
         makeupReason: 'Reposición de la clase suspendida',
@@ -305,7 +325,7 @@ describe('createSession', () => {
     })
 
     for (const modality of ['PRESENCIAL', undefined] as const) {
-      await createSession('subject-1', undefined, undefined, {
+      await createSession('subject-1', undefined, {
         modality,
         isMakeup: true,
         makeupReason: 'Reposición de la clase suspendida',
@@ -333,7 +353,7 @@ describe('createSession', () => {
     it('audits a VIRTUAL class opened on a day the schedule says PRESENCIAL', async () => {
       mockSchedulesResult.mockResolvedValue({ data: [monday('PRESENCIAL')] })
 
-      const result = await createSession('subject-1', undefined, undefined, { modality: 'VIRTUAL' })
+      const result = await createSession('subject-1', undefined, { modality: 'VIRTUAL' })
 
       expect(result.success).toBe(true)
       expect(modalityAudits()).toHaveLength(1)
@@ -353,9 +373,13 @@ describe('createSession', () => {
 
     it('still creates the class: the change is never blocked', async () => {
       mockSchedulesResult.mockResolvedValue({ data: [monday('PRESENCIAL')] })
-      await createSession('subject-1', { latitude: 4.6, longitude: -74.1 }, undefined, {
-        modality: 'VIRTUAL',
-      })
+      await createSession(
+        'subject-1',
+        { latitude: 4.6, longitude: -74.1 },
+        {
+          modality: 'VIRTUAL',
+        }
+      )
       expect(mockInsert).toHaveBeenCalledWith(
         expect.objectContaining({ modality: 'VIRTUAL', latitude: null, longitude: null })
       )
@@ -364,20 +388,20 @@ describe('createSession', () => {
     it('also audits the opposite change, an in-person class on a virtual day', async () => {
       mockSchedulesResult.mockResolvedValue({ data: [monday('VIRTUAL')] })
 
-      await createSession('subject-1', undefined, undefined, { modality: 'PRESENCIAL' })
+      await createSession('subject-1', undefined, { modality: 'PRESENCIAL' })
 
       expect(modalityAudits()).toHaveLength(1)
     })
 
     it('does not audit when the modality matches, when the day has no block or mixes modalities', async () => {
       mockSchedulesResult.mockResolvedValue({ data: [monday('VIRTUAL')] })
-      await createSession('subject-1', undefined, undefined, { modality: 'VIRTUAL' })
+      await createSession('subject-1', undefined, { modality: 'VIRTUAL' })
 
       mockSchedulesResult.mockResolvedValue({ data: [monday('PRESENCIAL', { day_of_week: 3 })] })
-      await createSession('subject-1', undefined, undefined, { modality: 'VIRTUAL' })
+      await createSession('subject-1', undefined, { modality: 'VIRTUAL' })
 
       mockSchedulesResult.mockResolvedValue({ data: [monday('PRESENCIAL'), monday('VIRTUAL')] })
-      await createSession('subject-1', undefined, undefined, { modality: 'VIRTUAL' })
+      await createSession('subject-1', undefined, { modality: 'VIRTUAL' })
 
       expect(modalityAudits()).toHaveLength(0)
     })
@@ -385,7 +409,7 @@ describe('createSession', () => {
     it('validates the modality strictly: an unknown value is stored as null and never audited', async () => {
       mockSchedulesResult.mockResolvedValue({ data: [monday('PRESENCIAL')] })
 
-      await createSession('subject-1', undefined, undefined, {
+      await createSession('subject-1', undefined, {
         modality: 'ONLINE' as unknown as 'VIRTUAL',
       })
 
@@ -395,9 +419,13 @@ describe('createSession', () => {
   })
 
   it('stores the professor coordinates for an in-person class', async () => {
-    await createSession('subject-1', { latitude: 4.6, longitude: -74.1 }, undefined, {
-      modality: 'PRESENCIAL',
-    })
+    await createSession(
+      'subject-1',
+      { latitude: 4.6, longitude: -74.1 },
+      {
+        modality: 'PRESENCIAL',
+      }
+    )
 
     expect(mockInsert).toHaveBeenCalledWith(
       expect.objectContaining({ latitude: 4.6, longitude: -74.1, modality: 'PRESENCIAL' })
@@ -405,9 +433,13 @@ describe('createSession', () => {
   })
 
   it('discards the coordinates of a virtual class even if the client sends them', async () => {
-    await createSession('subject-1', { latitude: 4.6, longitude: -74.1 }, undefined, {
-      modality: 'VIRTUAL',
-    })
+    await createSession(
+      'subject-1',
+      { latitude: 4.6, longitude: -74.1 },
+      {
+        modality: 'VIRTUAL',
+      }
+    )
 
     expect(mockInsert).toHaveBeenCalledWith(
       expect.objectContaining({ latitude: null, longitude: null, modality: 'VIRTUAL' })
@@ -415,9 +447,13 @@ describe('createSession', () => {
   })
 
   it('ignores invalid coordinates', async () => {
-    await createSession('subject-1', { latitude: 999, longitude: -74.1 }, undefined, {
-      modality: 'PRESENCIAL',
-    })
+    await createSession(
+      'subject-1',
+      { latitude: 999, longitude: -74.1 },
+      {
+        modality: 'PRESENCIAL',
+      }
+    )
 
     expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({ latitude: null }))
   })
@@ -425,7 +461,7 @@ describe('createSession', () => {
   it('still allows a makeup class on a day whose regular class was suspended', async () => {
     mockSuspendedToday.mockResolvedValue({ data: [{ id: 'suspended-1' }] })
 
-    const result = await createSession('subject-1', undefined, undefined, {
+    const result = await createSession('subject-1', undefined, {
       isMakeup: true,
       makeupReason: 'Reposición de la clase suspendida',
     })
@@ -443,7 +479,7 @@ describe('createSession', () => {
       ],
     })
 
-    const result = await createSession('subject-1', undefined, undefined, {
+    const result = await createSession('subject-1', undefined, {
       isMakeup: true,
       makeupReason: 'Reposición de la clase suspendida',
     })
@@ -468,7 +504,7 @@ describe('createSession', () => {
   })
 
   it('moves nothing for a makeup on a day without a suspended class', async () => {
-    const result = await createSession('subject-1', undefined, undefined, {
+    const result = await createSession('subject-1', undefined, {
       isMakeup: true,
       makeupReason: 'Reposición por paro de transporte',
     })
@@ -531,7 +567,7 @@ describe('createSession', () => {
 
   describe('modality and makeup reason', () => {
     it('rejects a makeup session with no reason at all, without touching the database', async () => {
-      const result = await createSession('subject-1', undefined, 20, { isMakeup: true })
+      const result = await createSession('subject-1', undefined, { isMakeup: true })
 
       expect(result.success).toBe(false)
       expect(result.error).toMatch(/motivo/i)
@@ -539,7 +575,7 @@ describe('createSession', () => {
     })
 
     it('rejects a makeup session whose reason is below the minimum length', async () => {
-      const result = await createSession('subject-1', undefined, 20, {
+      const result = await createSession('subject-1', undefined, {
         isMakeup: true,
         makeupReason: 'abc',
       })
@@ -549,7 +585,7 @@ describe('createSession', () => {
     })
 
     it('does not require a reason when the session is not a makeup', async () => {
-      const result = await createSession('subject-1', undefined, 20, {
+      const result = await createSession('subject-1', undefined, {
         modality: 'VIRTUAL',
         isMakeup: false,
       })
@@ -558,7 +594,7 @@ describe('createSession', () => {
     })
 
     it('accepts a makeup session once the reason meets the minimum length', async () => {
-      const result = await createSession('subject-1', undefined, 20, {
+      const result = await createSession('subject-1', undefined, {
         modality: 'PRESENCIAL',
         isMakeup: true,
         makeupReason: 'Clase reprogramada por paro',

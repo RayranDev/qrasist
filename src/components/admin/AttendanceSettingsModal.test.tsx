@@ -145,6 +145,7 @@ describe('AttendanceSettingsModal global policy', () => {
     expect(mockUpdate).toHaveBeenCalledWith({
       registrationWindowMinutes: 30,
       defaultClassMinutes: 120,
+      qrRotationSeconds: 20,
       lateAfterMinutes: null,
       latesPerAbsence: null,
       absenceRuleType: 'PERCENTAGE',
@@ -158,6 +159,35 @@ describe('AttendanceSettingsModal global policy', () => {
       )
     ).toBeTruthy()
     expect(mockRefresh).toHaveBeenCalled()
+  })
+
+  it('edits the global QR rotation, needs a reason and sends it with the settings', async () => {
+    mockUpdate.mockResolvedValue({
+      success: true,
+      changed: true,
+      inheritingCount: 1,
+      customCount: 0,
+    })
+    openModal({ window: 30 })
+    const rotation = screen.getByLabelText(/Rotación del código QR/)
+    expect(rotation).toHaveValue(20)
+    expect(rotation).toHaveAttribute('min', '10')
+    expect(rotation).toHaveAttribute('max', '60')
+    // The helper says a shared photo can stay valid for about twice the interval.
+    const helper = screen.getByText(/código actual y el anterior/)
+    expect(helper.textContent).toMatch(/doble del intervalo \(≈40 s con 20 s, ≈120 s con 60 s\)/)
+
+    fireEvent.change(rotation, { target: { value: '30' } })
+    expect(saveButton().disabled).toBe(true)
+    setReason('Acuerdo de la reunión')
+    expect(saveButton().disabled).toBe(false)
+    fireEvent.click(saveButton())
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1))
+    expect(mockUpdate.mock.calls[0][0]).toMatchObject({
+      qrRotationSeconds: 30,
+      reason: 'Acuerdo de la reunión',
+    })
   })
 
   it('announces the server error in an alert region', async () => {

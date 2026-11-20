@@ -11,6 +11,7 @@ const mockRevalidate = vi.fn()
 const currentRow = {
   registration_window_minutes: 30,
   default_class_minutes: 120,
+  qr_rotation_seconds: 20,
   late_after_minutes: 20,
   lates_per_absence: null,
   absence_rule_type: 'PERCENTAGE',
@@ -68,6 +69,7 @@ vi.mock('@/lib/supabase/server', () => ({
 const baseInput = {
   registrationWindowMinutes: 30,
   defaultClassMinutes: 120,
+  qrRotationSeconds: 20,
   lateAfterMinutes: 20,
   latesPerAbsence: null,
   absenceRuleType: 'PERCENTAGE',
@@ -150,6 +152,30 @@ describe('updateAppSettings (global attendance policy)', () => {
       late_after_minutes: { before: 20, after: null },
     })
   })
+
+  it('audits a QR rotation change with before, after and the reason, and writes it', async () => {
+    const result = await updateAppSettings({
+      ...baseInput,
+      qrRotationSeconds: 30,
+      reason: 'Acuerdo de la reunión',
+    })
+
+    expect(result).toMatchObject({ success: true, changed: true })
+    expect(mockUpsert).toHaveBeenCalledWith(expect.objectContaining({ qr_rotation_seconds: 30 }))
+    expect(mockLogAudit.mock.calls[0][0].details).toEqual({
+      changes: { qr_rotation_seconds: { before: 20, after: 30 } },
+      reason: 'Acuerdo de la reunión',
+    })
+  })
+
+  it.each([9, 61, 20.5, 'x'])(
+    'rejects QR rotation %s before writing',
+    async (qrRotationSeconds) => {
+      const result = await updateAppSettings({ ...baseInput, qrRotationSeconds, reason: 'Acuerdo' })
+      expect(result.success).toBe(false)
+      expect(mockUpsert).not.toHaveBeenCalled()
+    }
+  )
 
   it('skips the write and the audit when nothing changed, even without a reason', async () => {
     const result = await updateAppSettings(baseInput)

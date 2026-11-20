@@ -46,6 +46,7 @@ async function countActiveSubjectsByOverride(
 
 /**
  * Actualiza la configuración global de asistencia: ventana de registro por QR,
+ * rotación del código QR (la heredan las sesiones nuevas, migración 038),
  * duración de clase por defecto y la política de asistencia (tolerancia de
  * tardanza, tardanzas por falta y regla de faltas). Solo ADMIN; la escritura
  * va con service-role porque app_settings no tiene policies de escritura
@@ -80,11 +81,13 @@ export async function updateAppSettings(rawInput: unknown): Promise<UpdateAppSet
     {
       registration_window_minutes: beforeTiming.registrationWindowMinutes,
       default_class_minutes: beforeTiming.defaultClassMinutes,
+      qr_rotation_seconds: beforeTiming.qrRotationSeconds,
       ...policyToColumns(beforePolicy),
     },
     {
       registration_window_minutes: timing.settings.registrationWindowMinutes,
       default_class_minutes: timing.settings.defaultClassMinutes,
+      qr_rotation_seconds: timing.settings.qrRotationSeconds,
       ...policyToColumns(policy.policy),
     }
   )
@@ -101,6 +104,7 @@ export async function updateAppSettings(rawInput: unknown): Promise<UpdateAppSet
     id: 1,
     registration_window_minutes: timing.settings.registrationWindowMinutes,
     default_class_minutes: timing.settings.defaultClassMinutes,
+    qr_rotation_seconds: timing.settings.qrRotationSeconds,
     ...policyToColumns(policy.policy),
     updated_at: new Date().toISOString(),
     updated_by: user.id,

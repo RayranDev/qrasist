@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loginSchema, signupSchema, subjectSchema, sessionConfigSchema } from './schemas'
+import { loginSchema, signupSchema, subjectSchema } from './schemas'
 import { generateValidStudentCode } from './studentCode'
 
 describe('Zod Validation Schemas', () => {
@@ -42,17 +42,5 @@ describe('Zod Validation Schemas', () => {
       expect(valid.data.maxAbsencePercentage).toBe(20)
       expect(valid.data.totalPlannedSessions).toBe(16)
     }
-  })
-
-  it('should enforce bounds on sessionConfigSchema', () => {
-    expect(sessionConfigSchema.safeParse({ durationMinutes: 0, rotationSeconds: 20 }).success).toBe(
-      false
-    )
-    expect(sessionConfigSchema.safeParse({ durationMinutes: 15, rotationSeconds: 5 }).success).toBe(
-      false
-    )
-    expect(
-      sessionConfigSchema.safeParse({ durationMinutes: 15, rotationSeconds: 20 }).success
-    ).toBe(true)
   })
 })
