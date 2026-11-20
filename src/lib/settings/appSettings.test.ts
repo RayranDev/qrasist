@@ -78,7 +78,7 @@ describe('getAppSettings', () => {
     expect(settings.qrRotationSeconds).toBe(20)
   })
 
-  it('retries without the rotation column when it does not exist yet (038 not applied)', async () => {
+  function clientFailingFirst(error: { code?: string; message: string }) {
     const selects: string[] = []
     const chain = {
       select: (columns: string) => {
@@ -88,19 +88,44 @@ describe('getAppSettings', () => {
       eq: () => chain,
       maybeSingle: async () =>
         selects.length === 1
-          ? { data: null, error: { message: 'column qr_rotation_seconds does not exist' } }
-          : { data: { registration_window_minutes: 12, default_class_minutes: 100 }, error: null },
+          ? { data: null, error }
+          : {
+              data: {
+                registration_window_minutes: 12,
+                default_class_minutes: 100,
+                qr_rotation_seconds: 45,
+              },
+              error: null,
+            },
     }
-    const settings = await getAppSettings({ from: () => chain } as unknown as SupabaseClient)
+    return { selects, client: { from: () => chain } as unknown as SupabaseClient }
+  }
 
-    expect(selects).toHaveLength(2)
-    expect(selects[1]).not.toMatch(/qr_rotation_seconds/)
-    expect(settings).toEqual({
-      registrationWindowMinutes: 12,
-      defaultClassMinutes: 100,
-      qrRotationSeconds: 20,
-    })
-  })
+  it.each(['42703', 'PGRST204'])(
+    'retries without the rotation column when it is missing (code %s, 038 not applied)',
+    async (code) => {
+      const { selects, client } = clientFailingFirst({
+        code,
+        message: 'column app_settings.qr_rotation_seconds does not exist',
+      })
+      const settings = await getAppSettings(client)
+
+      expect(selects).toHaveLength(2)
+      expect(selects[1]).not.toMatch(/qr_rotation_seconds/)
+      expect(settings.registrationWindowMinutes).toBe(12)
+    }
+  )
+
+  it.each([{ code: '57014', message: 'statement timeout' }, { message: 'fetch failed' }])(
+    'does not retry on a transient error %j, so a wrong rotation is never reported as current',
+    async (error) => {
+      const { selects, client } = clientFailingFirst(error)
+      const settings = await getAppSettings(client)
+
+      expect(selects).toHaveLength(1)
+      expect(settings).toEqual(DEFAULT_APP_SETTINGS)
+    }
+  )
 
   it('falls back to defaults when the row is missing', async () => {
     expect(await getAppSettings(clientReturning(null))).toEqual(DEFAULT_APP_SETTINGS)

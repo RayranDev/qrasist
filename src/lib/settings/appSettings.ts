@@ -83,6 +83,15 @@ export function parseAppSettingsInput(
 }
 
 /**
+ * True si el error de PostgREST es "la columna no existe": Postgres 42703
+ * (undefined_column, lo que devuelve un SELECT de una columna desconocida) o
+ * PGRST204 (columna no encontrada en la caché del esquema).
+ */
+function isMissingRotationColumn(error: { code?: string; message?: string }): boolean {
+  return error.code === '42703' || error.code === 'PGRST204'
+}
+
+/**
  * Lee la configuración vigente. Si la fila no existe o la lectura
  * falla (ej. la migración 027 todavía no se aplicó), devuelve los
  * valores por defecto en vez de tumbar el flujo de asistencia.
@@ -96,9 +105,12 @@ export async function getAppSettings(supabase: SupabaseClient): Promise<AppSetti
   )
   // Si la migración 038 todavía no se aplicó, la columna nueva no existe y la
   // lectura falla: se reintenta sin ella para no perder la ventana ni la duración.
-  const data = first.error
-    ? (await read('registration_window_minutes, default_class_minutes')).data
-    : first.data
+  // Cualquier otro error (red, permisos, timeout) NO se reintenta: devolver 20 s
+  // como si fuera el valor vigente daría un "antes" falso al auditar un cambio.
+  const data =
+    first.error && isMissingRotationColumn(first.error)
+      ? (await read('registration_window_minutes, default_class_minutes')).data
+      : first.data
 
   if (!data) return DEFAULT_APP_SETTINGS
   const row = data as unknown as Record<string, unknown>
