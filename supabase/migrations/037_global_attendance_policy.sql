@@ -36,6 +36,10 @@
 --   3) Trigger BEFORE INSERT OR UPDATE en subjects: si NO policy_override,
 --      reescribe las cinco columnas con los valores de app_settings.
 --      total_planned_sessions NO se toca: depende del horario de cada materia.
+--      La lectura de app_settings usa FOR SHARE, así que se serializa con un
+--      UPDATE concurrente de la política global; si la fila singleton no
+--      existe, el trigger falla con un mensaje claro en vez de dejar pasar
+--      valores sin heredar.
 --
 --   4) Trigger AFTER UPDATE en app_settings: al cambiar un parámetro global
 --      propaga el cambio a las materias con policy_override = false, en la
@@ -196,14 +200,20 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  SELECT * INTO g FROM public.app_settings WHERE id = 1;
-  IF FOUND THEN
-    NEW.late_after_minutes := g.late_after_minutes;
-    NEW.lates_per_absence := g.lates_per_absence;
-    NEW.absence_rule_type := g.absence_rule_type;
-    NEW.max_absence_percentage := g.max_absence_percentage;
-    NEW.max_absence_count := g.max_absence_count;
+  -- FOR SHARE serializa esta lectura con un UPDATE concurrente de app_settings:
+  -- una materia que se inserta o actualiza mientras el coordinador guarda la
+  -- política global espera a que termine y lee el valor nuevo, en vez de quedar
+  -- con valores viejos y policy_override = false.
+  SELECT * INTO g FROM public.app_settings WHERE id = 1 FOR SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'No existe la fila de configuración global (app_settings, id = 1): no se puede heredar la política de asistencia';
   END IF;
+
+  NEW.late_after_minutes := g.late_after_minutes;
+  NEW.lates_per_absence := g.lates_per_absence;
+  NEW.absence_rule_type := g.absence_rule_type;
+  NEW.max_absence_percentage := g.max_absence_percentage;
+  NEW.max_absence_count := g.max_absence_count;
 
   RETURN NEW;
 END;
