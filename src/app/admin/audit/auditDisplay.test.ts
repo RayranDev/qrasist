@@ -26,6 +26,40 @@ describe('justification audit display', () => {
   })
 })
 
+describe('attendance settings audit display', () => {
+  it('lists every changed field with before and after, then the reason', () => {
+    expect(
+      summarizeAuditDetails('settings.update_attendance', {
+        changes: {
+          late_after_minutes: { before: 20, after: 25 },
+          lates_per_absence: { before: null, after: 3 },
+        },
+        reason: 'Acta de coordinación',
+      })
+    ).toBe(
+      'tolerancia de tardanza: 20 min → 25 min · tardanzas por falta: ninguna → 3 · motivo: Acta de coordinación'
+    )
+  })
+
+  it('still renders rows written before the global policy existed', () => {
+    expect(
+      summarizeAuditDetails('settings.update_attendance', {
+        registration_window_minutes_before: 5,
+        registration_window_minutes_after: 30,
+        default_class_minutes_before: 120,
+        default_class_minutes_after: 120,
+      })
+    ).toBe('registro 5 → 30 min · clase 120 → 120 min')
+  })
+
+  it('keeps the historical bulk overwrite actions readable', () => {
+    expect(auditActionLabel('policy.update_global_absence')).toBe(
+      'Actualizó la política global de inasistencias'
+    )
+    expect(auditActionLabel('policy.update_global_refused')).toContain('política global')
+  })
+})
+
 describe('capture data export audit display', () => {
   it('labels the action in Spanish', () => {
     expect(auditActionLabel('report.export_capture_data')).toBe(

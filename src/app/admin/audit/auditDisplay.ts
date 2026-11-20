@@ -1,4 +1,5 @@
 import type { AuditAction } from '@/lib/audit/auditLog'
+import { describeFieldChange, readFieldChanges } from '@/lib/settings/globalPolicy'
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'attendance.mark': 'Marcó asistencia manual',
@@ -91,12 +92,21 @@ export function summarizeAuditDetails(action: string, details: Record<string, un
         parts.push(REPORT_LABELS[String(details.report)] ?? String(details.report))
       if (typeof details.rows === 'number') parts.push(`${details.rows} filas`)
       break
-    case 'settings.update_attendance':
-      parts.push(
-        `registro ${details.registration_window_minutes_before ?? '?'} → ${details.registration_window_minutes_after ?? '?'} min`,
-        `clase ${details.default_class_minutes_before ?? '?'} → ${details.default_class_minutes_after ?? '?'} min`
-      )
+    case 'settings.update_attendance': {
+      const changes = readFieldChanges(details)
+      if (changes) {
+        for (const [field, change] of Object.entries(changes)) {
+          parts.push(describeFieldChange(field, change))
+        }
+      } else {
+        // Filas anteriores a la política global: solo traían ventana y duración.
+        parts.push(
+          `registro ${details.registration_window_minutes_before ?? '?'} → ${details.registration_window_minutes_after ?? '?'} min`,
+          `clase ${details.default_class_minutes_before ?? '?'} → ${details.default_class_minutes_after ?? '?'} min`
+        )
+      }
       break
+    }
     case 'user.role_change':
       parts.push(`${details.role_before ?? '?'} → ${details.role_after ?? '?'}`)
       if (typeof details.enrollments_removed === 'number' && details.enrollments_removed > 0) {
