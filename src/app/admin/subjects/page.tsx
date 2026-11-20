@@ -14,6 +14,7 @@ import SubjectFilters from './SubjectFilters'
 import { buildSubjectsViewKey } from './subjectsViewKey'
 import { sanitizeSearchTerm } from '@/lib/utils/searchTerm'
 import { RoleBadge } from '@/components/ui/RoleBadge'
+import { getGlobalPolicy } from '@/lib/settings/globalPolicy'
 
 export const dynamic = 'force-dynamic'
 // Esta página hospeda la carga masiva de Excel (Server Action); un archivo
@@ -50,6 +51,8 @@ export default async function AdminSubjectsPage({
   const currentPage = Math.max(1, parseInt(params.page || '1', 10) || 1)
   const from = (currentPage - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
+
+  const globalPolicy = await getGlobalPolicy(supabase)
 
   const { data: careers } = await supabase
     .from('careers')
@@ -168,6 +171,7 @@ export default async function AdminSubjectsPage({
 
           <CreateSubjectForm
             periods={periods || []}
+            globalPolicy={globalPolicy}
             resetKey={buildSubjectsViewKey({
               status: statusFilter,
               q: searchQuery,
@@ -234,6 +238,14 @@ export default async function AdminSubjectsPage({
                               Archivada
                             </span>
                           )}
+                          {sub.policy_override && (
+                            <span
+                              className="px-2 py-0.5 text-xs font-bold bg-violet-50 text-violet-700 rounded-full"
+                              title="Esta materia usa su propia política de asistencia y no cambia con la global"
+                            >
+                              Política personalizada
+                            </span>
+                          )}
                           {sub.period && (
                             <span className="px-2 py-0.5 text-xs font-mono font-medium bg-neutral-100 text-neutral-600 border border-neutral-200/60 rounded-md">
                               {sub.period.name}
@@ -245,6 +257,7 @@ export default async function AdminSubjectsPage({
                           professors={professors}
                           periods={periods || []}
                           subjectCareerIds={subjectCareerIds}
+                          globalPolicy={globalPolicy}
                         />
                       </div>
                       <h3 className="font-bold text-gray-900 mb-1 text-lg">{sub.name}</h3>

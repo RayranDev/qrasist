@@ -36,6 +36,7 @@ export type AuditAction =
   | 'policy.update_global_absence'
   | 'policy.update_global_refused'
   | 'settings.update_attendance'
+  | 'subject.update_policy'
   | 'justification.approve'
   | 'justification.reject'
   | 'justification.register'

@@ -1,7 +1,6 @@
 import { requireRole } from '@/lib/auth/requireRole'
 import AdminHeader from '@/components/admin/AdminHeader'
 import PaginatedConsolidatedBoard from '@/components/admin/PaginatedConsolidatedBoard'
-import GlobalAbsencePolicyModal from '@/components/admin/GlobalAbsencePolicyModal'
 import AttendanceSettingsModal from '@/components/admin/AttendanceSettingsModal'
 import AttendanceReportPanel from '@/components/admin/AttendanceReportPanel'
 import { usableCuts, type PeriodCutRow } from '@/lib/attendance/cutsView'
@@ -11,7 +10,7 @@ import OnboardingChecklist from '@/components/admin/dashboard/OnboardingChecklis
 import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
 import { buildHeldCounter } from '@/lib/attendance/heldSessions'
 import { getAppSettings } from '@/lib/settings/appSettings'
-import { DEFAULT_LATE_AFTER_MINUTES } from '@/lib/attendance/lateTracking'
+import { getGlobalPolicy } from '@/lib/settings/globalPolicy'
 import { fetchAllRows, unwrapRows } from '@/lib/supabase/fetchAll'
 import { fetchDashboardAttendanceData } from '@/lib/admin/dashboardAttendanceData'
 import { countUnjustified, fetchClassOmissions } from '@/lib/attendance/classOmissionsData'
@@ -164,7 +163,7 @@ export default async function AdminDashboardPage({
   const { data: allSubjects } = await supabase
     .from('subjects')
     .select(
-      'id, name, code, professor_id, period_id, absence_rule_type, max_absence_percentage, max_absence_count, total_planned_sessions, late_after_minutes, lates_per_absence, enrollments(student_id)'
+      'id, name, code, professor_id, period_id, absence_rule_type, max_absence_percentage, max_absence_count, total_planned_sessions, late_after_minutes, lates_per_absence, policy_override, enrollments(student_id)'
     )
     .eq('is_active', true)
     .order('name')
@@ -314,24 +313,20 @@ export default async function AdminDashboardPage({
   }
   const studentsAtRiskCount = atRiskStudentIds.size
 
-  // Valores de política activa institucional
-  const sampleSubject = allSubjects?.[0]
-  const defaultRuleType =
-    (sampleSubject?.absence_rule_type as 'PERCENTAGE' | 'FIXED_COUNT') || 'PERCENTAGE'
-  const defaultPercentage = sampleSubject?.max_absence_percentage ?? 20
-  const defaultCount = sampleSubject?.max_absence_count ?? 4
-  const defaultPlanned = sampleSubject?.total_planned_sessions ?? 16
-  const defaultLateAfterMinutes = sampleSubject?.late_after_minutes ?? DEFAULT_LATE_AFTER_MINUTES
-  // Tolerancias vigentes en las materias activas: el aviso de la ventana de
-  // registro compara contra ellas (ver lateTracking.ts).
-  const knownLateAfterMinutes = Array.from(
+  // Política de asistencia global (app_settings) y cuántas materias activas la
+  // heredan o tienen una política personalizada (policy_override).
+  const globalPolicy = await getGlobalPolicy(supabase)
+  const inheritingSubjectsCount = (allSubjects || []).filter((s) => !s.policy_override).length
+  const customSubjects = (allSubjects || []).filter((s) => s.policy_override)
+  // Tolerancias de las materias con política personalizada: el aviso de la
+  // ventana de registro compara contra ellas (ver lateTracking.ts).
+  const customLateAfterMinutes = Array.from(
     new Set(
-      (allSubjects || [])
+      customSubjects
         .map((s) => s.late_after_minutes)
         .filter((m): m is number => typeof m === 'number')
     )
   )
-  const defaultLatesPerAbsence = sampleSubject?.lates_per_absence ?? null
 
   // Clases programadas que ningún docente registró ni justificó (RF22).
   // Se calcula al leer a partir de horario x período x sesiones; vacío si no
@@ -412,19 +407,13 @@ export default async function AdminDashboardPage({
 
           {/* ==================== HERRAMIENTAS INSTITUCIONALES ==================== */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 flex-wrap">
-            <GlobalAbsencePolicyModal
-              initialRuleType={defaultRuleType}
-              initialPercentage={defaultPercentage}
-              initialCount={defaultCount}
-              initialPlannedSessions={defaultPlanned}
-              initialLateAfterMinutes={defaultLateAfterMinutes}
-              initialLatesPerAbsence={defaultLatesPerAbsence}
-              totalSubjectsCount={totalSubjects ?? 0}
-            />
             <AttendanceSettingsModal
               initialRegistrationWindowMinutes={appSettings.registrationWindowMinutes}
               initialDefaultClassMinutes={appSettings.defaultClassMinutes}
-              knownLateAfterMinutes={knownLateAfterMinutes}
+              initialPolicy={globalPolicy}
+              inheritingCount={inheritingSubjectsCount}
+              customCount={customSubjects.length}
+              customLateAfterMinutes={customLateAfterMinutes}
             />
           </div>
           {periods && periods.length > 0 && (

@@ -1,28 +1,19 @@
 /**
- * One-line, human-readable description of the attendance policy currently in
- * effect, shown at the top of the global policy modal so the admin knows which
- * of the prefilled numbers are the values in force.
+ * One-line, human-readable description of the global attendance policy, shown
+ * read-only in the subject forms so the admin sees which values a subject
+ * inherits when it does not use a custom policy.
  */
 import { pluralize } from '@/lib/utils/plural'
+import type { GlobalPolicy } from '@/lib/settings/globalPolicy'
 
-export interface PolicySummaryInput {
-  ruleType: 'PERCENTAGE' | 'FIXED_COUNT'
-  percentage: number
-  count: number
-  plannedSessions: number
-  lateAfterMinutes: number | null
-  latesPerAbsence: number | null
-}
-
-export function buildCurrentPolicySummary(policy: PolicySummaryInput): string {
+export function buildGlobalPolicySummary(policy: GlobalPolicy): string {
   const parts: string[] = []
 
   parts.push(
-    policy.ruleType === 'PERCENTAGE'
-      ? `${policy.percentage}% de inasistencias`
-      : `máximo ${policy.count} ${pluralize(policy.count, 'inasistencia')}`
+    policy.absenceRuleType === 'PERCENTAGE'
+      ? `${policy.maxAbsencePercentage}% de inasistencias`
+      : `máximo ${policy.maxAbsenceCount ?? '?'} ${pluralize(policy.maxAbsenceCount ?? 0, 'inasistencia')}`
   )
-  parts.push(`${policy.plannedSessions} ${pluralize(policy.plannedSessions, 'sesión', 'sesiones')}`)
 
   if (policy.lateAfterMinutes === null) {
     parts.push('sin seguimiento de tardanzas')
@@ -35,5 +26,5 @@ export function buildCurrentPolicySummary(policy: PolicySummaryInput): string {
     }
   }
 
-  return `Vigente: ${parts.join(' · ')}`
+  return `Política global: ${parts.join(' · ')}`
 }

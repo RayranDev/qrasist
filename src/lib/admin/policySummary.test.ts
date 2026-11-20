@@ -1,47 +1,43 @@
 import { describe, it, expect } from 'vitest'
-import { buildCurrentPolicySummary } from './policySummary'
+import { buildGlobalPolicySummary } from './policySummary'
+import type { GlobalPolicy } from '@/lib/settings/globalPolicy'
 
-const base = {
-  ruleType: 'PERCENTAGE' as const,
-  percentage: 20,
-  count: 4,
-  plannedSessions: 16,
-  lateAfterMinutes: 15,
+const base: GlobalPolicy = {
+  lateAfterMinutes: 20,
   latesPerAbsence: null,
+  absenceRuleType: 'PERCENTAGE',
+  maxAbsencePercentage: 20,
+  maxAbsenceCount: null,
 }
 
-describe('buildCurrentPolicySummary', () => {
+describe('buildGlobalPolicySummary', () => {
   it('describes a percentage policy with lateness tracking', () => {
-    expect(buildCurrentPolicySummary(base)).toBe(
-      'Vigente: 20% de inasistencias · 16 sesiones · tardanza a los 15 min'
+    expect(buildGlobalPolicySummary(base)).toBe(
+      'Política global: 20% de inasistencias · tardanza a los 20 min'
     )
   })
 
   it('describes a fixed-count policy', () => {
-    expect(buildCurrentPolicySummary({ ...base, ruleType: 'FIXED_COUNT', count: 4 })).toBe(
-      'Vigente: máximo 4 inasistencias · 16 sesiones · tardanza a los 15 min'
-    )
-    expect(buildCurrentPolicySummary({ ...base, ruleType: 'FIXED_COUNT', count: 1 })).toContain(
-      'máximo 1 inasistencia ·'
-    )
+    expect(
+      buildGlobalPolicySummary({ ...base, absenceRuleType: 'FIXED_COUNT', maxAbsenceCount: 4 })
+    ).toBe('Política global: máximo 4 inasistencias · tardanza a los 20 min')
+    expect(
+      buildGlobalPolicySummary({ ...base, absenceRuleType: 'FIXED_COUNT', maxAbsenceCount: 1 })
+    ).toContain('máximo 1 inasistencia ·')
   })
 
-  it('says lateness tracking is disabled when the tolerance is empty', () => {
-    expect(buildCurrentPolicySummary({ ...base, lateAfterMinutes: null, latesPerAbsence: 3 })).toBe(
-      'Vigente: 20% de inasistencias · 16 sesiones · sin seguimiento de tardanzas'
+  it('says lateness tracking is disabled when the tolerance is null', () => {
+    expect(buildGlobalPolicySummary({ ...base, lateAfterMinutes: null, latesPerAbsence: 3 })).toBe(
+      'Política global: 20% de inasistencias · sin seguimiento de tardanzas'
     )
   })
 
   it('includes the lateness-to-absence conversion when set', () => {
-    expect(buildCurrentPolicySummary({ ...base, latesPerAbsence: 3 })).toBe(
-      'Vigente: 20% de inasistencias · 16 sesiones · tardanza a los 15 min · 3 tardanzas suman 1 falta'
+    expect(buildGlobalPolicySummary({ ...base, latesPerAbsence: 3 })).toBe(
+      'Política global: 20% de inasistencias · tardanza a los 20 min · 3 tardanzas suman 1 falta'
     )
-    expect(buildCurrentPolicySummary({ ...base, latesPerAbsence: 1 })).toContain(
+    expect(buildGlobalPolicySummary({ ...base, latesPerAbsence: 1 })).toContain(
       '1 tardanza suma 1 falta'
     )
-  })
-
-  it('uses the singular for a single planned session', () => {
-    expect(buildCurrentPolicySummary({ ...base, plannedSessions: 1 })).toContain('1 sesión ·')
   })
 })

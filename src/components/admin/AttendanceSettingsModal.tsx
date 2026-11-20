@@ -6,22 +6,48 @@ import { Timer, CheckCircle2, AlertCircle, Info } from 'lucide-react'
 import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
 import { updateAppSettings } from '@/lib/actions/appSettings'
 import { CLASS_MINUTES_RANGE, REGISTRATION_WINDOW_RANGE } from '@/lib/settings/appSettings'
+import {
+  DEFAULT_GLOBAL_POLICY,
+  LATE_AFTER_RANGE,
+  LATES_PER_ABSENCE_RANGE,
+  MAX_ABSENCE_COUNT_RANGE,
+  MAX_ABSENCE_PERCENTAGE_RANGE,
+  MAX_CHANGE_REASON_LENGTH,
+  MIN_CHANGE_REASON_LENGTH,
+  type AbsenceRuleType,
+  type GlobalPolicy,
+} from '@/lib/settings/globalPolicy'
 import {
   DEFAULT_LATE_AFTER_MINUTES,
   smallestUnreachableLateAfter,
 } from '@/lib/attendance/lateTracking'
 
+const textareaClass =
+  'w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm font-medium text-gray-900 placeholder:text-gray-400 transition-all duration-150 hover:border-gray-300 focus:outline-none focus:border-navy-600 focus:ring-2 focus:ring-navy-100 resize-none'
+
+const emptyToNull = (value: string): number | null => (value.trim() === '' ? null : Number(value))
+
 export default function AttendanceSettingsModal({
   initialRegistrationWindowMinutes,
   initialDefaultClassMinutes,
-  knownLateAfterMinutes = [],
+  initialPolicy = DEFAULT_GLOBAL_POLICY,
+  inheritingCount = 0,
+  customCount = 0,
+  customLateAfterMinutes = [],
 }: {
   initialRegistrationWindowMinutes: number
   initialDefaultClassMinutes: number
-  /** Tolerancias de tardanza (min) que hoy tienen las materias activas; las nulas se omiten. */
-  knownLateAfterMinutes?: number[]
+  /** Política global vigente (app_settings). */
+  initialPolicy?: GlobalPolicy
+  /** Materias activas que heredan la política global. */
+  inheritingCount?: number
+  /** Materias activas con política personalizada (no cambian con la global). */
+  customCount?: number
+  /** Tolerancias de tardanza (min) de las materias con política personalizada; las nulas se omiten. */
+  customLateAfterMinutes?: number[]
 }) {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
@@ -29,20 +55,62 @@ export default function AttendanceSettingsModal({
     String(initialRegistrationWindowMinutes)
   )
   const [classMinutes, setClassMinutes] = useState(String(initialDefaultClassMinutes))
+  const [trackLates, setTrackLates] = useState(initialPolicy.lateAfterMinutes !== null)
+  const [lateAfter, setLateAfter] = useState(
+    String(initialPolicy.lateAfterMinutes ?? DEFAULT_LATE_AFTER_MINUTES)
+  )
+  const [latesPerAbsence, setLatesPerAbsence] = useState(
+    initialPolicy.latesPerAbsence === null ? '' : String(initialPolicy.latesPerAbsence)
+  )
+  const [ruleType, setRuleType] = useState<AbsenceRuleType>(initialPolicy.absenceRuleType)
+  const [percentage, setPercentage] = useState(String(initialPolicy.maxAbsencePercentage))
+  const [count, setCount] = useState(
+    initialPolicy.maxAbsenceCount === null ? '' : String(initialPolicy.maxAbsenceCount)
+  )
+  const [reason, setReason] = useState('')
   const [loading, setLoading] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(
     null
   )
 
+  const payload = {
+    registrationWindowMinutes: Number(registrationWindow),
+    defaultClassMinutes: Number(classMinutes),
+    lateAfterMinutes: trackLates ? emptyToNull(lateAfter) : null,
+    latesPerAbsence: emptyToNull(latesPerAbsence),
+    absenceRuleType: ruleType,
+    maxAbsencePercentage: Number(percentage),
+    // La cantidad fija solo aplica con esa regla; con porcentaje se envía null.
+    maxAbsenceCount: ruleType === 'FIXED_COUNT' ? emptyToNull(count) : null,
+  }
+  const hasChanges =
+    payload.registrationWindowMinutes !== initialRegistrationWindowMinutes ||
+    payload.defaultClassMinutes !== initialDefaultClassMinutes ||
+    payload.lateAfterMinutes !== initialPolicy.lateAfterMinutes ||
+    payload.latesPerAbsence !== initialPolicy.latesPerAbsence ||
+    payload.absenceRuleType !== initialPolicy.absenceRuleType ||
+    payload.maxAbsencePercentage !== initialPolicy.maxAbsencePercentage ||
+    payload.maxAbsenceCount !== initialPolicy.maxAbsenceCount
+  const reasonValid = reason.trim().length >= MIN_CHANGE_REASON_LENGTH
+  const saveDisabled = !hasChanges || !reasonValid
+  const saveHint = !hasChanges
+    ? 'Cambia algún valor para poder guardar.'
+    : 'Escribe el motivo del cambio para poder guardar.'
+
   // Aviso no bloqueante: si la ventana no supera la tolerancia de tardanza (la
-  // por defecto o la de alguna materia), esos escaneos nunca podrían ser tarde.
+  // global del formulario o la de alguna materia personalizada), esos escaneos
+  // nunca podrían ser tarde.
   const windowMinutes = Number(registrationWindow)
+  const formLateAfter =
+    trackLates && Number.isFinite(Number(lateAfter)) && lateAfter.trim() !== ''
+      ? Number(lateAfter)
+      : null
   const unreachableLateAfter =
     registrationWindow.trim() === '' || !Number.isFinite(windowMinutes)
       ? null
       : smallestUnreachableLateAfter(
           windowMinutes,
-          [DEFAULT_LATE_AFTER_MINUTES, ...knownLateAfterMinutes],
+          [formLateAfter, ...customLateAfterMinutes],
           // Tolerancias que ni la ventana máxima supera no se pueden arreglar aquí.
           REGISTRATION_WINDOW_RANGE.max
         )
@@ -52,19 +120,40 @@ export default function AttendanceSettingsModal({
     setFeedback(null)
   }
 
+  // Al abrir, el formulario arranca desde los valores vigentes y sin motivo: lo
+  // escrito antes y no guardado no debe reaparecer ni reutilizarse.
+  const open = () => {
+    setRegistrationWindow(String(initialRegistrationWindowMinutes))
+    setClassMinutes(String(initialDefaultClassMinutes))
+    setTrackLates(initialPolicy.lateAfterMinutes !== null)
+    setLateAfter(String(initialPolicy.lateAfterMinutes ?? DEFAULT_LATE_AFTER_MINUTES))
+    setLatesPerAbsence(
+      initialPolicy.latesPerAbsence === null ? '' : String(initialPolicy.latesPerAbsence)
+    )
+    setRuleType(initialPolicy.absenceRuleType)
+    setPercentage(String(initialPolicy.maxAbsencePercentage))
+    setCount(initialPolicy.maxAbsenceCount === null ? '' : String(initialPolicy.maxAbsenceCount))
+    setReason('')
+    setFeedback(null)
+    setIsOpen(true)
+  }
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setFeedback(null)
 
     try {
-      const res = await updateAppSettings({
-        registrationWindowMinutes: Number(registrationWindow),
-        defaultClassMinutes: Number(classMinutes),
-      })
+      const res = await updateAppSettings({ ...payload, reason })
 
       if (res.success) {
-        setFeedback({ type: 'success', message: 'Configuración de asistencia guardada.' })
+        setFeedback({
+          type: 'success',
+          message: res.changed
+            ? `Configuración guardada. Materias que heredan la política: ${res.inheritingCount}. Con política personalizada (sin cambios): ${res.customCount}.`
+            : 'No había cambios que guardar.',
+        })
+        setReason('')
         router.refresh()
       } else {
         setFeedback({ type: 'error', message: res.error || 'No se pudo guardar la configuración.' })
@@ -83,7 +172,7 @@ export default function AttendanceSettingsModal({
     <>
       <button
         type="button"
-        onClick={() => setIsOpen(true)}
+        onClick={open}
         className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-neutral-700 bg-white border border-neutral-200/80 hover:bg-neutral-50 hover:border-neutral-300 rounded-lg shadow-2xs transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
       >
         <Timer className="w-3.5 h-3.5 text-neutral-500 stroke-[1.75]" />
@@ -93,8 +182,9 @@ export default function AttendanceSettingsModal({
       {isOpen && (
         <Modal
           title="Configuración de asistencia"
-          description="Tiempos que aplican a todas las materias"
+          description="Tiempos y política que aplican a todas las materias"
           onClose={close}
+          maxWidth="max-w-xl"
         >
           <form onSubmit={handleSave} className="space-y-5">
             <Input
@@ -121,6 +211,87 @@ export default function AttendanceSettingsModal({
               required
             />
 
+            <fieldset className="space-y-4 pt-4 border-t border-gray-100 min-w-0">
+              <legend className="text-sm font-bold text-gray-900 pr-2">
+                Política de asistencia
+              </legend>
+              <p className="text-xs text-gray-500">
+                Solo coordinación puede cambiarla. Materias activas que la heredan:{' '}
+                {inheritingCount}. Con política personalizada (no cambian): {customCount}.
+              </p>
+
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-xs font-semibold text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!trackLates}
+                    onChange={(e) => setTrackLates(!e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-navy-700 focus:ring-navy-600"
+                  />
+                  Sin seguimiento de tardanzas
+                </label>
+                <Input
+                  label="Tolerancia de tardanza (minutos)"
+                  type="number"
+                  inputMode="numeric"
+                  min={LATE_AFTER_RANGE.min}
+                  max={LATE_AFTER_RANGE.max}
+                  value={trackLates ? lateAfter : ''}
+                  onChange={(e) => setLateAfter(e.target.value)}
+                  disabled={!trackLates}
+                  required={trackLates}
+                  helperText={`Minutos desde el inicio de la clase a partir de los cuales un escaneo cuenta como tarde. Entre ${LATE_AFTER_RANGE.min} y ${LATE_AFTER_RANGE.max}.`}
+                />
+              </div>
+
+              <Input
+                label="Tardanzas por falta"
+                type="number"
+                inputMode="numeric"
+                min={LATES_PER_ABSENCE_RANGE.min}
+                max={LATES_PER_ABSENCE_RANGE.max}
+                value={latesPerAbsence}
+                onChange={(e) => setLatesPerAbsence(e.target.value)}
+                placeholder="Ej. 3 (opcional)"
+                helperText="Cada cuántas tardanzas se suma una inasistencia. Vacío: las tardanzas nunca se convierten en falta."
+              />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Select
+                  label="Regla de faltas"
+                  value={ruleType}
+                  onChange={(e) => setRuleType(e.target.value as AbsenceRuleType)}
+                >
+                  <option value="PERCENTAGE">Porcentaje de inasistencia</option>
+                  <option value="FIXED_COUNT">Cantidad fija de faltas</option>
+                </Select>
+                {ruleType === 'PERCENTAGE' ? (
+                  <Input
+                    label="Límite de faltas (%)"
+                    type="number"
+                    inputMode="numeric"
+                    min={MAX_ABSENCE_PERCENTAGE_RANGE.min}
+                    max={MAX_ABSENCE_PERCENTAGE_RANGE.max}
+                    value={percentage}
+                    onChange={(e) => setPercentage(e.target.value)}
+                    required
+                  />
+                ) : (
+                  <Input
+                    label="Límite de faltas (cantidad)"
+                    type="number"
+                    inputMode="numeric"
+                    min={MAX_ABSENCE_COUNT_RANGE.min}
+                    max={MAX_ABSENCE_COUNT_RANGE.max}
+                    value={count}
+                    onChange={(e) => setCount(e.target.value)}
+                    placeholder="Ej. 4"
+                    required
+                  />
+                )}
+              </div>
+            </fieldset>
+
             {/* El contenedor del aviso siempre está en el DOM: una región en vivo que
                 aparece junto con su contenido no se anuncia de forma fiable. */}
             <div role="status">
@@ -137,9 +308,33 @@ export default function AttendanceSettingsModal({
               )}
             </div>
 
+            <div className="space-y-1.5">
+              <label
+                htmlFor="settings-change-reason"
+                className="block text-xs font-semibold text-gray-700 tracking-wide"
+              >
+                Motivo del cambio
+              </label>
+              <textarea
+                id="settings-change-reason"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={2}
+                required
+                aria-describedby="settings-change-reason-hint"
+                maxLength={MAX_CHANGE_REASON_LENGTH}
+                placeholder="Ej. Acuerdo de la reunión de coordinación del 12 de noviembre"
+                className={textareaClass}
+              />
+              <p id="settings-change-reason-hint" className="text-xs text-gray-500">
+                Obligatorio (mínimo {MIN_CHANGE_REASON_LENGTH} caracteres). Queda registrado en la
+                auditoría junto con el valor anterior y el nuevo.
+              </p>
+            </div>
+
             {feedback && (
               <div
-                role="status"
+                role={feedback.type === 'error' ? 'alert' : 'status'}
                 className={`p-3 rounded-xl flex items-center gap-2 text-xs font-medium ${
                   feedback.type === 'success'
                     ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
@@ -155,6 +350,12 @@ export default function AttendanceSettingsModal({
               </div>
             )}
 
+            {saveDisabled && (
+              <p id="settings-save-hint" className="text-xs text-gray-500 text-right">
+                {saveHint}
+              </p>
+            )}
+
             <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-neutral-100">
               <Button
                 type="button"
@@ -165,7 +366,14 @@ export default function AttendanceSettingsModal({
               >
                 Cerrar
               </Button>
-              <Button type="submit" variant="primary" size="sm" isLoading={loading}>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                isLoading={loading}
+                disabled={saveDisabled}
+                aria-describedby={saveDisabled ? 'settings-save-hint' : undefined}
+              >
                 Guardar
               </Button>
             </div>
