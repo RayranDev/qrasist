@@ -49,10 +49,10 @@ describe('justification window (RF26: 3 business days)', () => {
 describe('isSessionAlreadyHeld', () => {
   const date = '2026-03-02T13:00:00Z' // 08:00 Bogota
 
-  it('is false while the class is running even though the 5-minute QR window already closed', () => {
+  it('is false while the class is running even though the 30-minute QR window already closed', () => {
     const session = { date, class_ends_at: '2026-03-02T15:00:00Z' }
-    // 20 minutes in: registration window (5 min) is over, class is not
-    expect(isSessionAlreadyHeld(session, 120, new Date('2026-03-02T13:20:00Z'))).toBe(false)
+    // 40 minutes in: registration window (30 min) is over, class is not
+    expect(isSessionAlreadyHeld(session, 120, new Date('2026-03-02T13:40:00Z'))).toBe(false)
   })
 
   it('becomes true only after the class end', () => {

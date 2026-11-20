@@ -10,6 +10,7 @@ import {
 import { buildPolicyOverwriteMessage } from '@/lib/admin/policyOverwrite'
 import { buildCurrentPolicySummary } from '@/lib/admin/policySummary'
 import { pluralize } from '@/lib/utils/plural'
+import { DEFAULT_LATE_AFTER_MINUTES } from '@/lib/attendance/lateTracking'
 
 interface GlobalAbsencePolicyModalProps {
   initialRuleType?: 'PERCENTAGE' | 'FIXED_COUNT'
@@ -26,7 +27,7 @@ export default function GlobalAbsencePolicyModal({
   initialPercentage = 20,
   initialCount = 4,
   initialPlannedSessions = 16,
-  initialLateAfterMinutes = 15,
+  initialLateAfterMinutes = DEFAULT_LATE_AFTER_MINUTES,
   initialLatesPerAbsence = null,
   totalSubjectsCount = 95,
 }: GlobalAbsencePolicyModalProps) {

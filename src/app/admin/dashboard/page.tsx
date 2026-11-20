@@ -11,6 +11,7 @@ import OnboardingChecklist from '@/components/admin/dashboard/OnboardingChecklis
 import { computeAttendanceSummary } from '@/lib/utils/attendancePolicy'
 import { buildHeldCounter } from '@/lib/attendance/heldSessions'
 import { getAppSettings } from '@/lib/settings/appSettings'
+import { DEFAULT_LATE_AFTER_MINUTES } from '@/lib/attendance/lateTracking'
 import { fetchAllRows, unwrapRows } from '@/lib/supabase/fetchAll'
 import { fetchDashboardAttendanceData } from '@/lib/admin/dashboardAttendanceData'
 import { countUnjustified, fetchClassOmissions } from '@/lib/attendance/classOmissionsData'
@@ -320,7 +321,16 @@ export default async function AdminDashboardPage({
   const defaultPercentage = sampleSubject?.max_absence_percentage ?? 20
   const defaultCount = sampleSubject?.max_absence_count ?? 4
   const defaultPlanned = sampleSubject?.total_planned_sessions ?? 16
-  const defaultLateAfterMinutes = sampleSubject?.late_after_minutes ?? 15
+  const defaultLateAfterMinutes = sampleSubject?.late_after_minutes ?? DEFAULT_LATE_AFTER_MINUTES
+  // Tolerancias vigentes en las materias activas: el aviso de la ventana de
+  // registro compara contra ellas (ver lateTracking.ts).
+  const knownLateAfterMinutes = Array.from(
+    new Set(
+      (allSubjects || [])
+        .map((s) => s.late_after_minutes)
+        .filter((m): m is number => typeof m === 'number')
+    )
+  )
   const defaultLatesPerAbsence = sampleSubject?.lates_per_absence ?? null
 
   // Clases programadas que ningún docente registró ni justificó (RF22).
@@ -414,6 +424,7 @@ export default async function AdminDashboardPage({
             <AttendanceSettingsModal
               initialRegistrationWindowMinutes={appSettings.registrationWindowMinutes}
               initialDefaultClassMinutes={appSettings.defaultClassMinutes}
+              knownLateAfterMinutes={knownLateAfterMinutes}
             />
           </div>
           {periods && periods.length > 0 && (

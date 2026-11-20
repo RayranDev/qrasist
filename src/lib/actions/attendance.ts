@@ -134,7 +134,7 @@ export async function registerAttendance(
 
   // Límite por IP (200/min). El tope es alto a propósito porque un salón de
   // ~40 estudiantes comparte la IP del NAT del campus y escanea en la misma
-  // ventana de registro (5 min), a menudo en el primer minuto; 200/min cubre
+  // ventana de registro (30 min por defecto), a menudo en el primer minuto; 200/min cubre
   // varios salones a la vez. La clave lleva la IP y queda en rate_limits, así
   // que NO se consulta en una clase virtual (ahí la IP no se guarda en ningún
   // lado); sí en todo lo demás, incluidos los tokens que no existen.
