@@ -121,6 +121,40 @@ describe('fetchDashboardAttendanceData', () => {
     }
   })
 
+  it('drops a row repeated at a page boundary (live inserts shift offset pages)', async () => {
+    // Pages as the server returns them when a row is inserted between requests:
+    // a3 / e3 close page 1 and open page 2 again.
+    const pages: Record<string, Row[][]> = {
+      attendances: [
+        [{ id: 'a1' }, { id: 'a2' }, { id: 'a3' }],
+        [{ id: 'a3' }, { id: 'a4' }, { id: 'a5' }],
+        [{ id: 'a6' }],
+        [],
+      ],
+      enrollments: [[{ id: 'e1' }, { id: 'e2' }, { id: 'e3' }], [{ id: 'e3' }, { id: 'e4' }], []],
+    }
+    const seen: Record<string, number> = {}
+    const client = {
+      from(table: string) {
+        const builder: Record<string, unknown> = {}
+        for (const method of ['select', 'eq', 'order', 'range']) {
+          builder[method] = () => builder
+        }
+        builder.then = (resolve: (v: unknown) => unknown) => {
+          const index = (seen[table] = (seen[table] ?? -1) + 1)
+          const data = pages[table]?.[index] ?? []
+          return Promise.resolve({ data, error: null }).then(resolve)
+        }
+        return builder
+      },
+    } as unknown as SupabaseClient
+
+    const data = await fetchDashboardAttendanceData(client)
+
+    expect(data.attendances.map((a) => a.id)).toEqual(['a1', 'a2', 'a3', 'a4', 'a5', 'a6'])
+    expect(data.enrollments.map((e) => e.id)).toEqual(['e1', 'e2', 'e3', 'e4'])
+  })
+
   it('throws instead of computing indicators from partial data when a page fails', async () => {
     const { client } = fakeClient({}, 1000, 'attendances')
 

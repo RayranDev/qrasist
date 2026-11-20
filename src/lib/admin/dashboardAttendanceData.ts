@@ -25,6 +25,7 @@ export interface DashboardSessionRow {
 }
 
 export interface DashboardAttendanceRow {
+  id: string
   student_id: string
   session_id: string
   status: string
@@ -34,11 +35,13 @@ export interface DashboardAttendanceRow {
 }
 
 export interface DashboardJustificationRow {
+  id: string
   student_id: string
   subject_id: string
 }
 
 export interface DashboardEnrollmentRow {
+  id: string
   student_id: string
   subject_id: string
 }
@@ -100,9 +103,27 @@ export async function fetchDashboardAttendanceData(
   ])
 
   return {
-    activeSessions: unwrapRows(sessions, 'las sesiones activas'),
-    attendances: unwrapRows(attendances, 'las asistencias'),
-    approvedJustifications: unwrapRows(justifications, 'las justificaciones aprobadas'),
-    enrollments: unwrapRows(enrollments, 'las inscripciones'),
+    activeSessions: dedupeById(unwrapRows(sessions, 'las sesiones activas')),
+    attendances: dedupeById(unwrapRows(attendances, 'las asistencias')),
+    approvedJustifications: dedupeById(unwrapRows(justifications, 'las justificaciones aprobadas')),
+    enrollments: dedupeById(unwrapRows(enrollments, 'las inscripciones')),
   }
+}
+
+/**
+ * El paginado por offset no es una foto consistente: si se insertan filas
+ * mientras se pagina (asistencias en vivo), una fila puede correrse y
+ * aparecer al final de una página y al principio de la siguiente. Se
+ * descartan los duplicados por `id` para no contar una marca dos veces.
+ *
+ * Lo inverso (una fila que se salta) sigue siendo teóricamente posible con
+ * paginado por offset: la solución de fondo es un agregado SQL o una función
+ * RPC que cuente en una sola consulta, no traer todas las filas.
+ */
+function dedupeById<T extends { id: string }>(rows: T[]): T[] {
+  const byId = new Map<string, T>()
+  for (const row of rows) {
+    if (!byId.has(row.id)) byId.set(row.id, row)
+  }
+  return Array.from(byId.values())
 }
