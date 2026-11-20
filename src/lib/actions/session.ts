@@ -36,6 +36,16 @@ const MIN_MAKEUP_REASON_LENGTH = 5
  * (app_settings.qr_rotation_seconds) y la base de datos lo fuerza al insertar.
  */
 export async function createSession(subjectId: string, coords?: Coords, extras?: SessionExtras) {
+  // Un cliente desactualizado (antes de que la rotación pasara a ser global)
+  // llama con la firma anterior (id, coords, rotación, extras): el tercer
+  // argumento sería un número y se perderían la modalidad y la reposición sin
+  // avisar. Se rechaza en vez de crear una sesión con datos equivocados.
+  const extrasIsPlainObject =
+    typeof extras === 'object' && extras !== null && !Array.isArray(extras)
+  if (extras !== undefined && !extrasIsPlainObject) {
+    return { success: false, error: 'Recarga la página e inténtalo de nuevo.' }
+  }
+
   const modality: SessionModality | null =
     extras?.modality === 'PRESENCIAL' || extras?.modality === 'VIRTUAL' ? extras.modality : null
   const isMakeup = extras?.isMakeup === true

@@ -153,6 +153,24 @@ describe('createSession', () => {
     expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({ qr_rotation_seconds: 40 }))
   })
 
+  it.each([20, '20', null, ['x']])(
+    'rejects a stale client call whose third argument is not an options object (%j)',
+    async (stale) => {
+      const result = await createSession(
+        'subject-1',
+        undefined,
+        stale as unknown as Parameters<typeof createSession>[2]
+      )
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Recarga la página e inténtalo de nuevo.',
+      })
+      expect(mockGetUser).not.toHaveBeenCalled()
+      expect(mockInsert).not.toHaveBeenCalled()
+    }
+  )
+
   it('falls back to the default rotation when app_settings has no value yet', async () => {
     await createSession('subject-1')
 
